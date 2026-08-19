@@ -157,8 +157,14 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
   const batteryDrop = batteryStart != null && batteryEnd != null ? batteryStart - batteryEnd : null;
 
   const infoLines: Array<{ label: string; value: string; color?: [number, number, number] }> = [];
-  if (trip.firstAt) infoLines.push({ label: "Started", value: `${format(new Date(trip.firstAt), "p")} — ${startAddr ?? "—"}` });
-  if (trip.lastAt) infoLines.push({ label: "Ended", value: `${format(new Date(trip.lastAt), "p")} — ${endAddr ?? "—"}` });
+  if (trip.startedAt) infoLines.push({
+    label: "Started",
+    value: `${format(new Date(trip.startedAt), "p")}${trip.startedAtApprox ? " (approx)" : ""} — ${startAddr ?? "—"}`,
+  });
+  if (trip.endedAt) infoLines.push({
+    label: "Ended",
+    value: `${format(new Date(trip.endedAt), "p")}${trip.endedAtApprox ? " (approx)" : ""} — ${endAddr ?? "—"}`,
+  });
   if (batteryStart != null) infoLines.push({ label: "Battery at start", value: `${batteryStart}%`, color: batteryStart <= 20 ? BRAND.danger : BRAND.moving });
   if (batteryEnd != null) infoLines.push({ label: "Battery at end", value: `${batteryEnd}%${batteryDrop != null ? ` (dropped ${batteryDrop}%)` : ""}`, color: batteryEnd <= 20 ? BRAND.danger : BRAND.stopped });
 
@@ -179,6 +185,41 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
     iy += 6;
   }
   y += overviewH + 6;
+
+  // -------- Signal-lost segments --------
+  if (trip.gaps.length > 0) {
+    if (y > H - 60) { doc.addPage(); y = 20; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...BRAND.danger);
+    doc.text(`Signal lost (${trip.gaps.length})`, M, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...BRAND.muted);
+    doc.text("intervals excluded from distance and driving time", M + 40, y);
+    y += 3;
+    autoTable(doc, {
+      startY: y,
+      margin: { left: M, right: M },
+      head: [["From", "To", "Duration", "Discarded jump"]],
+      body: trip.gaps.map((g) => [
+        format(new Date(g.from), "HH:mm"),
+        format(new Date(g.to), "HH:mm"),
+        formatDurationMinutes(g.durationMinutes),
+        `${g.jumpedKm.toFixed(1)} km`,
+      ]),
+      headStyles: {
+        fillColor: BRAND.danger,
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 9,
+      },
+      alternateRowStyles: { fillColor: BRAND.tileBg },
+      styles: { fontSize: 9, cellPadding: 2.5, textColor: BRAND.ink },
+    });
+    // @ts-expect-error autoTable augments the doc with lastAutoTable
+    y = doc.lastAutoTable.finalY + 8;
+  }
 
   // -------- Stops table --------
   if (trip.stops.length > 0) {
