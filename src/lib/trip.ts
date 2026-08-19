@@ -205,6 +205,65 @@ export function buildTripSummary(points: RawPoint[], sessions: TripSessionRow[] 
   };
 }
 
+/**
+ * Pick sparse waypoints along a trip so we can reverse-geocode them without
+ * bulk-hammering Nominatim. Emits a point whenever the last-emitted was at
+ * least `minKm` km away, OR at least `minMinutes` minutes earlier, OR the
+ * heading has turned by at least `headingChangeDeg` degrees. Skips the first
+ * and last point (those are captured separately as Start / End) and points
+ * that would fall inside a signal-lost pair. Hard-caps the result at `maxCount`.
+ */
+export interface WaypointOpts {
+  minKm?: number;
+  minMinutes?: number;
+  headingChangeDeg?: number;
+  maxCount?: number;
+}
+export function selectWaypoints(points: RawPoint[], opts: WaypointOpts = {}): RawPoint[] {
+  const minKm = opts.minKm ?? 2;
+  const minMinutes = opts.minMinutes ?? 5;
+  const headingChangeDeg = opts.headingChangeDeg ?? 45;
+  const maxCount = opts.maxCount ?? 30;
+  if (points.length < 3) return [];
+
+  const bearing = (a: RawPoint, b: RawPoint) => {
+    const y = Math.sin(toRad(b.longitude - a.longitude)) * Math.cos(toRad(b.latitude));
+    const x = Math.cos(toRad(a.latitude)) * Math.sin(toRad(b.latitude)) -
+              Math.sin(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.cos(toRad(b.longitude - a.longitude));
+    return (Math.atan2(y, x) * 180) / Math.PI;
+  };
+
+  const picked: RawPoint[] = [];
+  let lastEmit = points[0];
+  let lastBearing: number | null = null;
+  for (let i = 1; i < points.length - 1; i++) {
+    const p = points[i];
+    const dt = (new Date(p.recorded_at).getTime() - new Date(lastEmit.recorded_at).getTime()) / 1000;
+    // Skip pairs that cross a signal-lost boundary — those are already reported
+    // as gaps, so we don't want a waypoint that pretends the drive was continuous.
+    if (dt > 180) { lastEmit = p; lastBearing = null; continue; }
+
+    const km = haversineMeters([lastEmit.latitude, lastEmit.longitude], [p.latitude, p.longitude]) / 1000;
+    const mins = dt / 60;
+    const brg = bearing(lastEmit, p);
+    let bearingTurn = 0;
+    if (lastBearing != null) {
+      const diff = Math.abs(((brg - lastBearing + 540) % 360) - 180);
+      bearingTurn = diff;
+    }
+    if (km >= minKm || mins >= minMinutes || bearingTurn >= headingChangeDeg) {
+      picked.push(p);
+      lastEmit = p;
+      lastBearing = brg;
+      if (picked.length >= maxCount) break;
+    }
+  }
+  // Down-sample if we somehow overshot the cap (defensive; break above should hold).
+  if (picked.length <= maxCount) return picked;
+  const stride = Math.ceil(picked.length / maxCount);
+  return picked.filter((_, i) => i % stride === 0);
+}
+
 export function formatDurationMinutes(mins: number): string {
   if (mins < 1) return "<1 min";
   const h = Math.floor(mins / 60);

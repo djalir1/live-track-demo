@@ -2,9 +2,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import type { TripSummary } from "./trip";
-import { formatDurationMinutes } from "./trip";
+import { formatDurationMinutes, selectWaypoints } from "./trip";
 import { getVehicle, type VehicleType } from "./vehicles";
-import { reverseGeocode } from "./geocode";
+import { reverseGeocode, reverseGeocodeAddress } from "./geocode";
 
 export interface ReportInput {
   driverName: string;
@@ -36,11 +36,22 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
 
   const startPt = trip.points[0];
   const endPt = trip.points[trip.points.length - 1];
-  const [startAddr, endAddr, ...stopAddrs] = await Promise.all([
-    startPt ? reverseGeocode(startPt.latitude, startPt.longitude) : Promise.resolve(null),
-    endPt ? reverseGeocode(endPt.latitude, endPt.longitude) : Promise.resolve(null),
-    ...trip.stops.map((s) => reverseGeocode(s.lat, s.lon)),
+  const waypoints = selectWaypoints(trip.points);
+  // Rate-limited queue lives inside geocode.ts (1 request/second globally). We
+  // fire everything here in parallel and let the queue serialize the network.
+  const [startRec, endRec, stopAddrs, waypointAddrs] = await Promise.all([
+    startPt ? reverseGeocodeAddress(startPt.latitude, startPt.longitude) : Promise.resolve(null),
+    endPt ? reverseGeocodeAddress(endPt.latitude, endPt.longitude) : Promise.resolve(null),
+    Promise.all(trip.stops.map((s) => reverseGeocode(s.lat, s.lon))),
+    Promise.all(waypoints.map((p) => reverseGeocode(p.latitude, p.longitude))),
   ]);
+  const startAddr = startRec?.label ?? null;
+  const endAddr = endRec?.label ?? null;
+  // District for the report header: prefer the start point's district, fall back to end.
+  const district =
+    startRec?.parts.city_district ?? startRec?.parts.county ??
+    endRec?.parts.city_district ?? endRec?.parts.county ?? null;
+  const city = startRec?.parts.city ?? endRec?.parts.city ?? null;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
@@ -67,6 +78,10 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(format(date, "yyyy-MM-dd"), W - M, 21, { align: "right" });
+  if (district || city) {
+    doc.setFontSize(8);
+    doc.text([city, district].filter(Boolean).join(" · "), W - M, 27, { align: "right" });
+  }
 
   // -------- Driver / vehicle identity card --------
   let y = 46;
@@ -238,7 +253,7 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
         format(new Date(s.startedAt), "HH:mm"),
         format(new Date(s.endedAt), "HH:mm"),
         formatDurationMinutes(s.durationMinutes),
-        stopAddrs[i] ?? `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`,
+        stopAddrs[i] ?? "—",
       ]),
       headStyles: {
         fillColor: BRAND.primary,
@@ -260,39 +275,46 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
     y = doc.lastAutoTable.finalY + 8;
   }
 
-  // -------- Trip points table (sampled) --------
-  if (trip.points.length > 0) {
+  // -------- Route narrative (waypoints) --------
+  if (waypoints.length > 0) {
     if (y > H - 60) { doc.addPage(); y = 20; }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...BRAND.ink);
-    doc.text("Trip points", M, y);
+    doc.text(`Route (${waypoints.length + 2} places)`, M, y);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...BRAND.muted);
-    const stride = Math.max(1, Math.floor(trip.points.length / 200));
-    const sampled = trip.points.filter((_, i) => i % stride === 0);
-    doc.text(`${sampled.length} of ${trip.points.length} points shown (sampled)`, M + 30, y);
+    doc.text("sparse waypoints between Start and End · names from OpenStreetMap", M + 44, y);
     y += 3;
+    const rows: (string | number)[][] = [];
+    if (startPt && startAddr) rows.push(["Start", format(new Date(startPt.recorded_at), "HH:mm"), startAddr]);
+    waypoints.forEach((p, i) => {
+      rows.push([
+        `${i + 1}`,
+        format(new Date(p.recorded_at), "HH:mm"),
+        waypointAddrs[i] ?? "—",
+      ]);
+    });
+    if (endPt && endAddr) rows.push(["End", format(new Date(endPt.recorded_at), "HH:mm"), endAddr]);
     autoTable(doc, {
       startY: y,
       margin: { left: M, right: M },
-      head: [["Time", "Latitude", "Longitude", "Speed", "Battery"]],
-      body: sampled.map((p) => [
-        format(new Date(p.recorded_at), "HH:mm:ss"),
-        p.latitude.toFixed(5),
-        p.longitude.toFixed(5),
-        p.speed_kmh != null ? `${p.speed_kmh.toFixed(1)} km/h` : "—",
-        p.battery_level != null ? `${p.battery_level}%` : "—",
-      ]),
+      head: [["#", "Time", "Place"]],
+      body: rows,
       headStyles: {
         fillColor: BRAND.primary,
         textColor: 255,
         fontStyle: "bold",
-        fontSize: 8.5,
+        fontSize: 9,
       },
       alternateRowStyles: { fillColor: BRAND.tileBg },
-      styles: { fontSize: 8, cellPadding: 1.6, textColor: BRAND.ink },
+      styles: { fontSize: 9, cellPadding: 2.2, textColor: BRAND.ink },
+      columnStyles: {
+        0: { cellWidth: 14, halign: "center", fontStyle: "bold" },
+        1: { cellWidth: 20 },
+        2: { cellWidth: "auto" },
+      },
     });
   }
 
