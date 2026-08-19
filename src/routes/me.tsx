@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { VehicleType } from "@/lib/vehicles";
 import { getVehicle } from "@/lib/vehicles";
 import { cachedReverseGeocode, reverseGeocode } from "@/lib/geocode";
+import { derivePresence, type BannerState, type DeviceStatusLite } from "@/lib/parent-presence";
 
 const ParentMap = lazy(() => import("@/components/ParentMap").then((m) => ({ default: m.ParentMap })));
 
@@ -37,44 +38,9 @@ interface Child {
   }>;
 }
 
-interface DeviceStatusRow {
-  user_id: string;
-  status: "moving" | "stopped" | "idle" | "offline";
-  latitude: number | null;
-  longitude: number | null;
-  speed_kmh: number | null;
-  last_seen: string;
-  is_tracking: boolean;
-}
-
-type BannerState =
-  | { kind: "moving" }
-  | { kind: "stopped" }
-  | { kind: "offline"; lastSeenIso: string | null; nearPlace: string | null }
-  | { kind: "no-trip" };
-
-// ── Freshness rules (match dashboard fix) ───────────────────────────────────
-const FRESH_MS = 30_000;      // < 30s: live
-const OFFLINE_MS = 90_000;    // > 90s: offline
-const MOVING_KMH = 0.8;
-
-function derivePresence(ds: DeviceStatusRow | null, hasOpenSession: boolean, now: number): BannerState {
-  if (!hasOpenSession) return { kind: "no-trip" };
-  if (!ds) return { kind: "offline", lastSeenIso: null, nearPlace: null };
-  const age = now - new Date(ds.last_seen).getTime();
-  if (age > OFFLINE_MS) {
-    return { kind: "offline", lastSeenIso: ds.last_seen, nearPlace: null };
-  }
-  if (age < FRESH_MS) {
-    if ((ds.speed_kmh ?? 0) > MOVING_KMH) return { kind: "moving" };
-    return { kind: "stopped" };
-  }
-  // 30s – 90s: between fresh and offline. Trust the stored status only if it
-  // was moving/stopped; otherwise treat as offline to avoid a frozen "live".
-  if (ds.status === "moving" && (ds.speed_kmh ?? 0) > MOVING_KMH) return { kind: "moving" };
-  if (ds.status === "stopped") return { kind: "stopped" };
-  return { kind: "offline", lastSeenIso: ds.last_seen, nearPlace: null };
-}
+// device_status row shape as we fetch it. Fields the banner needs live in
+// DeviceStatusLite (imported); user_id is only used for realtime keying.
+interface DeviceStatusRow extends DeviceStatusLite { user_id: string; }
 
 // ── Component ───────────────────────────────────────────────────────────────
 
