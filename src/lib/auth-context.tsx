@@ -89,6 +89,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Flip the device to offline BEFORE the session is torn down — otherwise
+    // the JWT is already gone and RLS blocks the update, and the driver
+    // continues to look "online" to admins until natural staleness kicks in.
+    // UPDATE (not upsert) so admin accounts without a device_status row stay
+    // clean; the tracker's own stop() also does this on the Stop button.
+    const uid = lastUidRef.current;
+    if (uid) {
+      try {
+        await supabase
+          .from("device_status")
+          .update({ status: "offline", is_tracking: false, last_seen: new Date().toISOString() })
+          .eq("user_id", uid);
+      } catch (e) {
+        console.error("[auth] mark offline on signOut failed", e);
+      }
+    }
     try {
       await supabase.auth.signOut();
     } catch (e) {
