@@ -48,7 +48,7 @@ export interface RedeemResult {
 }
 
 export const redeemJoinCode = createServerFn({ method: "POST" })
-  .validator((raw: unknown): { code: string; pin: string } => {
+  .inputValidator((raw: unknown): { code: string; pin: string } => {
     if (typeof raw !== "object" || raw == null) throw new Error("Invalid request");
     const r = raw as { code?: unknown; pin?: unknown };
     if (typeof r.code !== "string" || r.code.trim().length === 0) throw new Error("code is required");
