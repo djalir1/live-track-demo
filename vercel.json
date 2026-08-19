@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/client",
+  "framework": null,
+  "rewrites": [
+    { "source": "/((?!assets/|api/|favicon\\.ico|robots\\.txt|.*\\.(?:js|css|map|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf)$).*)", "destination": "/api/ssr" }
+  ]
+}
