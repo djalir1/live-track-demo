@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, LogOut, Sun, Moon, MapPin, Smartphone, Activity, History, Loader2, List, Map as MapIcon, Battery, BatteryWarning, PowerOff } from "lucide-react";
+import { Search, LogOut, Sun, Moon, MapPin, Smartphone, Activity, History, Loader2, List, Map as MapIcon, Battery, BatteryWarning, PowerOff, School } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -265,6 +265,9 @@ function Dashboard() {
           <div className="flex items-center gap-1 sm:gap-2">
             <KPI label="Active" value={counts.moving + counts.idle + counts.stopped} color="var(--moving)" />
             <KPI label="Offline" value={counts.offline} color="var(--offline)" />
+            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="School setup">
+              <Link to="/admin/routes"><School className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">School setup</span></Link>
+            </Button>
             <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="Trip history">
               <Link to="/history"><History className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">History</span></Link>
             </Button>

@@ -2,7 +2,10 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type Role = "admin" | "user";
+// Extended for the school-transport layer (parent-phase1 branch).
+// Existing pages that check `role === "admin"` still work: super admin is the
+// highest-priority role, so a super-admin resolves to "admin" as before.
+export type Role = "admin" | "school_admin" | "user" | "parent";
 
 interface AuthCtx {
   user: User | null;
@@ -13,6 +16,16 @@ interface AuthCtx {
 }
 
 const Ctx = createContext<AuthCtx | undefined>(undefined);
+
+// Highest privilege wins if a user somehow ends up with more than one role
+// (should be rare — spec says one role per user, but data drift happens).
+const ROLE_PRIORITY: Role[] = ["admin", "school_admin", "parent", "user"];
+function pickRole(raw: string[]): Role {
+  for (const r of ROLE_PRIORITY) {
+    if (raw.includes(r)) return r;
+  }
+  return "user";
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -41,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRole("user");
           return;
         }
-        setRole(data?.some((r) => r.role === "admin") ? "admin" : "user");
+        setRole(pickRole((data ?? []).map((r) => r.role as string)));
       } catch (e) {
         console.error("[auth] fetchRole exception", e);
         if (!cancelled) setRole("user");
@@ -88,4 +101,9 @@ export function useAuth() {
   const c = useContext(Ctx);
   if (!c) throw new Error("useAuth must be used within AuthProvider");
   return c;
+}
+
+/** True for accounts that may reach the /admin/* setup screens. */
+export function canManageSchoolSetup(role: Role | null): boolean {
+  return role === "admin" || role === "school_admin";
 }

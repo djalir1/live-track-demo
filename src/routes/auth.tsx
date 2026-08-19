@@ -21,9 +21,13 @@ function AuthPage() {
   const { user, role, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate({ to: role === "admin" ? "/dashboard" : "/track" });
-    }
+    if (authLoading || !user) return;
+    // Wait until role has actually resolved before deciding where to send them,
+    // otherwise a school_admin flashes /track before landing on /admin/routes.
+    if (role === null) return;
+    if (role === "admin") navigate({ to: "/dashboard" });
+    else if (role === "school_admin") navigate({ to: "/admin/routes" });
+    else navigate({ to: "/track" }); // driver ("user") and — for now — parent
   }, [user, role, authLoading, navigate]);
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
