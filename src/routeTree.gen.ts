@@ -10,17 +10,30 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrackRouteImport } from './routes/track'
+import { Route as MeRouteImport } from './routes/me'
+import { Route as JoinRouteImport } from './routes/join'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminStudentsRouteImport } from './routes/admin/students'
 import { Route as AdminRoutesRouteImport } from './routes/admin/routes'
+import { Route as AdminInvitesRouteImport } from './routes/admin/invites'
 import { Route as AdminBusesRouteImport } from './routes/admin/buses'
 
 const TrackRoute = TrackRouteImport.update({
   id: '/track',
   path: '/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeRoute = MeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryRoute = HistoryRouteImport.update({
@@ -53,6 +66,11 @@ const AdminRoutesRoute = AdminRoutesRouteImport.update({
   path: '/admin/routes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminInvitesRoute = AdminInvitesRouteImport.update({
+  id: '/admin/invites',
+  path: '/admin/invites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminBusesRoute = AdminBusesRouteImport.update({
   id: '/admin/buses',
   path: '/admin/buses',
@@ -64,8 +82,11 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/join': typeof JoinRoute
+  '/me': typeof MeRoute
   '/track': typeof TrackRoute
   '/admin/buses': typeof AdminBusesRoute
+  '/admin/invites': typeof AdminInvitesRoute
   '/admin/routes': typeof AdminRoutesRoute
   '/admin/students': typeof AdminStudentsRoute
 }
@@ -74,8 +95,11 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/join': typeof JoinRoute
+  '/me': typeof MeRoute
   '/track': typeof TrackRoute
   '/admin/buses': typeof AdminBusesRoute
+  '/admin/invites': typeof AdminInvitesRoute
   '/admin/routes': typeof AdminRoutesRoute
   '/admin/students': typeof AdminStudentsRoute
 }
@@ -85,8 +109,11 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/join': typeof JoinRoute
+  '/me': typeof MeRoute
   '/track': typeof TrackRoute
   '/admin/buses': typeof AdminBusesRoute
+  '/admin/invites': typeof AdminInvitesRoute
   '/admin/routes': typeof AdminRoutesRoute
   '/admin/students': typeof AdminStudentsRoute
 }
@@ -97,8 +124,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/history'
+    | '/join'
+    | '/me'
     | '/track'
     | '/admin/buses'
+    | '/admin/invites'
     | '/admin/routes'
     | '/admin/students'
   fileRoutesByTo: FileRoutesByTo
@@ -107,8 +137,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/history'
+    | '/join'
+    | '/me'
     | '/track'
     | '/admin/buses'
+    | '/admin/invites'
     | '/admin/routes'
     | '/admin/students'
   id:
@@ -117,8 +150,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/history'
+    | '/join'
+    | '/me'
     | '/track'
     | '/admin/buses'
+    | '/admin/invites'
     | '/admin/routes'
     | '/admin/students'
   fileRoutesById: FileRoutesById
@@ -128,8 +164,11 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
   HistoryRoute: typeof HistoryRoute
+  JoinRoute: typeof JoinRoute
+  MeRoute: typeof MeRoute
   TrackRoute: typeof TrackRoute
   AdminBusesRoute: typeof AdminBusesRoute
+  AdminInvitesRoute: typeof AdminInvitesRoute
   AdminRoutesRoute: typeof AdminRoutesRoute
   AdminStudentsRoute: typeof AdminStudentsRoute
 }
@@ -141,6 +180,20 @@ declare module '@tanstack/react-router' {
       path: '/track'
       fullPath: '/track'
       preLoaderRoute: typeof TrackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/me': {
+      id: '/me'
+      path: '/me'
+      fullPath: '/me'
+      preLoaderRoute: typeof MeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history': {
@@ -185,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRoutesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/invites': {
+      id: '/admin/invites'
+      path: '/admin/invites'
+      fullPath: '/admin/invites'
+      preLoaderRoute: typeof AdminInvitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/buses': {
       id: '/admin/buses'
       path: '/admin/buses'
@@ -200,8 +260,11 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
   HistoryRoute: HistoryRoute,
+  JoinRoute: JoinRoute,
+  MeRoute: MeRoute,
   TrackRoute: TrackRoute,
   AdminBusesRoute: AdminBusesRoute,
+  AdminInvitesRoute: AdminInvitesRoute,
   AdminRoutesRoute: AdminRoutesRoute,
   AdminStudentsRoute: AdminStudentsRoute,
 }

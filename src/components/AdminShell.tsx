@@ -1,5 +1,5 @@
 import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
-import { LogOut, MapPin, Route as RouteIcon, Bus, GraduationCap, ArrowLeft, Loader2 } from "lucide-react";
+import { LogOut, MapPin, Route as RouteIcon, Bus, GraduationCap, ArrowLeft, Loader2, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth, canManageSchoolSetup } from "@/lib/auth-context";
 import { useEffect, type ReactNode } from "react";
@@ -34,6 +34,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { to: "/admin/routes",   label: "Routes",   Icon: RouteIcon },
     { to: "/admin/buses",    label: "Buses",    Icon: Bus },
     { to: "/admin/students", label: "Students", Icon: GraduationCap },
+    { to: "/admin/invites",  label: "Invites",  Icon: Ticket },
   ] as const;
 
   return (

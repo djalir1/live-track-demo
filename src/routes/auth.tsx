@@ -27,7 +27,8 @@ function AuthPage() {
     if (role === null) return;
     if (role === "admin") navigate({ to: "/dashboard" });
     else if (role === "school_admin") navigate({ to: "/admin/routes" });
-    else navigate({ to: "/track" }); // driver ("user") and — for now — parent
+    else if (role === "parent") navigate({ to: "/me" });
+    else navigate({ to: "/track" }); // driver ("user")
   }, [user, role, authLoading, navigate]);
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
