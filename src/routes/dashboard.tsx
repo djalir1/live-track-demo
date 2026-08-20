@@ -53,35 +53,47 @@ function Dashboard() {
   }, [user, role, loading, navigate]);
 
   const load = async () => {
-    const [statusesRes, profilesRes] = await Promise.all([
+    const [statusesRes, profilesRes, driversRes] = await Promise.all([
       supabase.from("device_status").select("*"),
       supabase.from("profiles").select("id, display_name, vehicle_name, vehicle_type, plate_number, seats"),
+      // Only accounts explicitly assigned the 'user' (driver) role can appear
+      // in the live list. Admin/parent/school_admin accounts are excluded.
+      supabase.from("user_roles").select("user_id").eq("role", "user"),
     ]);
     if (statusesRes.error) {
       console.error("[dashboard] device_status error", statusesRes.error);
       toast.error(`Failed to load devices: ${statusesRes.error.message}`);
     }
     if (profilesRes.error) console.error("[dashboard] profiles error", profilesRes.error);
+    if (driversRes.error) console.error("[dashboard] user_roles error", driversRes.error);
     const statuses = statusesRes.data ?? [];
     const profiles = profilesRes.data ?? [];
+    const driverIds = new Set((driversRes.data ?? []).map((r) => r.user_id));
     const profileMap = new Map(profiles.map((p) => [p.id, p]));
-    const merged: LiveUser[] = statuses.map((s) => {
-      const p = profileMap.get(s.user_id);
-      const stale = Date.now() - new Date(s.last_seen).getTime() > 90_000;
-      return {
-        user_id: s.user_id,
-        display_name: p?.display_name ?? "Unknown",
-        vehicle_name: p?.vehicle_name ?? null,
-        vehicle_type: p?.vehicle_type ?? "car",
-        plate_number: p?.plate_number ?? null,
-        seats: p?.seats ?? null,
-        status: stale && s.status !== "offline" ? "idle" : s.status,
-        latitude: s.latitude, longitude: s.longitude,
-        speed_kmh: s.speed_kmh, battery_level: s.battery_level,
-        is_tracking: s.is_tracking, last_seen: s.last_seen,
-        address: cachedReverseGeocode(s.latitude, s.longitude),
-      };
-    });
+    const merged: LiveUser[] = statuses
+      .filter((s) => driverIds.has(s.user_id))
+      .map((s) => {
+        const p = profileMap.get(s.user_id);
+        // Presence = freshness. Tracker upserts roughly every 8s while active,
+        // so if we haven't heard in 30s the phone is either off, backgrounded
+        // hard, or lost network — all of which are "offline" for the admin's
+        // purposes. Otherwise trust the tracker's own state (moving / stopped
+        // / idle) since it reflects the last real GPS reading.
+        const fresh = Date.now() - new Date(s.last_seen).getTime() < 30_000;
+        return {
+          user_id: s.user_id,
+          display_name: p?.display_name ?? "Unknown",
+          vehicle_name: p?.vehicle_name ?? null,
+          vehicle_type: p?.vehicle_type ?? "car",
+          plate_number: p?.plate_number ?? null,
+          seats: p?.seats ?? null,
+          status: fresh ? s.status : "offline",
+          latitude: s.latitude, longitude: s.longitude,
+          speed_kmh: s.speed_kmh, battery_level: s.battery_level,
+          is_tracking: s.is_tracking, last_seen: s.last_seen,
+          address: cachedReverseGeocode(s.latitude, s.longitude),
+        };
+      });
     setUsers(merged);
   };
 

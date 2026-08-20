@@ -76,15 +76,31 @@ function HistoryPage() {
     setTrip(null);
     try {
       const day = new Date(date + "T00:00:00");
-      const { data, error } = await supabase
-        .from("location_history")
-        .select("latitude, longitude, speed_kmh, battery_level, recorded_at")
-        .eq("user_id", driverId)
-        .gte("recorded_at", startOfDay(day).toISOString())
-        .lte("recorded_at", endOfDay(day).toISOString())
-        .order("recorded_at", { ascending: true });
-      if (error) throw error;
-      const summary = buildTripSummary((data ?? []) as RawPoint[]);
+      const dayStart = startOfDay(day).toISOString();
+      const dayEnd = endOfDay(day).toISOString();
+      const [pointsRes, sessionsRes] = await Promise.all([
+        supabase
+          .from("location_history")
+          .select("latitude, longitude, speed_kmh, battery_level, recorded_at")
+          .eq("user_id", driverId)
+          .gte("recorded_at", dayStart)
+          .lte("recorded_at", dayEnd)
+          .order("recorded_at", { ascending: true }),
+        // Any session that overlaps the day: started before day-end AND
+        // (ended after day-start OR still open).
+        supabase
+          .from("trip_sessions")
+          .select("started_at, ended_at")
+          .eq("user_id", driverId)
+          .lte("started_at", dayEnd)
+          .or(`ended_at.gte.${dayStart},ended_at.is.null`),
+      ]);
+      if (pointsRes.error) throw pointsRes.error;
+      if (sessionsRes.error) throw sessionsRes.error;
+      const summary = buildTripSummary(
+        (pointsRes.data ?? []) as RawPoint[],
+        sessionsRes.data ?? [],
+      );
       setTrip(summary);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load trip");
@@ -224,6 +240,25 @@ function HistoryPage() {
                 <div className="text-xs text-muted-foreground">Seats: <span className="font-medium text-foreground">{driver.seats}</span></div>
               )}
             </div>
+            {trip.gaps.length > 0 && (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                <div className="text-xs text-destructive uppercase tracking-wider">
+                  Signal lost ({trip.gaps.length})
+                </div>
+                <ul className="space-y-1.5 text-xs">
+                  {trip.gaps.map((g, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2">
+                      <span className="tabular-nums">
+                        {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {formatDurationMinutes(g.durationMinutes)} · jump {g.jumpedKm.toFixed(1)} km discarded
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {trip.stops.length > 0 && (
               <div className="rounded-xl border border-border/50 bg-background/40 p-3 space-y-2">
                 <div className="text-xs text-muted-foreground uppercase tracking-wider">

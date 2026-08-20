@@ -31,11 +31,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Role | null>(null);
-  const [loading, setLoading] = useState(true);
+  // We're only "initialised" once Supabase has told us whether there IS a
+  // session. Before that, loading must be true.
+  const [initialised, setInitialised] = useState(false);
 
-  // Prevent concurrent role fetches for the same user (which cause Supabase
-  // AuthRefreshDiscardedError on rapid re-mounts / navigation).
+  // Loading is DERIVED. Every consumer that checks `loading` also gets a
+  // correct answer while role is being fetched, which is what eliminates the
+  // admin-briefly-sees-/track flash: an admin's role isn't "user" and isn't
+  // known yet, so loading stays true until fetchRole() resolves.
+  const loading = !initialised || (user != null && role == null);
+
+  // Prevents duplicate role fetches for the same uid across StrictMode double-invokes.
   const roleFetchFor = useRef<string | null>(null);
+  // Tracks the last uid we've seen so we can wipe role on identity changes.
+  const lastUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from("user_roles")
           .select("role")
           .eq("user_id", uid);
-        if (cancelled) return;
+        if (cancelled || roleFetchFor.current !== uid) return;
         if (error) {
           console.error("[auth] fetchRole error", error);
           setRole("user");
@@ -57,23 +66,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(pickRole((data ?? []).map((r) => r.role as string)));
       } catch (e) {
         console.error("[auth] fetchRole exception", e);
-        if (!cancelled) setRole("user");
+        if (!cancelled && roleFetchFor.current === uid) setRole("user");
       }
     };
 
-    // onAuthStateChange fires INITIAL_SESSION synchronously on subscribe, so we
-    // do not also need to call getSession() (which races the same auth locks
-    // and can trigger AuthRefreshDiscardedError → false sign-outs).
+    // onAuthStateChange fires INITIAL_SESSION synchronously on subscribe.
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      const uid = s?.user?.id ?? null;
+      const prevUid = lastUidRef.current;
+      lastUidRef.current = uid;
+
       setSession(s);
       setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchRole(s.user.id);
+
+      if (uid) {
+        // Wipe stale role only when the identity actually changes. Token
+        // refreshes for the same user must not reset role — that would flash
+        // an unknown-role loader mid-session.
+        if (uid !== prevUid) {
+          roleFetchFor.current = null;
+          setRole(null);
+          fetchRole(uid);
+        }
       } else {
         roleFetchFor.current = null;
         setRole(null);
       }
-      if (event === "INITIAL_SESSION") setLoading(false);
+      if (event === "INITIAL_SESSION") setInitialised(true);
     });
 
     return () => {
@@ -83,12 +102,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Flip the device to offline BEFORE the session is torn down — otherwise
+    // the JWT is already gone and RLS blocks the update, and the driver
+    // continues to look "online" to admins until natural staleness kicks in.
+    // UPDATE (not upsert) so admin accounts without a device_status row stay
+    // clean; the tracker's own stop() also does this on the Stop button.
+    const uid = lastUidRef.current;
+    if (uid) {
+      try {
+        await supabase
+          .from("device_status")
+          .update({ status: "offline", is_tracking: false, last_seen: new Date().toISOString() })
+          .eq("user_id", uid);
+      } catch (e) {
+        console.error("[auth] mark offline on signOut failed", e);
+      }
+    }
     try {
       await supabase.auth.signOut();
     } catch (e) {
       console.error("[auth] signOut exception", e);
     }
     roleFetchFor.current = null;
+    lastUidRef.current = null;
     setRole(null);
     setUser(null);
     setSession(null);

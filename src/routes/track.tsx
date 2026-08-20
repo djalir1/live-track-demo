@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Battery, Wifi, WifiOff, Satellite, Gauge, Route as RouteIcon,
-  Play, Square, LogOut, MapPin, Sun, Moon, ShieldCheck, Zap,
+  Play, Square, LogOut, MapPin, Sun, Moon, ShieldCheck, Zap, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
@@ -65,7 +65,20 @@ function TrackPage() {
     return () => { cancelled = true; };
   }, [stats.latitude?.toFixed(3), stats.longitude?.toFixed(3)]);
 
-  if (!user) return null;
+  // Never render the driver UI for anyone whose role isn't confirmed "user".
+  // While role is being fetched (loading=true, role=null) OR the account is
+  // an admin awaiting the redirect effect, show a neutral loader. This is
+  // the guarantee that an admin never sees /track for even one frame.
+  if (loading || !user || role !== "user") {
+    return (
+      <div className="min-h-screen bg-background grid place-items-center">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span>Loading…</span>
+        </div>
+      </div>
+    );
+  }
 
   const meta = STATUS_META[stats.status];
   const blocked = stats.permission === "denied" || stats.permission === "unsupported";
