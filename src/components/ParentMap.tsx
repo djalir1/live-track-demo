@@ -44,6 +44,8 @@ export interface ParentMapProps {
   } | null;
   stops: StopPin[];
   homeStopId: string | null;
+  /** Stop ids the bus has already passed this trip (arrive+depart seen). */
+  doneStopIds?: string[];
   className?: string;
 }
 
@@ -117,7 +119,8 @@ function routeLine(stops: StopPin[]): [number, number][] {
   return ordered.map((s) => [s.lat, s.lng]);
 }
 
-export function ParentMap({ bus, stops, homeStopId, className }: ParentMapProps) {
+export function ParentMap({ bus, stops, homeStopId, doneStopIds, className }: ParentMapProps) {
+  const done = new Set(doneStopIds ?? []);
   const { theme } = useTheme();
   const tileUrl = theme === "dark"
     ? "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png"
@@ -144,13 +147,18 @@ export function ParentMap({ bus, stops, homeStopId, className }: ParentMapProps)
         {stops.map((s) => {
           const isHome = s.id === homeStopId;
           const isSchool = s.type === "school";
-          const color = isSchool ? SCHOOL_COLOR : isHome ? HOME_COLOR : STOP_COLOR;
+          const isDone = done.has(s.id);
+          // Passed stops fade to a muted grey so the parent's eye tracks the
+          // upcoming ones. Home and school remain emphasised even after pass.
+          const base = isSchool ? SCHOOL_COLOR : isHome ? HOME_COLOR : STOP_COLOR;
+          const color = isDone && !isHome && !isSchool ? "#94a3b8" : base;
           const label = isHome ? `${s.name} · Home` : isSchool ? `${s.name} · School` : s.name;
           return (
             <Marker
               key={s.id}
               position={[s.lat, s.lng]}
               icon={labelledMarker(color, label, s.sequence, isHome || isSchool)}
+              opacity={isDone && !isHome && !isSchool ? 0.6 : 1}
             />
           );
         })}

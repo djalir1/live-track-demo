@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, LogOut, MapPin, Wifi, WifiOff, PowerOff } from "lucide-react";
+import { Bell, BellOff, Check, Circle, Loader2, LogOut, MapPin, PowerOff, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,10 @@ import type { VehicleType } from "@/lib/vehicles";
 import { getVehicle } from "@/lib/vehicles";
 import { cachedReverseGeocode, reverseGeocode } from "@/lib/geocode";
 import { derivePresence, type BannerState, type DeviceStatusLite } from "@/lib/parent-presence";
+import {
+  computeEta, preHomeStopId, rollingSpeedKmh, stopStatuses,
+  type EventLite, type HistoryPt, type StopPt, type EtaState, type StopStatus,
+} from "@/lib/parent-trip";
 
 const ParentMap = lazy(() => import("@/components/ParentMap").then((m) => ({ default: m.ParentMap })));
 
@@ -115,17 +119,24 @@ function MePage() {
 
   const child = children?.[selectedIdx] ?? null;
 
-  // ── Live device_status + open trip_session for the selected child's bus ──
+  // ── Live device_status + open trip_session + geofence events + recent history ──
   const [ds, setDs] = useState<DeviceStatusRow | null>(null);
-  const [hasOpenSession, setHasOpenSession] = useState<boolean>(false);
+  const [sessionStart, setSessionStart] = useState<string | null>(null);
+  const [events, setEvents] = useState<EventLite[]>([]);
+  const [recentHistory, setRecentHistory] = useState<HistoryPt[]>([]);
   const [nowTick, setNowTick] = useState<number>(Date.now());
   const [nearPlace, setNearPlace] = useState<string | null>(null);
 
   // Refetch when the driver_user_id changes (child switch).
   const driverUid = child?.driverUserId ?? null;
+  const busId = child?.busId ?? null;
+  const hasOpenSession = sessionStart != null;
 
   useEffect(() => {
-    if (!driverUid) { setDs(null); setHasOpenSession(false); return; }
+    if (!driverUid || !busId) {
+      setDs(null); setSessionStart(null); setEvents([]); setRecentHistory([]);
+      return;
+    }
     let cancelled = false;
     (async () => {
       const [dsRes, sessRes] = await Promise.all([
@@ -133,24 +144,58 @@ function MePage() {
           .select("user_id, status, latitude, longitude, speed_kmh, last_seen, is_tracking")
           .eq("user_id", driverUid).maybeSingle(),
         supabase.from("trip_sessions")
-          .select("id").eq("user_id", driverUid).is("ended_at", null).limit(1),
+          .select("started_at").eq("user_id", driverUid)
+          .is("ended_at", null)
+          .order("started_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (cancelled) return;
       if (dsRes.error) console.error("[me] device_status error", dsRes.error);
       if (sessRes.error) console.error("[me] trip_sessions error", sessRes.error);
       setDs((dsRes.data as DeviceStatusRow | null) ?? null);
-      setHasOpenSession((sessRes.data?.length ?? 0) > 0);
+      const sStart = sessRes.data?.started_at ?? null;
+      setSessionStart(sStart);
+
+      if (sStart) {
+        // Events for THIS open session only (occurred at or after its start).
+        // RLS-scoped: parent policy = is_parent_of_bus(bus_id), so we can only
+        // read events for their own child's bus.
+        const evRes = await supabase.from("geofence_events")
+          .select("stop_id, event_type, occurred_at")
+          .eq("bus_id", busId)
+          .gte("occurred_at", sStart)
+          .order("occurred_at", { ascending: true });
+        if (cancelled) return;
+        if (evRes.error) console.error("[me] geofence_events error", evRes.error);
+        setEvents((evRes.data ?? []) as EventLite[]);
+
+        // Recent history for rolling speed (last 5 min).
+        const since = new Date(Date.now() - 5 * 60_000).toISOString();
+        const hRes = await supabase.from("location_history")
+          .select("latitude, longitude, recorded_at")
+          .eq("user_id", driverUid)
+          .gte("recorded_at", since)
+          .order("recorded_at", { ascending: true });
+        if (cancelled) return;
+        if (hRes.error) console.error("[me] location_history error", hRes.error);
+        setRecentHistory((hRes.data ?? []) as HistoryPt[]);
+      } else {
+        setEvents([]);
+        setRecentHistory([]);
+      }
     })();
     return () => { cancelled = true; };
-  }, [driverUid]);
+  }, [driverUid, busId]);
 
-  // Realtime subscription — filter to THIS driver only, and re-scope cleanly
-  // whenever the selected child (and thus driverUid) changes.
+  // Realtime subscription — filter to THIS driver / THIS bus only, and
+  // re-scope cleanly whenever the selected child (and thus driverUid/busId)
+  // changes. Three streams: device_status (marker), trip_sessions
+  // (open?), geofence_events (progress + arrival banners).
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [arrivalBanner, setArrivalBanner] = useState<{ kind: "approach" | "arrived"; stopName: string; at: number } | null>(null);
   useEffect(() => {
-    if (!driverUid) return;
+    if (!driverUid || !busId) return;
     const ch = supabase
-      .channel(`parent-me:${driverUid}`)
+      .channel(`parent-me:${driverUid}:${busId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "device_status", filter: `user_id=eq.${driverUid}` },
@@ -163,9 +208,19 @@ function MePage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "trip_sessions", filter: `user_id=eq.${driverUid}` },
         () => {
-          // Sessions changed — refetch the "open session?" flag.
-          supabase.from("trip_sessions").select("id").eq("user_id", driverUid).is("ended_at", null).limit(1)
-            .then(({ data }) => setHasOpenSession((data?.length ?? 0) > 0));
+          supabase.from("trip_sessions").select("started_at").eq("user_id", driverUid)
+            .is("ended_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle()
+            .then(({ data }) => setSessionStart(data?.started_at ?? null));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "geofence_events", filter: `bus_id=eq.${busId}` },
+        (payload) => {
+          const ev = payload.new as EventLite | undefined;
+          if (!ev) return;
+          // Belt-and-braces: RLS already limits us to our own bus, but re-check.
+          setEvents((prev) => [...prev, ev]);
         },
       )
       .subscribe();
@@ -174,7 +229,7 @@ function MePage() {
       supabase.removeChannel(ch);
       channelRef.current = null;
     };
-  }, [driverUid]);
+  }, [driverUid, busId]);
 
   // Ticker so "updated Ns ago" stays honest and staleness re-evaluates.
   useEffect(() => {
@@ -202,6 +257,116 @@ function MePage() {
     () => derivePresence(ds, hasOpenSession, nowTick),
     [ds, hasOpenSession, nowTick],
   );
+
+  // ── Trip progress + ETA (derived) ─────────────────────────────────────────
+  const stopPts: StopPt[] = useMemo(
+    () => (child?.stops ?? []).map((s) => ({ id: s.id, lat: s.lat, lng: s.lng, sequence: s.sequence })),
+    [child],
+  );
+  const statuses: Map<string, StopStatus> = useMemo(
+    () => stopStatuses(stopPts, events),
+    [stopPts, events],
+  );
+  const speedKmh = useMemo(
+    () => rollingSpeedKmh(recentHistory, 5, nowTick) ?? (ds?.speed_kmh ?? null),
+    [recentHistory, nowTick, ds?.speed_kmh],
+  );
+  const eta: EtaState = useMemo(
+    () => computeEta({
+      bus: ds?.latitude != null && ds?.longitude != null ? [ds.latitude, ds.longitude] : null,
+      stops: stopPts,
+      homeStopId: child?.homeStopId ?? null,
+      events,
+      liveSpeedKmh: speedKmh,
+    }),
+    [ds?.latitude, ds?.longitude, stopPts, child?.homeStopId, events, speedKmh],
+  );
+  const preHomeId = useMemo(
+    () => (child?.homeStopId ? preHomeStopId(stopPts, child.homeStopId) : null),
+    [stopPts, child?.homeStopId],
+  );
+
+  // Compute done stop ids for the map's "faded" render.
+  const doneStopIds = useMemo(
+    () => Array.from(statuses.entries()).filter(([, s]) => s === "done").map(([id]) => id),
+    [statuses],
+  );
+
+  // ── Arrival banners driven by NEW events for our own bus ──────────────────
+  // Track which event ids we've already reacted to so a re-subscribe (or a
+  // page refresh mid-run) doesn't fire the banner again for the same arrive.
+  const reactedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    // Consider only 'arrive' events; look for pre-home and home.
+    for (const e of events) {
+      const key = `${e.stop_id}|${e.event_type}|${e.occurred_at}`;
+      if (reactedRef.current.has(key)) continue;
+      reactedRef.current.add(key);
+      if (e.event_type !== "arrive") continue;
+      // LINKAGE GUARD: we only ever process events for THIS child's bus. RLS
+      // already limits reads by is_parent_of_bus, but as a second line the
+      // stop_id must be in this child's route stops (defence in depth).
+      if (!stopPts.some((s) => s.id === e.stop_id)) continue;
+      if (child?.homeStopId && e.stop_id === child.homeStopId) {
+        const stop = child.stops.find((s) => s.id === e.stop_id);
+        setArrivalBanner({ kind: "arrived", stopName: stop?.name ?? "your stop", at: Date.now() });
+        maybePush("Arrived at your stop", `${child.studentName}'s bus arrived at ${stop?.name}.`);
+      } else if (preHomeId && e.stop_id === preHomeId) {
+        const stop = child?.stops.find((s) => s.id === e.stop_id);
+        setArrivalBanner({ kind: "approach", stopName: stop?.name ?? "the stop before", at: Date.now() });
+        maybePush("Approaching your stop", `${child?.studentName}'s bus arrived at ${stop?.name}. Yours is next.`);
+      }
+    }
+  }, [events, child, preHomeId, stopPts]);
+
+  // Auto-dismiss the arrival banner after 30s.
+  useEffect(() => {
+    if (!arrivalBanner) return;
+    const t = window.setTimeout(() => setArrivalBanner(null), 30_000);
+    return () => window.clearTimeout(t);
+  }, [arrivalBanner]);
+
+  // ── Notification prefs (per-parent, self-scoped RLS) ──────────────────────
+  const [notifyEnabled, setNotifyEnabled] = useState<boolean>(false);
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase.from("parent_notification_prefs")
+        .select("notify_enabled").eq("parent_user_id", user.id).maybeSingle();
+      setNotifyEnabled(Boolean(data?.notify_enabled));
+    })();
+  }, [user]);
+
+  const toggleNotify = useCallback(async () => {
+    if (!user) return;
+    const next = !notifyEnabled;
+    setNotifyEnabled(next);
+    if (next && typeof Notification !== "undefined" && Notification.permission === "default") {
+      try { await Notification.requestPermission(); } catch { /* ignore */ }
+    }
+    const { error } = await supabase.from("parent_notification_prefs")
+      .upsert({ parent_user_id: user.id, notify_enabled: next, updated_at: new Date().toISOString() });
+    if (error) { toast.error(error.message); setNotifyEnabled(!next); }
+    else toast.success(next ? "Notifications on" : "Notifications off");
+  }, [user, notifyEnabled]);
+
+  // Fire an OS-level notification if the user opted in AND the tab is
+  // backgrounded. The Notification API delivers even without web push if the
+  // page is open in the background; true web push (page closed) requires a
+  // service worker + VAPID keys — see TODO below.
+  const maybePush = (title: string, body: string) => {
+    if (!notifyEnabled) return;
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+    try { new Notification(title, { body, icon: "/favicon.ico" }); } catch { /* ignore */ }
+    // TODO(phase-5, push): sender-side web push via a Postgres NOTIFY -> edge
+    // function -> web-push library, using push_subscription from
+    // parent_notification_prefs and VAPID keys held in Vercel env. The parent
+    // linkage guard for that hook: only send to parent_user_ids whose
+    // parent_students.student.bus_id == geofence_events.bus_id.
+    // TODO: WhatsApp notification channel later (register Rwanda WhatsApp
+    // Business number, domestic authentication/utility rate).
+  };
 
   const busStatusForMap: "moving" | "stopped" | "offline" =
     banner.kind === "moving" ? "moving" :
@@ -261,9 +426,15 @@ function MePage() {
             </span>
             Pulse
           </Link>
-          <Button variant="ghost" size="sm" onClick={doSignOut}>
-            <LogOut className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Sign out</span>
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={toggleNotify} title={notifyEnabled ? "Notifications on" : "Notifications off"}>
+              {notifyEnabled ? <Bell className="h-4 w-4 sm:mr-1.5 text-[var(--moving)]" /> : <BellOff className="h-4 w-4 sm:mr-1.5 text-muted-foreground" />}
+              <span className="hidden sm:inline">{notifyEnabled ? "Notify me" : "Notify me"}</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={doSignOut}>
+              <LogOut className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Sign out</span>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -292,7 +463,16 @@ function MePage() {
           </div>
         ) : (
           <>
-            <StatusBanner banner={banner} childName={child.studentName} />
+            {arrivalBanner && (
+              <ArrivalBanner
+                kind={arrivalBanner.kind}
+                stopName={arrivalBanner.stopName}
+                childName={child.studentName}
+                eta={eta}
+                onDismiss={() => setArrivalBanner(null)}
+              />
+            )}
+            <StatusBanner banner={banner} childName={child.studentName} eta={mapBusLive ? eta : { kind: "unknown" }} />
 
             <div className="relative rounded-2xl overflow-hidden border border-border/60 shadow-soft h-[52vh] min-h-[380px] bg-card/40">
               <Suspense fallback={<div className="h-full w-full grid place-items-center text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading map…</div>}>
@@ -306,9 +486,12 @@ function MePage() {
                   }}
                   stops={child.stops}
                   homeStopId={child.homeStopId}
+                  doneStopIds={doneStopIds}
                 />
               </Suspense>
             </div>
+
+            <TripProgress stops={child.stops} statuses={statuses} homeStopId={child.homeStopId} />
 
             <div className="rounded-2xl border border-border/60 bg-card/40 p-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
               <div className="flex items-center gap-2">
@@ -349,7 +532,16 @@ function MePage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function StatusBanner({ banner, childName }: { banner: BannerState; childName: string }) {
+function etaSentence(eta: EtaState): string | null {
+  switch (eta.kind) {
+    case "eta": return `Arriving in ~${eta.minutes} min (approx)`;
+    case "arriving": return "Arriving now";
+    case "passed": return "Passed your stop";
+    case "unknown": return null;
+  }
+}
+
+function StatusBanner({ banner, childName, eta }: { banner: BannerState; childName: string; eta: EtaState }) {
   const cfg = (() => {
     switch (banner.kind) {
       case "moving":  return { bg: "var(--moving)",  text: "Bus is moving",  sub: `${childName}'s bus is on the way.` };
@@ -363,6 +555,7 @@ function StatusBanner({ banner, childName }: { banner: BannerState; childName: s
       }
     }
   })();
+  const etaLine = etaSentence(eta);
   return (
     <div className="rounded-2xl p-5 sm:p-6 border border-border/60 shadow-soft" style={{ background: `color-mix(in oklch, ${cfg.bg} 22%, transparent)` }}>
       <div className="flex items-center gap-3">
@@ -375,6 +568,79 @@ function StatusBanner({ banner, childName }: { banner: BannerState; childName: s
         <div className="font-display text-xl sm:text-2xl font-bold tracking-tight">{cfg.text}</div>
       </div>
       <div className="mt-1.5 text-sm text-muted-foreground">{cfg.sub}</div>
+      {etaLine && banner.kind !== "offline" && banner.kind !== "no-trip" && (
+        <div className="mt-3 text-sm font-medium">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border border-border/60 bg-background/60">
+            {etaLine}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TripProgress({
+  stops, statuses, homeStopId,
+}: {
+  stops: Array<{ id: string; name: string; sequence: number | null }>;
+  statuses: Map<string, StopStatus>;
+  homeStopId: string | null;
+}) {
+  const ordered = [...stops].sort((a, b) => (a.sequence ?? 1e9) - (b.sequence ?? 1e9));
+  if (ordered.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card/40 p-3 sm:p-4">
+      <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Trip progress</div>
+      <ol className="flex flex-wrap gap-2">
+        {ordered.map((s) => {
+          const st = statuses.get(s.id) ?? "pending";
+          const isHome = s.id === homeStopId;
+          const styles =
+            st === "done"    ? "bg-muted/70 text-muted-foreground line-through opacity-70 border-border" :
+            st === "current" ? "bg-[var(--moving)]/20 text-foreground border-[var(--moving)]/60" :
+            /* pending */      "bg-background/60 text-foreground border-border/60";
+          return (
+            <li key={s.id} className={`inline-flex items-center gap-1.5 px-2.5 h-8 rounded-full border text-xs ${styles} ${isHome ? "ring-2 ring-primary/50" : ""}`}>
+              {st === "done"
+                ? <Check className="h-3.5 w-3.5" />
+                : st === "current"
+                  ? <span className="h-2 w-2 rounded-full bg-[var(--moving)] animate-pulse" />
+                  : <Circle className="h-3.5 w-3.5" />}
+              <span className="font-medium">{s.name}</span>
+              {isHome && <span className="ml-1 text-[10px] uppercase tracking-wider text-primary font-bold">Home</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function ArrivalBanner({
+  kind, stopName, childName, eta, onDismiss,
+}: {
+  kind: "approach" | "arrived";
+  stopName: string;
+  childName: string;
+  eta: EtaState;
+  onDismiss: () => void;
+}) {
+  const title = kind === "arrived" ? "Arrived at your stop" : "Approaching";
+  const sub = kind === "arrived"
+    ? `${childName}'s bus is at ${stopName}.`
+    : `${childName}'s bus just reached ${stopName}${eta.kind === "eta" ? ` — arriving in ~${eta.minutes} min` : ""}${eta.kind === "arriving" ? " — arriving now" : ""}.`;
+  const bg = kind === "arrived" ? "var(--moving)" : "var(--idle)";
+  return (
+    <div className="rounded-2xl p-4 border border-border/60 shadow-soft flex items-start gap-3" style={{ background: `color-mix(in oklch, ${bg} 30%, transparent)` }}>
+      <span className="relative flex h-3 w-3 mt-1.5">
+        <span className="absolute inset-0 rounded-full animate-ping opacity-60" style={{ background: bg }} />
+        <span className="relative h-3 w-3 rounded-full" style={{ background: bg }} />
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="font-display font-bold text-lg">{title}</div>
+        <div className="text-sm text-muted-foreground">{sub}</div>
+      </div>
+      <button onClick={onDismiss} className="text-xs text-muted-foreground hover:text-foreground shrink-0">Dismiss</button>
     </div>
   );
 }
