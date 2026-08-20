@@ -1,0 +1,93 @@
+-- ============================================================================
+-- ⚠️  SCRIPT 2 — FULL WIPE FOR HANDOVER (DESTRUCTIVE) ⚠️
+-- ============================================================================
+--
+--   THIS SCRIPT DELETES EVERY PERSON, EVERY LOGIN, AND EVERY SETUP ROW.
+--
+--   After you run it:
+--     • Nobody can sign in (all auth.users are gone, including you).
+--     • The admin dashboard, driver tracker, and parent app all show
+--       "sign in" screens with no accounts to sign into.
+--     • You MUST create a brand-new admin, a new school, routes, stops,
+--       buses, drivers, students, and invites BEFORE anyone can use the
+--       app again. Steps for that are at the very bottom of this file.
+--
+--   Use this only for a full handover to a fresh client where the current
+--   pilot data must not persist. Do NOT run it before a pilot begins — use
+--   scripts/reset-tracking-only.sql instead.
+--
+--   NOT executed by this repo's automation. To run it, YOU must explicitly
+--   type "RUN FULL WIPE" to the assistant, OR run it yourself by pasting
+--   the SQL below into the Supabase SQL editor and confirming.
+-- ============================================================================
+
+-- Uncomment the DO block below to arm the wipe. It's commented so accidental
+-- paste-and-run in a SQL editor is inert.
+
+-- do $$ begin
+-- --  App tables (leaves first). geofence_events has no dependents; the rest
+-- --  cascade fine because of ON DELETE CASCADE on the FKs.
+--   truncate table public.geofence_events            restart identity cascade;
+--   truncate table public.bus_current_stop           restart identity cascade;
+--   truncate table public.location_history           restart identity cascade;
+--   truncate table public.trip_sessions              restart identity cascade;
+--   truncate table public.device_status              restart identity cascade;
+--   truncate table public.parent_notification_prefs  restart identity cascade;
+--   truncate table public.parent_students            restart identity cascade;
+--   truncate table public.invites                    restart identity cascade;
+--   truncate table public.students                   restart identity cascade;
+--   truncate table public.buses                      restart identity cascade;
+--   truncate table public.stops                      restart identity cascade;
+--   truncate table public.routes                     restart identity cascade;
+--   truncate table public.schools                    restart identity cascade;
+--   truncate table public.user_roles                 restart identity cascade;
+--   truncate table public.profiles                   restart identity cascade;
+--
+-- --  Auth users last. This is the point of no return.
+-- --  Removes every account including the one you're logged in as.
+--   delete from auth.users;
+-- end $$;
+
+-- ============================================================================
+-- HOW TO RE-CREATE A FRESH ADMIN + SCHOOL AFTER THE WIPE
+-- ============================================================================
+-- 1) Create the admin account
+--
+--    Supabase Dashboard → Authentication → Users → "Add user":
+--      email:    <your admin email>
+--      password: <a strong password>
+--      Auto-confirm user: YES
+--    Copy the new user's UUID from the row that appears.
+--
+--    Then in the SQL editor:
+--      insert into public.profiles(id, display_name)
+--        values ('<paste-uuid>', '<your name>');
+--      insert into public.user_roles(user_id, role)
+--        values ('<paste-uuid>', 'admin');
+--
+-- 2) Create the school
+--
+--      insert into public.schools(name) values ('<school name>')
+--        returning id;   -- copy the id
+--
+--    Link the admin to the school (optional; a super-admin can stay unlinked):
+--      update public.profiles set school_id = '<school-id>'
+--        where id = '<admin-uuid>';
+--
+-- 3) Sign in as the new admin at /auth, then use the admin screens:
+--      /admin/routes    → create routes and add stops
+--      /admin/buses     → create buses, assign routes + driver accounts
+--      /admin/students  → create students, assign bus + home stop
+--      /admin/invites   → generate parent codes
+--
+-- 4) Onboard drivers
+--
+--    Each driver needs an auth.users row (email + password), a profiles row
+--    (display_name, vehicle_type, plate_number, seats), and a user_roles row
+--    (role='user'). They can then sign in at /auth and open /track.
+--
+-- 5) Onboard parents
+--
+--    Give each parent their invite code. They redeem it at /join, set a
+--    4-digit PIN, and land on /me.
+-- ============================================================================
