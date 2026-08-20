@@ -8,7 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
-import { redeemJoinCode } from "@/lib/parent-join.server";
+
+// Redeem an invite code via the Vercel serverless endpoint (/api/parent-redeem
+// in prod; identical Vite dev middleware locally). Returns the deterministic
+// email so the client can sign in with the same PIN.
+async function redeemJoinCode(code: string, pin: string): Promise<{ email: string; student_ids: string[] }> {
+  const res = await fetch("/api/parent-redeem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, pin }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error ?? `Redeem failed (${res.status})`);
+  return body;
+}
 
 export const Route = createFileRoute("/join")({
   head: () => ({ meta: [{ title: "Join — Pulse" }] }),
@@ -46,7 +59,7 @@ function JoinPage() {
     if (pin !== pinConfirm) { toast.error("The two PINs don't match"); return; }
     setBusy(true);
     try {
-      const res = await redeemJoinCode({ data: { code: code.trim().toUpperCase(), pin } });
+      const res = await redeemJoinCode(code.trim().toUpperCase(), pin);
       // Sign in with the deterministic email we just created.
       const { error: sErr } = await supabase.auth.signInWithPassword({ email: res.email, password: pin });
       if (sErr) throw sErr;
@@ -66,7 +79,7 @@ function JoinPage() {
     if (!/^\d{4}$/.test(pin)) { toast.error("PIN must be 4 digits"); return; }
     setBusy(true);
     try {
-      // Match the server side of parent-join.server.ts localPart():
+      // Match the server side of api/parent-redeem.js localPart():
       // normalized phone (or code fallback) + "@parent.pulse.local".
       const localPart = phone.trim() ? phone.trim().replace(/[^\d+]/g, "") : code.trim().toUpperCase();
       const email = `${localPart}@parent.pulse.local`;
