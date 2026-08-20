@@ -192,3 +192,21 @@ export function preHomeStopId(stops: StopPt[], homeStopId: string): string | nul
   if (idx <= 0) return null;
   return ordered[idx - 1].id;
 }
+
+/**
+ * Map a geofence event to the banner (and push) intent it should trigger for
+ * a given child. Returns null for events we don't act on (departs, non-home
+ * arrivals). Extracted so the notification decision is testable end-to-end.
+ */
+export type NotifyIntent = "arrived" | "approach";
+export function bannerForEvent(
+  event: EventLite,
+  homeStopId: string | null,
+  preHomeStopIdVal: string | null,
+): NotifyIntent | null {
+  if (event.event_type !== "arrive") return null;
+  if (!homeStopId) return null;  // no home → no notifications ever
+  if (event.stop_id === homeStopId) return "arrived";
+  if (preHomeStopIdVal && event.stop_id === preHomeStopIdVal) return "approach";
+  return null;
+}

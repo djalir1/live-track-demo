@@ -10,7 +10,7 @@ import { getVehicle } from "@/lib/vehicles";
 import { cachedReverseGeocode, reverseGeocode } from "@/lib/geocode";
 import { derivePresence, type BannerState, type DeviceStatusLite } from "@/lib/parent-presence";
 import {
-  computeEta, preHomeStopId, rollingSpeedKmh, stopStatuses,
+  bannerForEvent, computeEta, preHomeStopId, rollingSpeedKmh, stopStatuses,
   type EventLite, type HistoryPt, type StopPt, type EtaState, type StopStatus,
 } from "@/lib/parent-trip";
 
@@ -302,17 +302,17 @@ function MePage() {
       const key = `${e.stop_id}|${e.event_type}|${e.occurred_at}`;
       if (reactedRef.current.has(key)) continue;
       reactedRef.current.add(key);
-      if (e.event_type !== "arrive") continue;
-      // LINKAGE GUARD: we only ever process events for THIS child's bus. RLS
-      // already limits reads by is_parent_of_bus, but as a second line the
-      // stop_id must be in this child's route stops (defence in depth).
+      // LINKAGE GUARD: we only process events for stops on THIS child's
+      // route. RLS already limits reads by is_parent_of_bus; this is a
+      // second line of defence for the notification decision.
       if (!stopPts.some((s) => s.id === e.stop_id)) continue;
-      if (child?.homeStopId && e.stop_id === child.homeStopId) {
-        const stop = child.stops.find((s) => s.id === e.stop_id);
+      const intent = bannerForEvent(e, child?.homeStopId ?? null, preHomeId);
+      if (!intent) continue;
+      const stop = child?.stops.find((s) => s.id === e.stop_id);
+      if (intent === "arrived") {
         setArrivalBanner({ kind: "arrived", stopName: stop?.name ?? "your stop", at: Date.now() });
-        maybePush("Arrived at your stop", `${child.studentName}'s bus arrived at ${stop?.name}.`);
-      } else if (preHomeId && e.stop_id === preHomeId) {
-        const stop = child?.stops.find((s) => s.id === e.stop_id);
+        maybePush("Arrived at your stop", `${child?.studentName}'s bus arrived at ${stop?.name}.`);
+      } else {
         setArrivalBanner({ kind: "approach", stopName: stop?.name ?? "the stop before", at: Date.now() });
         maybePush("Approaching your stop", `${child?.studentName}'s bus arrived at ${stop?.name}. Yours is next.`);
       }

@@ -4,8 +4,9 @@
  * Run with: npx tsx scripts/test-parent-trip.ts
  */
 import {
-  computeEta, haversineM, projectOnRoute, preHomeStopId, remainingMetresToStop,
-  rollingSpeedKmh, stopStatuses, orderedStops, type EventLite, type HistoryPt, type StopPt,
+  bannerForEvent, computeEta, haversineM, projectOnRoute, preHomeStopId,
+  remainingMetresToStop, rollingSpeedKmh, stopStatuses, orderedStops,
+  type EventLite, type HistoryPt, type StopPt,
 } from "../src/lib/parent-trip";
 
 let passed = 0, failed = 0;
@@ -116,6 +117,18 @@ console.log("\npreHomeStopId");
 ok("home = School → pre = Nyarugenge", preHomeStopId(stops, "school") === "nyar");
 ok("home = Kimironko (first) → null",  preHomeStopId(stops, "kim") === null);
 ok("home = unknown id → null",         preHomeStopId(stops, "nope") === null);
+
+console.log("\nbannerForEvent (Aline lives at Nyarugenge; pre-home = Kimironko)");
+{
+  const home = "nyar", pre = "kim";
+  ok("arrive(home)  → arrived",  bannerForEvent({ stop_id: "nyar", event_type: "arrive", occurred_at: "" }, home, pre) === "arrived");
+  ok("arrive(pre)   → approach", bannerForEvent({ stop_id: "kim",  event_type: "arrive", occurred_at: "" }, home, pre) === "approach");
+  ok("depart(home)  → null",     bannerForEvent({ stop_id: "nyar", event_type: "depart", occurred_at: "" }, home, pre) === null);
+  ok("arrive(other) → null",     bannerForEvent({ stop_id: "school", event_type: "arrive", occurred_at: "" }, home, pre) === null);
+  ok("home=null → null",         bannerForEvent({ stop_id: "kim", event_type: "arrive", occurred_at: "" }, null, pre) === null);
+  ok("no pre-home  → still arrived at home",
+    bannerForEvent({ stop_id: "kim", event_type: "arrive", occurred_at: "" }, "kim", null) === "arrived");
+}
 
 console.log("\norderedStops");
 {
