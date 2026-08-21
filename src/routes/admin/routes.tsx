@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminShell } from "@/components/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
+import { friendlyError } from "@/lib/friendly-errors";
 import { useAuth } from "@/lib/auth-context";
 
 const MapPicker = lazy(() => import("@/components/MapPicker").then((m) => ({ default: m.MapPicker })));
@@ -50,7 +51,7 @@ function RoutesPage() {
       setSchoolId(first);
       if (first) await loadRoutes(first);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load school context");
+      toast.error(friendlyError(e, "Couldn't load your school right now."));
     } finally {
       setBusy(false);
     }
@@ -60,7 +61,7 @@ function RoutesPage() {
     const { data, error } = await supabase
       .from("routes").select("*")
       .eq("school_id", sid).order("created_at", { ascending: true });
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setRoutes((data ?? []) as RouteRow[]);
     if ((data?.length ?? 0) > 0 && !selectedRouteId) {
       setSelectedRouteId(data![0].id);
@@ -74,7 +75,7 @@ function RoutesPage() {
       .eq("route_id", routeId)
       .order("sequence", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setStops((data ?? []) as StopRow[]);
   }
 
@@ -82,7 +83,7 @@ function RoutesPage() {
     if (!schoolId || !newRouteName.trim()) return;
     const { data, error } = await supabase
       .from("routes").insert({ school_id: schoolId, name: newRouteName.trim() }).select().single();
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setNewRouteName("");
     await loadRoutes(schoolId);
     setSelectedRouteId(data.id);
@@ -108,7 +109,7 @@ function RoutesPage() {
 
   async function deleteStop(stopId: string) {
     const { error } = await supabase.from("stops").delete().eq("id", stopId);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     if (selectedRouteId) await loadStops(selectedRouteId);
   }
 
@@ -212,7 +213,7 @@ function StopEditor({ schoolId, routeId, onCreated, nextSequence }: {
       name: name.trim(), lat, lng, radius_m: radius, sequence, type,
     });
     setSaving(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setName(""); setLat(null); setLng(null); setRadius(120);
     onCreated();
   }

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { friendlyError } from "@/lib/friendly-errors";
 
 // Redeem an invite code via the Vercel serverless endpoint (/api/parent-redeem
 // in prod; identical Vite dev middleware locally). Returns the deterministic
@@ -81,7 +82,7 @@ function JoinPage() {
       toast.success("Signed in");
       navigate({ to: "/me" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Redeem failed");
+      toast.error(friendlyError(err, "Couldn't redeem this code. Please try again."));
       // Rewind to code entry so the parent can try a different code.
       setStep("code");
       setPin(""); setPinConfirm("");
@@ -110,7 +111,7 @@ function JoinPage() {
       toast.success("Signed in");
       navigate({ to: "/me" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sign-in failed");
+      toast.error(friendlyError(err, "Couldn't sign you in. Check your phone and PIN."));
     } finally { setBusy(false); }
   }
 

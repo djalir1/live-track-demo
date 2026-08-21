@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { friendlyError } from "@/lib/friendly-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,7 +71,7 @@ function AuthPage() {
         toast.success("Welcome back");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Auth error");
+      toast.error(friendlyError(err, "Couldn't sign you in. Please try again."));
     } finally {
       setBusy(false);
     }

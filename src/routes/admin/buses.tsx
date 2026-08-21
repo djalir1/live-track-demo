@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminShell } from "@/components/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
+import { friendlyError } from "@/lib/friendly-errors";
 
 export const Route = createFileRoute("/admin/buses")({
   head: () => ({ meta: [{ title: "Buses — School setup — Pulse" }] }),
@@ -62,7 +63,7 @@ function BusesPage() {
       setRoutes((routesRes.data ?? []) as RouteRow[]);
       setDrivers(((driversRes.data ?? []) as DriverRow[]).filter((p) => driverIds.has(p.id)));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load");
+      toast.error(friendlyError(e, "Couldn't load buses right now."));
     } finally { setBusy(false); }
   }
 
@@ -79,14 +80,14 @@ function BusesPage() {
       capacity: capacity === "" ? null : Number(capacity),
     });
     setSaving(false);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     setLabel(""); setPlate(""); setCapacity(32); setRouteId(""); setDriverId("");
     await bootstrap();
   }
 
   async function deleteBus(id: string) {
     const { error } = await supabase.from("buses").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error));
     await bootstrap();
   }
 

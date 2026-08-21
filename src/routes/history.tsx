@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getVehicle, type VehicleType } from "@/lib/vehicles";
 import { buildTripSummary, formatDurationMinutes, type RawPoint, type TripSummary } from "@/lib/trip";
 import { reverseGeocode, cachedReverseGeocode } from "@/lib/geocode";
+import { friendlyError } from "@/lib/friendly-errors";
 import { generateTripReport } from "@/lib/pdf";
 
 const LiveMap = lazy(() => import("@/components/LiveMap").then((m) => ({ default: m.LiveMap })));
@@ -62,7 +63,7 @@ function HistoryPage() {
         .from("profiles")
         .select("id, display_name, vehicle_name, vehicle_type, plate_number, seats")
         .order("display_name");
-      if (error) { toast.error(`Load drivers: ${error.message}`); return; }
+      if (error) { toast.error(friendlyError(error, "Couldn't load drivers.")); return; }
       setDrivers(data ?? []);
       if ((data?.length ?? 0) > 0) setDriverId((prev) => prev || data![0].id);
     })();
@@ -103,7 +104,7 @@ function HistoryPage() {
       );
       setTrip(summary);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load trip");
+      toast.error(friendlyError(e, "Couldn't load this trip."));
     } finally {
       setBusy(false);
     }
@@ -161,7 +162,7 @@ function HistoryPage() {
       });
       toast.success("PDF report downloaded");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "PDF failed");
+      toast.error(friendlyError(e, "Couldn't build the PDF report."));
     } finally {
       setPdfBusy(false);
     }

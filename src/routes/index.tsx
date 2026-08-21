@@ -56,7 +56,7 @@ function Landing() {
                 <span className="absolute inset-0 rounded-full bg-[var(--moving)] animate-ping opacity-60" />
                 <span className="relative h-2 w-2 rounded-full bg-[var(--moving)]" />
               </span>
-              <span>Live tracking across the world · right now</span>
+              <span>Live school-bus tracking · in pilot with a Kigali school</span>
             </motion.div>
 
             <motion.h1
@@ -75,7 +75,7 @@ function Landing() {
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25, duration: 0.7 }}
               className="mt-6 max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground leading-relaxed"
             >
-              A fleet-tracking platform built for operators who need live visibility across every vehicle. No hardware, no SIMs, no installers — just the phones your drivers already carry.
+              Built for schools who want parents to see the bus, in real time, without hardware or a SIM per vehicle — just the driver's phone. The same platform adapts to any fleet: delivery, ride-share, field service. Ask us for your own instance.
             </motion.p>
 
             <motion.div
@@ -308,9 +308,9 @@ function HowItWorks() {
 }
 
 const USE_CASES = [
+  { title: "Schools (currently in pilot)", body: "Parents get a live map of their child's bus, arrival alerts at their stop, and a daily route history. Admins run the whole thing from one dashboard.", Icon: Users },
   { title: "Delivery & logistics", body: "Track every van from depot to doorstep. Prove arrival times with historical route playback.", Icon: Truck },
-  { title: "Ride-share & taxis",   body: "Give dispatchers live driver locations and battery, plus daily PDF summaries per driver.",       Icon: MapPin },
-  { title: "Field service teams",  body: "Know where every technician is between jobs. Search by name, plate, or the street they're on.",  Icon: Users },
+  { title: "Ride-share & field teams", body: "Give dispatchers live driver locations and battery, plus daily PDF summaries per driver — same platform, same phones.", Icon: MapPin },
 ];
 
 function UseCases() {
@@ -318,8 +318,11 @@ function UseCases() {
     <section id="use-cases" className="relative py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-4">
         <div className="text-center max-w-2xl mx-auto">
-          <SectionEyebrow icon={Globe}>Made for these teams</SectionEyebrow>
-          <h2 className="mt-4 font-display text-4xl md:text-5xl font-bold tracking-tighter">Fleets of all shapes.</h2>
+          <SectionEyebrow icon={Globe}>School buses first — every fleet next</SectionEyebrow>
+          <h2 className="mt-4 font-display text-4xl md:text-5xl font-bold tracking-tighter">One platform, your fleet.</h2>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Right now Pulse is live with a Kigali school. Every piece of it — the driver app, the admin dashboard, the parent map — adapts to any operator that needs live visibility. If you're a school, a delivery company or a taxi fleet, ask us for your own instance.
+          </p>
         </div>
         <div className="mt-14 grid md:grid-cols-3 gap-4">
           {USE_CASES.map((u, i) => (

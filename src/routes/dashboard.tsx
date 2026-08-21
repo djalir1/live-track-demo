@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { LiveUser, TrackingStatus } from "@/types/tracking";
 import { getVehicle } from "@/lib/vehicles";
 import { reverseGeocode, cachedReverseGeocode } from "@/lib/geocode";
+import { friendlyError } from "@/lib/friendly-errors";
 
 const LiveMap = lazy(() => import("@/components/LiveMap").then((m) => ({ default: m.LiveMap })));
 
@@ -62,7 +63,7 @@ function Dashboard() {
     ]);
     if (statusesRes.error) {
       console.error("[dashboard] device_status error", statusesRes.error);
-      toast.error(`Failed to load devices: ${statusesRes.error.message}`);
+      toast.error(friendlyError(statusesRes.error, "Couldn't load the driver list right now."));
     }
     if (profilesRes.error) console.error("[dashboard] profiles error", profilesRes.error);
     if (driversRes.error) console.error("[dashboard] user_roles error", driversRes.error);

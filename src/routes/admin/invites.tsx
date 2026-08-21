@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminShell } from "@/components/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
+import { friendlyError } from "@/lib/friendly-errors";
 
 export const Route = createFileRoute("/admin/invites")({
   head: () => ({ meta: [{ title: "Invites — School setup — Pulse" }] }),
@@ -68,7 +69,7 @@ function InvitesPage() {
       setBuses((busesRes.data ?? []) as BusRow[]);
       setInvites((invitesRes.data ?? []) as InviteRow[]);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load");
+      toast.error(friendlyError(e, "Couldn't load invites right now."));
     } finally { setBusy(false); }
   }
 
@@ -132,7 +133,7 @@ function InvitesPage() {
       await bootstrap();
       toast.success("Invite created");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create invite");
+      toast.error(friendlyError(e, "Couldn't create this invite. Please try again."));
     } finally { setSaving(false); }
   }
 
@@ -140,7 +141,7 @@ function InvitesPage() {
     if (inv.used_at) { toast.error("Cannot revoke a used invite"); return; }
     if (!confirm(`Revoke code ${inv.code}?`)) return;
     const { error } = await supabase.from("invites").delete().eq("id", inv.id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(friendlyError(error, "Couldn't revoke that code."));
     await bootstrap();
   }
 

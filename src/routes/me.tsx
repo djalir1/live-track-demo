@@ -9,6 +9,7 @@ import type { VehicleType } from "@/lib/vehicles";
 import { getVehicle } from "@/lib/vehicles";
 import { cachedReverseGeocode, reverseGeocode } from "@/lib/geocode";
 import { derivePresence, type BannerState, type DeviceStatusLite } from "@/lib/parent-presence";
+import { friendlyError } from "@/lib/friendly-errors";
 import {
   bannerForEvent, computeEta, preHomeStopId, rollingSpeedKmh, stopStatuses,
   type EventLite, type HistoryPt, type StopPt, type EtaState, type StopStatus,
@@ -118,6 +119,21 @@ function MePage() {
   }, [user, role]);
 
   const child = children?.[selectedIdx] ?? null;
+
+  // If several linked children ride the SAME bus, list them together in
+  // messages so the parent sees one banner about "Alice and Bob's bus" rather
+  // than having to keep switching child chips that show the same map.
+  const siblingsOnSameBus = useMemo(() => {
+    if (!child || !children) return child ? [child.studentName] : [];
+    return children.filter((c) => c.busId && c.busId === child.busId).map((c) => c.studentName);
+  }, [children, child]);
+  const childNamesLabel = useMemo(() => {
+    const names = siblingsOnSameBus;
+    if (names.length === 0) return "your child";
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} and ${names[1]}`;
+    return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }, [siblingsOnSameBus]);
 
   // ── Live device_status + open trip_session + geofence events + recent history ──
   const [ds, setDs] = useState<DeviceStatusRow | null>(null);
@@ -311,10 +327,10 @@ function MePage() {
       const stop = child?.stops.find((s) => s.id === e.stop_id);
       if (intent === "arrived") {
         setArrivalBanner({ kind: "arrived", stopName: stop?.name ?? "your stop", at: Date.now() });
-        maybePush("Arrived at your stop", `${child?.studentName}'s bus arrived at ${stop?.name}.`);
+        maybePush("Arrived at your stop", `${childNamesLabel}'s bus arrived at ${stop?.name}.`);
       } else {
         setArrivalBanner({ kind: "approach", stopName: stop?.name ?? "the stop before", at: Date.now() });
-        maybePush("Approaching your stop", `${child?.studentName}'s bus arrived at ${stop?.name}. Yours is next.`);
+        maybePush("Approaching your stop", `${childNamesLabel}'s bus arrived at ${stop?.name}. Yours is next.`);
       }
     }
   }, [events, child, preHomeId, stopPts]);
@@ -340,14 +356,35 @@ function MePage() {
   const toggleNotify = useCallback(async () => {
     if (!user) return;
     const next = !notifyEnabled;
-    setNotifyEnabled(next);
+    setNotifyEnabled(next); // optimistic
+
+    // Belt-and-braces: don't fire the upsert unless the session's JWT sub
+    // matches the user we're writing for. Without this, a race between
+    // AuthProvider setting `user` and the supabase client attaching the JWT
+    // can yield an RLS failure with a scary "row-level security policy"
+    // error. If they don't match, ask the user to try again.
+    const { data: sess } = await supabase.auth.getSession();
+    const sub = sess?.session?.user?.id ?? null;
+    if (!sub || sub !== user.id) {
+      setNotifyEnabled(!next);
+      toast.error("Please sign in again — your session isn't fully loaded yet.");
+      return;
+    }
+
     if (next && typeof Notification !== "undefined" && Notification.permission === "default") {
       try { await Notification.requestPermission(); } catch { /* ignore */ }
     }
     const { error } = await supabase.from("parent_notification_prefs")
-      .upsert({ parent_user_id: user.id, notify_enabled: next, updated_at: new Date().toISOString() });
-    if (error) { toast.error(error.message); setNotifyEnabled(!next); }
-    else toast.success(next ? "Notifications on" : "Notifications off");
+      .upsert(
+        { parent_user_id: user.id, notify_enabled: next, updated_at: new Date().toISOString() },
+        { onConflict: "parent_user_id" },
+      );
+    if (error) {
+      setNotifyEnabled(!next);
+      toast.error(friendlyError(error, "Couldn't save that. Please try again."));
+      return;
+    }
+    toast.success(next ? "Notifications on" : "Notifications off");
   }, [user, notifyEnabled]);
 
   // Fire an OS-level notification if the user opted in AND the tab is
@@ -439,23 +476,36 @@ function MePage() {
       </header>
 
       <main className="flex-1 mx-auto max-w-3xl w-full px-4 py-4 space-y-4">
-        {showSwitcher && (
-          <div className="flex flex-wrap gap-2">
-            {(children ?? []).map((c, i) => (
-              <button
-                key={c.studentId}
-                onClick={() => setSelectedIdx(i)}
-                className={`px-4 h-10 rounded-full text-sm font-medium border transition-all ${
-                  i === selectedIdx
-                    ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                    : "bg-background/50 border-border text-muted-foreground hover:border-primary/40"
-                }`}
-              >
-                {c.studentName}
-              </button>
-            ))}
-          </div>
-        )}
+        {(() => {
+          // Group linked children by busId so sibling-on-same-bus renders as
+          // ONE chip ("Alice + Bob") instead of two chips that show the same
+          // map. Hide the row entirely if only one bus is involved.
+          const groups = new Map<string, { idx: number; names: string[] }>();
+          (children ?? []).forEach((c, i) => {
+            const key = c.busId ?? `no-bus:${c.studentId}`;
+            const g = groups.get(key);
+            if (g) g.names.push(c.studentName);
+            else groups.set(key, { idx: i, names: [c.studentName] });
+          });
+          if (groups.size <= 1) return null;
+          return (
+            <div className="flex flex-wrap gap-2">
+              {Array.from(groups.values()).map((g) => (
+                <button
+                  key={g.idx}
+                  onClick={() => setSelectedIdx(g.idx)}
+                  className={`px-4 h-10 rounded-full text-sm font-medium border transition-all ${
+                    g.idx === selectedIdx || g.names.includes(child?.studentName ?? "")
+                      ? "bg-primary text-primary-foreground border-primary shadow-glow"
+                      : "bg-background/50 border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {g.names.join(" + ")}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         {child == null ? (
           <div className="rounded-2xl border border-border/50 bg-card/40 p-6 text-sm text-muted-foreground text-center">
@@ -467,12 +517,12 @@ function MePage() {
               <ArrivalBanner
                 kind={arrivalBanner.kind}
                 stopName={arrivalBanner.stopName}
-                childName={child.studentName}
+                childName={childNamesLabel}
                 eta={eta}
                 onDismiss={() => setArrivalBanner(null)}
               />
             )}
-            <StatusBanner banner={banner} childName={child.studentName} eta={mapBusLive ? eta : { kind: "unknown" }} />
+            <StatusBanner banner={banner} childName={childNamesLabel} eta={mapBusLive ? eta : { kind: "unknown" }} />
 
             <div className="relative rounded-2xl overflow-hidden border border-border/60 shadow-soft h-[52vh] min-h-[380px] bg-card/40">
               <Suspense fallback={<div className="h-full w-full grid place-items-center text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading map…</div>}>
