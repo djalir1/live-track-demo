@@ -47,9 +47,24 @@ function JoinPage() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Same unambiguous alphabet /admin/invites generates from. A code with any
+  // 0 / O / 1 / I / L in it is definitely wrong — bail out before the server
+  // round-trip so the parent gets a clear message immediately.
+  const CODE_ALPHABET_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]+$/;
+
   async function submitCode(e: React.FormEvent) {
     e.preventDefault();
-    if (!code.trim()) { toast.error("Enter the code from your school"); return; }
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed) { toast.error("Enter the code from your school"); return; }
+    if (trimmed.length < 6 || trimmed.length > 12) {
+      toast.error("The code should be 6-12 characters");
+      return;
+    }
+    if (!CODE_ALPHABET_RE.test(trimmed)) {
+      toast.error("That code has characters we don't use — check for 0 vs O and 1 vs I");
+      return;
+    }
+    setCode(trimmed);
     setStep("pin");
   }
 
@@ -76,6 +91,13 @@ function JoinPage() {
   async function submitSignin(e: React.FormEvent) {
     e.preventDefault();
     if (!phone.trim() && !code.trim()) { toast.error("Enter your phone or your original code"); return; }
+    if (phone.trim()) {
+      const digits = phone.trim().replace(/\D+/g, "");
+      if (digits.length < 7 || digits.length > 15) {
+        toast.error("Phone should be 7-15 digits (e.g. +2507…)");
+        return;
+      }
+    }
     if (!/^\d{4}$/.test(pin)) { toast.error("PIN must be 4 digits"); return; }
     setBusy(true);
     try {

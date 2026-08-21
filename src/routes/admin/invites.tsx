@@ -87,9 +87,28 @@ function InvitesPage() {
     });
   }
 
+  // Form validation kept in one place so the button-disabled state and the
+  // pre-submit checks stay in sync. Returns null if OK, otherwise a message.
+  function validate(): string | null {
+    if (picked.size === 0) return "Pick at least one student";
+    if (phone.trim()) {
+      const digits = phone.trim().replace(/\D+/g, "");
+      if (digits.length < 7 || digits.length > 15) {
+        return "Phone should be 7-15 digits (e.g. +2507…)";
+      }
+    }
+    if (expires) {
+      const d = new Date(expires).getTime();
+      if (!Number.isFinite(d)) return "Expiry date is invalid";
+      if (d <= Date.now()) return "Expiry must be in the future";
+    }
+    return null;
+  }
+
   async function generate() {
     if (!schoolId) return;
-    if (picked.size === 0) { toast.error("Pick at least one student"); return; }
+    const err = validate();
+    if (err) { toast.error(err); return; }
     setSaving(true);
     try {
       // Retry a few times on collision. CODE_ALPHABET^8 keeps collision very rare.
@@ -164,10 +183,23 @@ function InvitesPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="inv-expires">Expires (optional)</Label>
-              <Input id="inv-expires" type="datetime-local" value={expires} onChange={(e) => setExpires(e.target.value)} className="h-9" />
+              <Input
+                id="inv-expires"
+                type="datetime-local"
+                value={expires}
+                min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                onChange={(e) => setExpires(e.target.value)}
+                className="h-9"
+              />
+              <div className="text-[11px] text-muted-foreground">
+                Leave blank for no expiry. After this time the code stops working, even if unused.
+              </div>
             </div>
           </div>
-          <Button onClick={generate} disabled={saving || picked.size === 0} className="w-full bg-gradient-primary shadow-glow">
+          {validate() && picked.size > 0 && (
+            <div className="text-[11px] text-destructive">{validate()}</div>
+          )}
+          <Button onClick={generate} disabled={saving || validate() !== null} className="w-full bg-gradient-primary shadow-glow">
             {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Plus className="h-4 w-4 mr-1.5" />}
             Generate invite
           </Button>
