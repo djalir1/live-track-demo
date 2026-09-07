@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
-import { useTheme } from "@/lib/theme";
 import type { LiveUser } from "@/types/tracking";
 import { getVehicle, vehicleSvgString } from "@/lib/vehicles";
+import { OSM_TILE_ATTRIBUTION, OSM_TILE_SUBDOMAINS, OSM_TILE_URL, OSM_MAX_ZOOM } from "@/lib/mapTiles";
 import { formatDistanceToNow } from "date-fns";
 
 const COLOR: Record<LiveUser["status"], string> = {
@@ -73,16 +73,10 @@ export interface LiveMapProps {
 }
 
 export function LiveMap({ users, selectedId, routePoints, stops }: LiveMapProps) {
-  const { theme } = useTheme();
   const center = useMemo<[number, number]>(() => {
     const u = users.find((x) => x.latitude != null);
     return u ? [u.latitude!, u.longitude!] : [0, 0];
   }, [users]);
-
-  const tileUrl = theme === "dark"
-    ? "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-  const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
   return (
     <MapContainer
@@ -91,7 +85,12 @@ export function LiveMap({ users, selectedId, routePoints, stops }: LiveMapProps)
       className="h-full w-full rounded-2xl overflow-hidden"
       scrollWheelZoom
     >
-      <TileLayer url={tileUrl} attribution={attribution} subdomains={["a", "b", "c", "d"]} />
+      <TileLayer
+        url={OSM_TILE_URL}
+        attribution={OSM_TILE_ATTRIBUTION}
+        subdomains={OSM_TILE_SUBDOMAINS}
+        maxZoom={OSM_MAX_ZOOM}
+      />
       <FitBounds users={users} selectedId={selectedId} />
 
       {routePoints && routePoints.length > 1 && (

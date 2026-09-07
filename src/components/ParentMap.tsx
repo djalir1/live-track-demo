@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
-import { useTheme } from "@/lib/theme";
 import type { VehicleType } from "@/lib/vehicles";
+import { OSM_TILE_ATTRIBUTION, OSM_TILE_SUBDOMAINS, OSM_TILE_URL, OSM_MAX_ZOOM } from "@/lib/mapTiles";
 import { vehicleSvgString } from "@/lib/vehicles";
 
 // A calm, single-bus map for the parent /me screen. One route line, all
@@ -121,11 +121,6 @@ function routeLine(stops: StopPin[]): [number, number][] {
 
 export function ParentMap({ bus, stops, homeStopId, doneStopIds, className }: ParentMapProps) {
   const done = new Set(doneStopIds ?? []);
-  const { theme } = useTheme();
-  const tileUrl = theme === "dark"
-    ? "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png"
-    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-  const attribution = '&copy; OpenStreetMap &copy; CARTO';
 
   const line = useMemo(() => routeLine(stops), [stops]);
   const busLatLng = bus?.lat != null && bus?.lng != null ? [bus.lat, bus.lng] as [number, number] : null;
@@ -137,7 +132,12 @@ export function ParentMap({ bus, stops, homeStopId, doneStopIds, className }: Pa
   return (
     <div className={`relative overflow-hidden ${className ?? "h-full w-full"}`}>
       <MapContainer center={initialCentre} zoom={13} className="h-full w-full" scrollWheelZoom>
-        <TileLayer url={tileUrl} attribution={attribution} subdomains={["a", "b", "c", "d"]} />
+        <TileLayer
+          url={OSM_TILE_URL}
+          attribution={OSM_TILE_ATTRIBUTION}
+          subdomains={OSM_TILE_SUBDOMAINS}
+          maxZoom={OSM_MAX_ZOOM}
+        />
         <CameraGovernor busLatLng={busLatLng} stops={stops} />
 
         {line.length > 1 && (

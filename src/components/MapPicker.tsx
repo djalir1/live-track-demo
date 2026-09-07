@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from "react-leaflet";
-import { useTheme } from "@/lib/theme";
+import { OSM_TILE_ATTRIBUTION, OSM_TILE_SUBDOMAINS, OSM_TILE_URL, OSM_MAX_ZOOM } from "@/lib/mapTiles";
 
 // Click-to-place map used on /admin/routes when adding a stop.
 // Emits (lat, lng) whenever the marker moves; radius circle is display-only
@@ -50,19 +50,20 @@ export interface MapPickerProps {
 }
 
 export function MapPicker({ lat, lng, radius_m, onPick, fallback = [-1.9536, 30.0605], className }: MapPickerProps) {
-  const { theme } = useTheme();
   const centre = useMemo<[number, number]>(
     () => (lat != null && lng != null ? [lat, lng] : fallback),
     [lat, lng, fallback],
   );
-  const tileUrl = theme === "dark"
-    ? "https://basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png"
-    : "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
   return (
     <div className={`relative rounded-xl overflow-hidden border border-border/60 ${className ?? "h-64"}`}>
       <MapContainer center={centre} zoom={13} scrollWheelZoom style={{ height: "100%", width: "100%" }}>
-        <TileLayer url={tileUrl} attribution='&copy; OpenStreetMap contributors &copy; CARTO' />
+        <TileLayer
+          url={OSM_TILE_URL}
+          attribution={OSM_TILE_ATTRIBUTION}
+          subdomains={OSM_TILE_SUBDOMAINS}
+          maxZoom={OSM_MAX_ZOOM}
+        />
         <ClickHandler onPick={onPick} />
         <Recenter lat={lat} lng={lng} />
         {lat != null && lng != null && (
