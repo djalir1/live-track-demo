@@ -49,8 +49,11 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
   const endAddr = endRec?.label ?? null;
   // District for the report header: prefer the start point's district, fall back to end.
   const district =
-    startRec?.parts.city_district ?? startRec?.parts.county ??
-    endRec?.parts.city_district ?? endRec?.parts.county ?? null;
+    startRec?.parts.city_district ??
+    startRec?.parts.county ??
+    endRec?.parts.city_district ??
+    endRec?.parts.county ??
+    null;
   const city = startRec?.parts.city ?? endRec?.parts.city ?? null;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -127,12 +130,24 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
 
   // -------- Summary tiles --------
   const tiles: Array<{ label: string; value: string; color: [number, number, number] }> = [
-    { label: "Distance",        value: `${trip.totalDistanceKm.toFixed(2)} km`,        color: BRAND.primary },
-    { label: "Driving time",    value: formatDurationMinutes(trip.totalMovingMinutes), color: BRAND.moving },
-    { label: "Stopped time",    value: formatDurationMinutes(trip.totalStoppedMinutes), color: BRAND.amber },
-    { label: "Top speed",       value: `${trip.topSpeedKmh.toFixed(0)} km/h`,          color: BRAND.stopped },
-    { label: "Avg moving speed",value: `${trip.averageMovingSpeedKmh.toFixed(0)} km/h`, color: BRAND.primary },
-    { label: "Stops",           value: `${trip.stops.length}`,                          color: BRAND.amber },
+    { label: "Distance", value: `${trip.totalDistanceKm.toFixed(2)} km`, color: BRAND.primary },
+    {
+      label: "Driving time",
+      value: formatDurationMinutes(trip.totalMovingMinutes),
+      color: BRAND.moving,
+    },
+    {
+      label: "Stopped time",
+      value: formatDurationMinutes(trip.totalStoppedMinutes),
+      color: BRAND.amber,
+    },
+    { label: "Top speed", value: `${trip.topSpeedKmh.toFixed(0)} km/h`, color: BRAND.stopped },
+    {
+      label: "Avg moving speed",
+      value: `${trip.averageMovingSpeedKmh.toFixed(0)} km/h`,
+      color: BRAND.primary,
+    },
+    { label: "Stops", value: `${trip.stops.length}`, color: BRAND.amber },
   ];
   const cols = 3;
   const gap = 4;
@@ -172,16 +187,28 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
   const batteryDrop = batteryStart != null && batteryEnd != null ? batteryStart - batteryEnd : null;
 
   const infoLines: Array<{ label: string; value: string; color?: [number, number, number] }> = [];
-  if (trip.startedAt) infoLines.push({
-    label: "Started",
-    value: `${format(new Date(trip.startedAt), "p")}${trip.startedAtApprox ? " (approx)" : ""} — ${startAddr ?? "—"}`,
-  });
-  if (trip.endedAt) infoLines.push({
-    label: "Ended",
-    value: `${format(new Date(trip.endedAt), "p")}${trip.endedAtApprox ? " (approx)" : ""} — ${endAddr ?? "—"}`,
-  });
-  if (batteryStart != null) infoLines.push({ label: "Battery at start", value: `${batteryStart}%`, color: batteryStart <= 20 ? BRAND.danger : BRAND.moving });
-  if (batteryEnd != null) infoLines.push({ label: "Battery at end", value: `${batteryEnd}%${batteryDrop != null ? ` (dropped ${batteryDrop}%)` : ""}`, color: batteryEnd <= 20 ? BRAND.danger : BRAND.stopped });
+  if (trip.startedAt)
+    infoLines.push({
+      label: "Started",
+      value: `${format(new Date(trip.startedAt), "p")}${trip.startedAtApprox ? " (approx)" : ""} — ${startAddr ?? "—"}`,
+    });
+  if (trip.endedAt)
+    infoLines.push({
+      label: "Ended",
+      value: `${format(new Date(trip.endedAt), "p")}${trip.endedAtApprox ? " (approx)" : ""} — ${endAddr ?? "—"}`,
+    });
+  if (batteryStart != null)
+    infoLines.push({
+      label: "Battery at start",
+      value: `${batteryStart}%`,
+      color: batteryStart <= 20 ? BRAND.danger : BRAND.moving,
+    });
+  if (batteryEnd != null)
+    infoLines.push({
+      label: "Battery at end",
+      value: `${batteryEnd}%${batteryDrop != null ? ` (dropped ${batteryDrop}%)` : ""}`,
+      color: batteryEnd <= 20 ? BRAND.danger : BRAND.stopped,
+    });
 
   doc.setDrawColor(...BRAND.line);
   doc.setFillColor(...BRAND.tileBg);
@@ -203,7 +230,10 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
 
   // -------- Signal-lost segments --------
   if (trip.gaps.length > 0) {
-    if (y > H - 60) { doc.addPage(); y = 20; }
+    if (y > H - 60) {
+      doc.addPage();
+      y = 20;
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...BRAND.danger);
@@ -237,23 +267,47 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
   }
 
   // -------- Stops table --------
-  if (trip.stops.length > 0) {
-    if (y > H - 60) { doc.addPage(); y = 20; }
+  // Second-pass dedupe: even after trip.ts merges close stops geographically,
+  // two truly separate stops can share the same reverse-geocoded label (long
+  // road with no side streets). Merge consecutive rows that resolved to the
+  // exact same address so the admin doesn't see four identical lines.
+  const stopsWithAddr = trip.stops.map((s, i) => ({ ...s, address: stopAddrs[i] ?? null }));
+  type StopRow = (typeof stopsWithAddr)[number];
+  const dedupedStops: StopRow[] = [];
+  for (const s of stopsWithAddr) {
+    const last = dedupedStops[dedupedStops.length - 1];
+    if (last && last.address && s.address && last.address === s.address) {
+      const totalMs = new Date(s.endedAt).getTime() - new Date(last.startedAt).getTime();
+      dedupedStops[dedupedStops.length - 1] = {
+        ...last,
+        endedAt: s.endedAt,
+        durationMinutes: Math.round(totalMs / 60000),
+      };
+      continue;
+    }
+    dedupedStops.push(s);
+  }
+
+  if (dedupedStops.length > 0) {
+    if (y > H - 60) {
+      doc.addPage();
+      y = 20;
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...BRAND.ink);
-    doc.text(`Stops (${trip.stops.length})`, M, y);
+    doc.text(`Stops (${dedupedStops.length})`, M, y);
     y += 3;
     autoTable(doc, {
       startY: y,
       margin: { left: M, right: M },
       head: [["#", "Started", "Ended", "Duration", "Location"]],
-      body: trip.stops.map((s, i) => [
-        i + 1,
+      body: dedupedStops.map((s, i) => [
+        String(i + 1),
         format(new Date(s.startedAt), "HH:mm"),
         format(new Date(s.endedAt), "HH:mm"),
         formatDurationMinutes(s.durationMinutes),
-        stopAddrs[i] ?? "—",
+        s.address ?? `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`,
       ]),
       headStyles: {
         fillColor: BRAND.primary,
@@ -276,32 +330,61 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
   }
 
   // -------- Route narrative (waypoints) --------
-  if (waypoints.length > 0) {
-    if (y > H - 60) { doc.addPage(); y = 20; }
+  // Build the raw rows, then collapse any consecutive rows that share the same
+  // place label — same reason as the stops table.
+  type RouteRow = { tag: string; time: string; place: string };
+  const rawRoute: RouteRow[] = [];
+  if (startPt && startAddr)
+    rawRoute.push({
+      tag: "Start",
+      time: format(new Date(startPt.recorded_at), "HH:mm"),
+      place: startAddr,
+    });
+  waypoints.forEach((p, i) => {
+    const place = waypointAddrs[i];
+    if (place)
+      rawRoute.push({ tag: String(i + 1), time: format(new Date(p.recorded_at), "HH:mm"), place });
+  });
+  if (endPt && endAddr)
+    rawRoute.push({
+      tag: "End",
+      time: format(new Date(endPt.recorded_at), "HH:mm"),
+      place: endAddr,
+    });
+
+  const dedupedRoute: RouteRow[] = [];
+  for (const r of rawRoute) {
+    const last = dedupedRoute[dedupedRoute.length - 1];
+    if (last && last.place === r.place && !(last.tag === "Start" || r.tag === "End")) continue;
+    dedupedRoute.push(r);
+  }
+  // Renumber the middle rows so gaps from de-dupe don't leave holes like 1, 3, 4, 6.
+  let seq = 0;
+  const renumberedRoute = dedupedRoute.map((r) => {
+    if (r.tag === "Start" || r.tag === "End") return r;
+    seq += 1;
+    return { ...r, tag: String(seq) };
+  });
+
+  if (renumberedRoute.length > 0) {
+    if (y > H - 60) {
+      doc.addPage();
+      y = 20;
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...BRAND.ink);
-    doc.text(`Route (${waypoints.length + 2} places)`, M, y);
+    doc.text(`Route (${renumberedRoute.length} places)`, M, y);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...BRAND.muted);
-    doc.text("sparse waypoints between Start and End · names from OpenStreetMap", M + 44, y);
+    doc.text("street names from OpenStreetMap", M + 44, y);
     y += 3;
-    const rows: (string | number)[][] = [];
-    if (startPt && startAddr) rows.push(["Start", format(new Date(startPt.recorded_at), "HH:mm"), startAddr]);
-    waypoints.forEach((p, i) => {
-      rows.push([
-        `${i + 1}`,
-        format(new Date(p.recorded_at), "HH:mm"),
-        waypointAddrs[i] ?? "—",
-      ]);
-    });
-    if (endPt && endAddr) rows.push(["End", format(new Date(endPt.recorded_at), "HH:mm"), endAddr]);
     autoTable(doc, {
       startY: y,
       margin: { left: M, right: M },
       head: [["#", "Time", "Place"]],
-      body: rows,
+      body: renumberedRoute.map((r) => [r.tag, r.time, r.place]),
       headStyles: {
         fillColor: BRAND.primary,
         textColor: 255,

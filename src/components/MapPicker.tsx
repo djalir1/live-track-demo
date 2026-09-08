@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from "react-leaflet";
-import { OSM_TILE_ATTRIBUTION, OSM_TILE_SUBDOMAINS, OSM_TILE_URL, OSM_MAX_ZOOM } from "@/lib/mapTiles";
+import {
+  OSM_TILE_ATTRIBUTION,
+  OSM_TILE_SUBDOMAINS,
+  OSM_TILE_URL,
+  OSM_MAX_ZOOM,
+} from "@/lib/mapTiles";
 
 // Click-to-place map used on /admin/routes when adding a stop.
 // Emits (lat, lng) whenever the marker moves; radius circle is display-only
@@ -21,7 +26,9 @@ const pinIcon = L.divIcon({
 
 function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }) {
   useMapEvents({
-    click(e) { onPick(e.latlng.lat, e.latlng.lng); },
+    click(e) {
+      onPick(e.latlng.lat, e.latlng.lng);
+    },
   });
   return null;
 }
@@ -49,15 +56,29 @@ export interface MapPickerProps {
   className?: string;
 }
 
-export function MapPicker({ lat, lng, radius_m, onPick, fallback = [-1.9536, 30.0605], className }: MapPickerProps) {
+export function MapPicker({
+  lat,
+  lng,
+  radius_m,
+  onPick,
+  fallback = [-1.9536, 30.0605],
+  className,
+}: MapPickerProps) {
   const centre = useMemo<[number, number]>(
     () => (lat != null && lng != null ? [lat, lng] : fallback),
     [lat, lng, fallback],
   );
 
   return (
-    <div className={`relative rounded-xl overflow-hidden border border-border/60 ${className ?? "h-64"}`}>
-      <MapContainer center={centre} zoom={13} scrollWheelZoom style={{ height: "100%", width: "100%" }}>
+    <div
+      className={`relative rounded-xl overflow-hidden border border-border/60 ${className ?? "h-64"}`}
+    >
+      <MapContainer
+        center={centre}
+        zoom={13}
+        scrollWheelZoom
+        style={{ height: "100%", width: "100%" }}
+      >
         <TileLayer
           url={OSM_TILE_URL}
           attribution={OSM_TILE_ATTRIBUTION}
@@ -69,7 +90,11 @@ export function MapPicker({ lat, lng, radius_m, onPick, fallback = [-1.9536, 30.
         {lat != null && lng != null && (
           <>
             <Marker position={[lat, lng]} icon={pinIcon} />
-            <Circle center={[lat, lng]} radius={radius_m} pathOptions={{ color: "#5850ec", weight: 1.5, fillOpacity: 0.15 }} />
+            <Circle
+              center={[lat, lng]}
+              radius={radius_m}
+              pathOptions={{ color: "#5850ec", weight: 1.5, fillOpacity: 0.15 }}
+            />
           </>
         )}
       </MapContainer>

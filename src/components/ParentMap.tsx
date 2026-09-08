@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
 import type { VehicleType } from "@/lib/vehicles";
-import { OSM_TILE_ATTRIBUTION, OSM_TILE_SUBDOMAINS, OSM_TILE_URL, OSM_MAX_ZOOM } from "@/lib/mapTiles";
+import {
+  OSM_TILE_ATTRIBUTION,
+  OSM_TILE_SUBDOMAINS,
+  OSM_TILE_URL,
+  OSM_MAX_ZOOM,
+} from "@/lib/mapTiles";
 import { vehicleSvgString } from "@/lib/vehicles";
 
 // A calm, single-bus map for the parent /me screen. One route line, all
@@ -87,8 +92,12 @@ function labelledMarker(color: string, label: string, sequence: number | null, e
 // Keep the bus visible. First mount: fit-bounds around the route + bus.
 // After that: pan (don't zoom) when the bus moves off-screen.
 function CameraGovernor({
-  busLatLng, stops,
-}: { busLatLng: [number, number] | null; stops: StopPin[]; }) {
+  busLatLng,
+  stops,
+}: {
+  busLatLng: [number, number] | null;
+  stops: StopPin[];
+}) {
   const map = useMap();
   const first = useRef(true);
   useEffect(() => {
@@ -123,11 +132,12 @@ export function ParentMap({ bus, stops, homeStopId, doneStopIds, className }: Pa
   const done = new Set(doneStopIds ?? []);
 
   const line = useMemo(() => routeLine(stops), [stops]);
-  const busLatLng = bus?.lat != null && bus?.lng != null ? [bus.lat, bus.lng] as [number, number] : null;
+  const busLatLng =
+    bus?.lat != null && bus?.lng != null ? ([bus.lat, bus.lng] as [number, number]) : null;
 
   // Sensible fallback centre when offline with no data: first stop, else Kigali.
-  const initialCentre: [number, number] = busLatLng
-    ?? (stops[0] ? [stops[0].lat, stops[0].lng] : [-1.9536, 30.0605]);
+  const initialCentre: [number, number] =
+    busLatLng ?? (stops[0] ? [stops[0].lat, stops[0].lng] : [-1.9536, 30.0605]);
 
   return (
     <div className={`relative overflow-hidden ${className ?? "h-full w-full"}`}>

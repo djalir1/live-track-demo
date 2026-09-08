@@ -14,6 +14,7 @@ export interface LiveUser {
   latitude: number | null;
   longitude: number | null;
   speed_kmh: number | null;
+  heading: number | null;
   battery_level: number | null;
   is_tracking: boolean;
   last_seen: string;

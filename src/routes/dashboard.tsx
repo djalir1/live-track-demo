@@ -1,7 +1,23 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, LogOut, Sun, Moon, MapPin, Smartphone, Activity, History, Loader2, List, Map as MapIcon, Battery, BatteryWarning, PowerOff, School } from "lucide-react";
+import {
+  Search,
+  LogOut,
+  Sun,
+  Moon,
+  MapPin,
+  Smartphone,
+  Activity,
+  History,
+  Loader2,
+  List,
+  Map as MapIcon,
+  Battery,
+  BatteryWarning,
+  PowerOff,
+  Clock,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -48,7 +64,10 @@ function Dashboard() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) { navigate({ to: "/auth" }); return; }
+    if (!user) {
+      navigate({ to: "/auth" });
+      return;
+    }
     if (role === null) return;
     if (role !== "admin") navigate({ to: "/track" });
   }, [user, role, loading, navigate]);
@@ -56,7 +75,9 @@ function Dashboard() {
   const load = async () => {
     const [statusesRes, profilesRes, driversRes] = await Promise.all([
       supabase.from("device_status").select("*"),
-      supabase.from("profiles").select("id, display_name, vehicle_name, vehicle_type, plate_number, seats"),
+      supabase
+        .from("profiles")
+        .select("id, display_name, vehicle_name, vehicle_type, plate_number, seats"),
       // Only accounts explicitly assigned the 'user' (driver) role can appear
       // in the live list. Admin/parent/school_admin accounts are excluded.
       supabase.from("user_roles").select("user_id").eq("role", "user"),
@@ -89,9 +110,13 @@ function Dashboard() {
           plate_number: p?.plate_number ?? null,
           seats: p?.seats ?? null,
           status: fresh ? s.status : "offline",
-          latitude: s.latitude, longitude: s.longitude,
-          speed_kmh: s.speed_kmh, battery_level: s.battery_level,
-          is_tracking: s.is_tracking, last_seen: s.last_seen,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          speed_kmh: s.speed_kmh,
+          heading: s.heading ?? null,
+          battery_level: s.battery_level,
+          is_tracking: s.is_tracking,
+          last_seen: s.last_seen,
           address: cachedReverseGeocode(s.latitude, s.longitude),
         };
       });
@@ -103,10 +128,15 @@ function Dashboard() {
     load();
     const ch = supabase
       .channel("device_status_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "device_status" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "device_status" }, () =>
+        load(),
+      )
       .subscribe();
     const i = window.setInterval(load, 15000);
-    return () => { supabase.removeChannel(ch); window.clearInterval(i); };
+    return () => {
+      supabase.removeChannel(ch);
+      window.clearInterval(i);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
@@ -118,10 +148,15 @@ function Dashboard() {
         if (u.address) continue;
         const label = await reverseGeocode(u.latitude, u.longitude);
         if (cancelled) return;
-        if (label) setUsers((prev) => prev.map((x) => (x.user_id === u.user_id ? { ...x, address: label } : x)));
+        if (label)
+          setUsers((prev) =>
+            prev.map((x) => (x.user_id === u.user_id ? { ...x, address: label } : x)),
+          );
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [users.map((u) => `${u.user_id}:${u.latitude}:${u.longitude}`).join("|")]);
 
   // The list is filtered by status + search. The MAP still shows every driver
@@ -129,18 +164,37 @@ function Dashboard() {
   const filteredList = useMemo(() => {
     return users.filter((u) => {
       if (filter !== "all" && u.status !== filter) return false;
-      if (search && !`${u.display_name} ${u.vehicle_name ?? ""} ${u.plate_number ?? ""} ${u.address ?? ""}`.toLowerCase().includes(search.toLowerCase())) return false;
+      if (
+        search &&
+        !`${u.display_name} ${u.vehicle_name ?? ""} ${u.plate_number ?? ""} ${u.address ?? ""}`
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      )
+        return false;
       return true;
     });
   }, [users, filter, search]);
 
-  const counts = useMemo(() => ({
-    all: users.length,
-    moving: users.filter((u) => u.status === "moving").length,
-    stopped: users.filter((u) => u.status === "stopped").length,
-    idle: users.filter((u) => u.status === "idle").length,
-    offline: users.filter((u) => u.status === "offline").length,
-  }), [users]);
+  const counts = useMemo(
+    () => ({
+      all: users.length,
+      moving: users.filter((u) => u.status === "moving").length,
+      stopped: users.filter((u) => u.status === "stopped").length,
+      idle: users.filter((u) => u.status === "idle").length,
+      offline: users.filter((u) => u.status === "offline").length,
+    }),
+    [users],
+  );
+
+  // Buses that are actively online right now — moving buses first (most
+  // urgent), then idle, then parked. Offline devices are excluded so the strip
+  // only shows what an admin can currently intervene on.
+  const activeBuses = useMemo(() => {
+    const order: Record<TrackingStatus, number> = { moving: 0, idle: 1, stopped: 2, offline: 3 };
+    return users
+      .filter((u) => u.status !== "offline" && u.is_tracking && u.latitude != null)
+      .sort((a, b) => order[a.status] - order[b.status] || (b.speed_kmh ?? 0) - (a.speed_kmh ?? 0));
+  }, [users]);
 
   if (loading || role !== "admin") {
     return (
@@ -158,7 +212,12 @@ function Dashboard() {
       <div className="p-3 sm:p-4 border-b border-border/50 space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, plate, vehicle or street…" className="pl-9 h-10" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, plate, vehicle or street…"
+            className="pl-9 h-10"
+          />
         </div>
         <div className="flex flex-wrap gap-1.5">
           {FILTERS.map((f) => {
@@ -225,7 +284,8 @@ function Dashboard() {
                   )}
                 </div>
                 <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
-                  {v.label}{u.vehicle_name ? ` · ${u.vehicle_name}` : ""}
+                  {v.label}
+                  {u.vehicle_name ? ` · ${u.vehicle_name}` : ""}
                   {u.plate_number && (
                     <span className="font-mono font-bold text-[10px] bg-muted px-1.5 py-0.5 rounded text-foreground">
                       {u.plate_number}
@@ -238,11 +298,19 @@ function Dashboard() {
                 </div>
               </div>
               <div className="text-right text-xs shrink-0 space-y-0.5">
-                <div className={`flex items-center justify-end gap-1 font-semibold ${lowBattery ? "text-destructive" : "text-muted-foreground"}`}>
-                  {lowBattery ? <BatteryWarning className="h-3 w-3" /> : <Battery className="h-3 w-3" />}
+                <div
+                  className={`flex items-center justify-end gap-1 font-semibold ${lowBattery ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {lowBattery ? (
+                    <BatteryWarning className="h-3 w-3" />
+                  ) : (
+                    <Battery className="h-3 w-3" />
+                  )}
                   {u.battery_level ?? "—"}%
                 </div>
-                <div className="text-muted-foreground">{formatDistanceToNow(new Date(u.last_seen), { addSuffix: false })}</div>
+                <div className="text-muted-foreground">
+                  {formatDistanceToNow(new Date(u.last_seen), { addSuffix: false })}
+                </div>
               </div>
             </motion.button>
           );
@@ -253,7 +321,13 @@ function Dashboard() {
 
   const mapPanel = (
     <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft overflow-hidden h-full min-h-[50vh]">
-      <Suspense fallback={<div className="h-full w-full grid place-items-center text-muted-foreground"><Activity className="h-5 w-5 animate-pulse mr-2" /> Loading map…</div>}>
+      <Suspense
+        fallback={
+          <div className="h-full w-full grid place-items-center text-muted-foreground">
+            <Activity className="h-5 w-5 animate-pulse mr-2" /> Loading map…
+          </div>
+        }
+      >
         {/* Always render EVERY driver on the map — filtering only affects the list. */}
         <LiveMap users={users} selectedId={selected} />
       </Suspense>
@@ -276,15 +350,42 @@ function Dashboard() {
             </span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <KPI label="Active" value={counts.moving + counts.idle + counts.stopped} color="var(--moving)" />
+            <KPI
+              label="Active"
+              value={counts.moving + counts.idle + counts.stopped}
+              color="var(--moving)"
+            />
             <KPI label="Offline" value={counts.offline} color="var(--offline)" />
-            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="School setup">
-              <Link to="/admin/routes"><School className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">School setup</span></Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-2 sm:px-3 opacity-80"
+              title="School setup — coming soon"
+              onClick={() =>
+                toast.info("School setup is coming soon.", {
+                  description: "Routes, stops and student rosters will land in the next release.",
+                })
+              }
+            >
+              <Clock className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">School setup</span>
+              <span className="ml-1.5 hidden sm:inline text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                Soon
+              </span>
             </Button>
             <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="Trip history">
-              <Link to="/history"><History className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">History</span></Link>
+              <Link to="/history">
+                <History className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">History</span>
+              </Link>
             </Button>
-            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3 hidden sm:inline-flex" title="My tracker">
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="px-2 sm:px-3 hidden sm:inline-flex"
+              title="My tracker"
+            >
               <Link to="/track">My tracker</Link>
             </Button>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
@@ -320,11 +421,77 @@ function Dashboard() {
         </div>
       </header>
 
+      {activeBuses.length > 0 && (
+        <div className="mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3">
+          <div className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft px-3 py-2.5">
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <span className="h-2 w-2 rounded-full bg-[var(--moving)] animate-pulse" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Active now
+              </span>
+              <span className="text-xs text-muted-foreground">
+                · {activeBuses.length} {activeBuses.length === 1 ? "bus" : "buses"} online
+              </span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {activeBuses.map((u) => {
+                const V = getVehicle(u.vehicle_type).Icon;
+                const isSelected = selected === u.user_id;
+                return (
+                  <button
+                    key={u.user_id}
+                    onClick={() => {
+                      setSelected(u.user_id);
+                      setMobileView("map");
+                    }}
+                    className={`shrink-0 w-64 text-left rounded-xl border p-2.5 transition-all flex items-center gap-2.5 ${
+                      isSelected
+                        ? "bg-primary/10 border-primary shadow-glow"
+                        : "bg-background/50 border-border/60 hover:border-primary/40"
+                    }`}
+                  >
+                    <span
+                      className="h-9 w-9 rounded-lg grid place-items-center shrink-0 text-white"
+                      style={{ background: DOT[u.status] }}
+                    >
+                      <V size={18} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-medium text-sm truncate">{u.display_name}</span>
+                        {u.plate_number && (
+                          <span className="font-mono text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded shrink-0">
+                            {u.plate_number}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+                        <span
+                          className="font-semibold tabular-nums"
+                          style={{ color: DOT[u.status] }}
+                        >
+                          {u.speed_kmh?.toFixed(0) ?? 0} km/h
+                        </span>
+                        {u.address && <span className="truncate">· 📍 {u.address}</span>}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] min-h-0">
-        <div className={`${mobileView === "list" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}>
+        <div
+          className={`${mobileView === "list" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}
+        >
           {listPanel}
         </div>
-        <div className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}>
+        <div
+          className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}
+        >
           {mapPanel}
         </div>
       </div>

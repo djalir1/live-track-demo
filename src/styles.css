@@ -138,8 +138,13 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html, body { height: 100%; }
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    height: 100%;
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -147,20 +152,36 @@
     -webkit-font-smoothing: antialiased;
     overscroll-behavior-y: none;
   }
-  h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
 }
 
 @layer utilities {
-  .bg-gradient-hero { background: var(--gradient-hero); }
-  .bg-gradient-primary { background: var(--gradient-primary); }
-  .bg-gradient-card { background: var(--gradient-card); }
-  .shadow-glow { box-shadow: var(--shadow-glow); }
-  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
   .pulse-dot {
     position: relative;
   }
   .pulse-dot::after {
-    content: '';
+    content: "";
     position: absolute;
     inset: -4px;
     border-radius: 9999px;
@@ -169,13 +190,41 @@
     animation: pulse-ring 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   @keyframes pulse-ring {
-    0% { transform: scale(0.8); opacity: 0.6; }
-    100% { transform: scale(2); opacity: 0; }
+    0% {
+      transform: scale(0.8);
+      opacity: 0.6;
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
   }
 }
 
 /* Leaflet map dark mode tweak */
-.leaflet-container { font-family: var(--font-sans); background: var(--color-muted); }
-.dark .leaflet-tile { filter: brightness(0.7) invert(1) contrast(0.9) hue-rotate(180deg) saturate(0.5); }
-.dark .leaflet-control-attribution { background: oklch(0.18 0.03 256 / 0.85) !important; color: var(--color-muted-foreground) !important; }
-.dark .leaflet-control-zoom a { background: var(--color-card); color: var(--color-foreground); border-color: var(--color-border); }
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: var(--color-muted);
+}
+.dark .leaflet-tile {
+  filter: brightness(0.7) invert(1) contrast(0.9) hue-rotate(180deg) saturate(0.5);
+}
+.dark .leaflet-control-attribution {
+  background: oklch(0.18 0.03 256 / 0.85) !important;
+  color: var(--color-muted-foreground) !important;
+}
+.dark .leaflet-control-zoom a {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  border-color: var(--color-border);
+}
+/* Smooth position tweening for live bus markers between GPS updates.
+   Only applied to `.bus-marker-live` so parked/offline markers still snap
+   instantly, and static stop markers don't lag during map zoom. */
+.leaflet-marker-icon.bus-marker-live {
+  transition: transform 0.9s linear;
+  will-change: transform;
+}
+.leaflet-zoom-anim .leaflet-marker-icon.bus-marker-live {
+  transition: none;
+}

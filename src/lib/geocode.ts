@@ -6,9 +6,12 @@
 // - Stores both a compact label AND the parsed address parts, so callers that
 //   need the district (e.g. the PDF header) don't have to re-fetch.
 
-const CACHE_KEY = "pulse:revgeo:v2";
+// v3: bumped when we switched to English addresses so stale French labels are dropped.
+const CACHE_KEY = "pulse:revgeo:v3";
 
 export interface AddressParts {
+  name: string | null;
+  house_number: string | null;
   road: string | null;
   suburb: string | null;
   neighbourhood: string | null;
@@ -58,29 +61,43 @@ let lastRequestAt = 0;
 let queueTail: Promise<void> = Promise.resolve();
 
 function scheduled<T>(job: () => Promise<T>): Promise<T> {
-  const run = queueTail.then(async () => {
-    const wait = Math.max(0, MIN_INTERVAL_MS - (Date.now() - lastRequestAt));
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastRequestAt = Date.now();
-  }).then(job);
+  const run = queueTail
+    .then(async () => {
+      const wait = Math.max(0, MIN_INTERVAL_MS - (Date.now() - lastRequestAt));
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      lastRequestAt = Date.now();
+    })
+    .then(job);
   // Swallow errors in the tail so one bad request doesn't stall the queue.
-  queueTail = run.then(() => undefined, () => undefined);
+  queueTail = run.then(
+    () => undefined,
+    () => undefined,
+  );
   return run;
 }
 
 const inflight = new Map<string, Promise<GeoRecord>>();
 
 function compose(parts: AddressParts, fallback: string): string {
-  const road = parts.road;
-  const secondary = parts.suburb ?? parts.neighbourhood;
+  // Prefer a specific POI name when it isn't just the road again — this is what
+  // makes the label look "familiar" (e.g. "Kigali Convention Centre" instead of
+  // yet another "KN 5 Rd" row).
+  const poi = parts.name && parts.name !== parts.road ? parts.name : null;
+  const street =
+    parts.house_number && parts.road ? `${parts.house_number} ${parts.road}` : parts.road;
+  const area = parts.suburb ?? parts.neighbourhood;
   const district = parts.city_district ?? parts.county;
-  const bits = [road, secondary, district].filter(Boolean);
+  const bits = [poi, street, area, district].filter(Boolean);
   return bits.length > 0 ? bits.join(", ") : fallback;
 }
 
 async function fetchNominatim(lat: number, lon: number): Promise<GeoRecord> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=17&addressdetails=1`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  // accept-language=en forces English names for admin regions (so "District de Gasabo"
+  // comes back as "Gasabo District", "Route KN 5" becomes readable, etc.).
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=17&addressdetails=1&accept-language=en`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json", "Accept-Language": "en" },
+  });
   if (!res.ok) throw new Error(`geocode ${res.status}`);
   const data = (await res.json()) as {
     name?: string;
@@ -89,6 +106,8 @@ async function fetchNominatim(lat: number, lon: number): Promise<GeoRecord> {
   };
   const a = data.address ?? {};
   const parts: AddressParts = {
+    name: data.name ?? null,
+    house_number: a.house_number ?? null,
     road: a.road ?? a.pedestrian ?? a.path ?? a.residential ?? a.footway ?? null,
     suburb: a.suburb ?? null,
     neighbourhood: a.neighbourhood ?? null,
@@ -117,13 +136,25 @@ async function lookup(lat: number, lon: number): Promise<GeoRecord> {
       // Cache a placeholder so we don't hammer a failing endpoint.
       const fallback: GeoRecord = {
         label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
-        parts: { road: null, suburb: null, neighbourhood: null, city_district: null, city: null, county: null, country: null },
+        parts: {
+          name: null,
+          house_number: null,
+          road: null,
+          suburb: null,
+          neighbourhood: null,
+          city_district: null,
+          city: null,
+          county: null,
+          country: null,
+        },
       };
       cache.set(k, fallback);
       persist();
       return fallback;
     })
-    .finally(() => { inflight.delete(k); });
+    .finally(() => {
+      inflight.delete(k);
+    });
   inflight.set(k, p);
   return p;
 }
@@ -132,7 +163,10 @@ async function lookup(lat: number, lon: number): Promise<GeoRecord> {
  * Get a human-readable address label for a coordinate. Returns immediately from
  * cache if available; otherwise queues a rate-limited Nominatim lookup.
  */
-export async function reverseGeocode(lat: number | null | undefined, lon: number | null | undefined): Promise<string | null> {
+export async function reverseGeocode(
+  lat: number | null | undefined,
+  lon: number | null | undefined,
+): Promise<string | null> {
   if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   const rec = await lookup(lat, lon);
   return rec.label;
@@ -142,13 +176,19 @@ export async function reverseGeocode(lat: number | null | undefined, lon: number
  * Full address record for a coordinate — label + parsed parts. Same rate-limited
  * cache as reverseGeocode(); callers that need the district or city can use this.
  */
-export async function reverseGeocodeAddress(lat: number | null | undefined, lon: number | null | undefined): Promise<GeoRecord | null> {
+export async function reverseGeocodeAddress(
+  lat: number | null | undefined,
+  lon: number | null | undefined,
+): Promise<GeoRecord | null> {
   if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   return lookup(lat, lon);
 }
 
 /** Synchronous cache read — never triggers a fetch. */
-export function cachedReverseGeocode(lat: number | null | undefined, lon: number | null | undefined): string | null {
+export function cachedReverseGeocode(
+  lat: number | null | undefined,
+  lon: number | null | undefined,
+): string | null {
   if (lat == null || lon == null) return null;
   return cache.get(keyOf(lat, lon))?.label ?? null;
 }

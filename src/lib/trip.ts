@@ -49,7 +49,9 @@ export interface TripSummary {
 }
 
 const R_M = 6371000;
-function toRad(x: number) { return (x * Math.PI) / 180; }
+function toRad(x: number) {
+  return (x * Math.PI) / 180;
+}
 export function haversineMeters(a: [number, number], b: [number, number]) {
   const dLat = toRad(b[0] - a[0]);
   const dLon = toRad(b[1] - a[1]);
@@ -72,6 +74,11 @@ const GAP_MAX_SECONDS = 180;
 const MAX_PLAUSIBLE_KMH = 150;
 // Below this implied speed, dt is accounted as stopped rather than driving.
 const MOVING_KMH = 0.8;
+// Two consecutive stops within this radius and separated by less than this
+// gap are treated as one — prevents "creep" (a stopped bus edging forward a
+// few metres for traffic) from spawning duplicate rows on the report.
+const STOP_MERGE_RADIUS_M = 80;
+const STOP_MERGE_GAP_MS = 4 * 60_000;
 
 export function buildTripSummary(points: RawPoint[], sessions: TripSessionRow[] = []): TripSummary {
   const firstAt = points[0]?.recorded_at ?? null;
@@ -119,7 +126,9 @@ export function buildTripSummary(points: RawPoint[], sessions: TripSessionRow[] 
     const end = points[endIdx];
     const durMs = new Date(end.recorded_at).getTime() - new Date(start.recorded_at).getTime();
     if (durMs / 1000 >= STOP_MIN_SECONDS) {
-      let sumLat = 0, sumLon = 0, n = 0;
+      let sumLat = 0,
+        sumLon = 0,
+        n = 0;
       for (let i = clusterStart; i <= endIdx; i++) {
         sumLat += points[i].latitude;
         sumLon += points[i].longitude;
@@ -180,12 +189,13 @@ export function buildTripSummary(points: RawPoint[], sessions: TripSessionRow[] 
   }
   if (points.length - 1 > clusterStart) closeCluster(points.length - 1);
 
+  const mergedStops = mergeCloseStops(stops);
+
   const totalDistanceKm = totalMeters / 1000;
   const totalMovingMinutes = movingMs / 60000;
   const totalStoppedMinutes = stoppedMs / 60000;
-  const averageMovingSpeedKmh = totalMovingMinutes > 0
-    ? totalDistanceKm / (totalMovingMinutes / 60)
-    : 0;
+  const averageMovingSpeedKmh =
+    totalMovingMinutes > 0 ? totalDistanceKm / (totalMovingMinutes / 60) : 0;
 
   return {
     points,
@@ -194,7 +204,7 @@ export function buildTripSummary(points: RawPoint[], sessions: TripSessionRow[] 
     totalStoppedMinutes,
     topSpeedKmh: topSpeed,
     averageMovingSpeedKmh,
-    stops,
+    stops: mergedStops,
     gaps,
     startedAt,
     endedAt,
@@ -203,6 +213,37 @@ export function buildTripSummary(points: RawPoint[], sessions: TripSessionRow[] 
     firstAt,
     lastAt,
   };
+}
+
+/**
+ * Merge consecutive stops that are close enough in space and time to actually
+ * be the same real-world stop (bus creeping forward at a light, GPS jitter,
+ * driver nudging into a parking spot). Without this, one physical stop can
+ * splinter into 3–4 near-identical rows in the report.
+ */
+export function mergeCloseStops(stops: Stop[]): Stop[] {
+  if (stops.length < 2) return stops;
+  const out: Stop[] = [];
+  for (const s of stops) {
+    const last = out[out.length - 1];
+    if (last) {
+      const dist = haversineMeters([last.lat, last.lon], [s.lat, s.lon]);
+      const gap = new Date(s.startedAt).getTime() - new Date(last.endedAt).getTime();
+      if (dist <= STOP_MERGE_RADIUS_M && gap <= STOP_MERGE_GAP_MS) {
+        const totalMs = new Date(s.endedAt).getTime() - new Date(last.startedAt).getTime();
+        out[out.length - 1] = {
+          lat: (last.lat + s.lat) / 2,
+          lon: (last.lon + s.lon) / 2,
+          startedAt: last.startedAt,
+          endedAt: s.endedAt,
+          durationMinutes: Math.round(totalMs / 60000),
+        };
+        continue;
+      }
+    }
+    out.push(s);
+  }
+  return out;
 }
 
 /**
@@ -228,8 +269,11 @@ export function selectWaypoints(points: RawPoint[], opts: WaypointOpts = {}): Ra
 
   const bearing = (a: RawPoint, b: RawPoint) => {
     const y = Math.sin(toRad(b.longitude - a.longitude)) * Math.cos(toRad(b.latitude));
-    const x = Math.cos(toRad(a.latitude)) * Math.sin(toRad(b.latitude)) -
-              Math.sin(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.cos(toRad(b.longitude - a.longitude));
+    const x =
+      Math.cos(toRad(a.latitude)) * Math.sin(toRad(b.latitude)) -
+      Math.sin(toRad(a.latitude)) *
+        Math.cos(toRad(b.latitude)) *
+        Math.cos(toRad(b.longitude - a.longitude));
     return (Math.atan2(y, x) * 180) / Math.PI;
   };
 
@@ -238,12 +282,18 @@ export function selectWaypoints(points: RawPoint[], opts: WaypointOpts = {}): Ra
   let lastBearing: number | null = null;
   for (let i = 1; i < points.length - 1; i++) {
     const p = points[i];
-    const dt = (new Date(p.recorded_at).getTime() - new Date(lastEmit.recorded_at).getTime()) / 1000;
+    const dt =
+      (new Date(p.recorded_at).getTime() - new Date(lastEmit.recorded_at).getTime()) / 1000;
     // Skip pairs that cross a signal-lost boundary — those are already reported
     // as gaps, so we don't want a waypoint that pretends the drive was continuous.
-    if (dt > 180) { lastEmit = p; lastBearing = null; continue; }
+    if (dt > 180) {
+      lastEmit = p;
+      lastBearing = null;
+      continue;
+    }
 
-    const km = haversineMeters([lastEmit.latitude, lastEmit.longitude], [p.latitude, p.longitude]) / 1000;
+    const km =
+      haversineMeters([lastEmit.latitude, lastEmit.longitude], [p.latitude, p.longitude]) / 1000;
     const mins = dt / 60;
     const brg = bearing(lastEmit, p);
     let bearingTurn = 0;
