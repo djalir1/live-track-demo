@@ -18,7 +18,7 @@ import {
 const ParentMap = lazy(() => import("@/components/ParentMap").then((m) => ({ default: m.ParentMap })));
 
 export const Route = createFileRoute("/me")({
-  head: () => ({ meta: [{ title: "My child — Pulse" }] }),
+  head: () => ({ meta: [{ title: "My child — Live Track" }] }),
   component: MePage,
 });
 
@@ -461,7 +461,7 @@ function MePage() {
             <span className="h-7 w-7 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
               <MapPin className="h-3.5 w-3.5 text-primary-foreground" />
             </span>
-            Pulse
+            Live Track
           </Link>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={toggleNotify} title={notifyEnabled ? "Notifications on" : "Notifications off"}>

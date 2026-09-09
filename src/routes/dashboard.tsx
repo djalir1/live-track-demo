@@ -33,7 +33,7 @@ import { friendlyError } from "@/lib/friendly-errors";
 const LiveMap = lazy(() => import("@/components/LiveMap").then((m) => ({ default: m.LiveMap })));
 
 export const Route = createFileRoute("/dashboard")({
-  head: () => ({ meta: [{ title: "Admin Dashboard — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Admin Dashboard — Live Track" }] }),
   component: Dashboard,
 });
 
@@ -343,7 +343,7 @@ function Dashboard() {
               <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
                 <MapPin className="h-4 w-4 text-primary-foreground" />
               </span>
-              <span className="hidden sm:inline">Pulse</span>
+              <span className="hidden sm:inline">Live Track</span>
             </Link>
             <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
               Admin Dashboard

@@ -12,7 +12,7 @@ import { useTracker } from "@/hooks/use-tracker";
 import { reverseGeocode } from "@/lib/geocode";
 
 export const Route = createFileRoute("/track")({
-  head: () => ({ meta: [{ title: "Tracker — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Tracker — Live Track" }] }),
   component: TrackPage,
 });
 
@@ -92,7 +92,7 @@ function TrackPage() {
             <span className="h-7 w-7 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
               <MapPin className="h-3.5 w-3.5 text-primary-foreground" />
             </span>
-            Pulse
+            Live Track
           </div>
           <div className="flex items-center gap-1">
             {role === "admin" && (
@@ -128,8 +128,8 @@ function TrackPage() {
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   {stats.permission === "unsupported"
-                    ? "This device or browser doesn't support GPS. Try opening Pulse on a phone with location services."
-                    : "Pulse needs your device location to go live. Enable it in your device & browser settings, then tap Retry."}
+                    ? "This device or browser doesn't support GPS. Try opening Live Track on a phone with location services."
+                    : "Live Track needs your device location to go live. Enable it in your device & browser settings, then tap Retry."}
                 </p>
               </div>
             </div>

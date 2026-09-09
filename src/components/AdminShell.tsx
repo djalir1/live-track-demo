@@ -51,7 +51,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
                 <MapPin className="h-4 w-4 text-primary-foreground" />
               </span>
-              <span className="hidden sm:inline">Pulse</span>
+              <span className="hidden sm:inline">Live Track</span>
             </Link>
             <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
               School setup

@@ -70,7 +70,7 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
   doc.setTextColor(255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
-  doc.text("PULSE", M, 15);
+  doc.text("LIVE TRACK", M, 15);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text("Daily Trip Report", M, 21);
@@ -410,10 +410,10 @@ export async function generateTripReport(input: ReportInput): Promise<void> {
     doc.setFontSize(7.5);
     doc.setTextColor(...BRAND.muted);
     doc.setFont("helvetica", "normal");
-    doc.text(`Pulse Tracking · Generated ${format(new Date(), "PPpp")}`, M, H - 7);
+    doc.text(`Live Track · Generated ${format(new Date(), "PPpp")}`, M, H - 7);
     doc.text(`Page ${i} of ${pageCount}`, W - M, H - 7, { align: "right" });
   }
 
-  const fname = `pulse-${driverName.replace(/\s+/g, "_")}-${format(date, "yyyy-MM-dd")}.pdf`;
+  const fname = `livetrack-${driverName.replace(/\s+/g, "_")}-${format(date, "yyyy-MM-dd")}.pdf`;
   doc.save(fname);
 }

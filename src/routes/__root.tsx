@@ -32,7 +32,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#0b0f1a" },
-      { title: "Pulse — Real-time GPS Tracking" },
+      { title: "Live Track — Real-time GPS Tracking" },
       { name: "description", content: "Turn any phone into a live GPS tracker. Manage your fleet in real time." },
     ],
     links: [

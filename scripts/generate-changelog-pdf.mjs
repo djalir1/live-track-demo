@@ -1,6 +1,6 @@
 // Standalone script that generates a polished team-facing change report PDF.
 // Run with: node scripts/generate-changelog-pdf.mjs
-// Output: PULSE-Change-Report.pdf at the project root.
+// Output: LIVETRACK-Change-Report.pdf at the project root.
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(__dirname, "..", "PULSE-Change-Report.pdf");
+const OUT = resolve(__dirname, "..", "LIVETRACK-Change-Report.pdf");
 
 // Any Unicode punctuation that helvetica can't render -> ASCII equivalent.
 // Belt-and-braces safety net; the content strings above are also ASCII-clean.
@@ -58,7 +58,7 @@ const C = {
 const REPORT_DATE = new Date();
 
 const OVERVIEW = [
-  "Pulse is a real-time GPS fleet-tracking web app. Any smartphone becomes a live GPS device -- no hardware, no SIM cards.",
+  "Live Track is a real-time GPS fleet-tracking web app. Any smartphone becomes a live GPS device -- no hardware, no SIM cards.",
   "Drivers open the app, tap Start tracking, and stream their position, speed, battery and status to an admin dashboard that shows every vehicle on one map. Admins can replay any driver's day, download PDF trip reports, and see human-readable street names for every stop.",
   "This document summarises what the platform used to look like, what changed, and where it is today -- so anyone joining the team can get up to speed quickly.",
 ];
@@ -315,7 +315,7 @@ doc.circle(M, 100, 2.5, "F");
 doc.setTextColor(255);
 doc.setFont("helvetica", "bold");
 doc.setFontSize(11);
-doc.text("PULSE", M + 10, 96);
+doc.text("LIVE TRACK", M + 10, 96);
 doc.setFont("helvetica", "normal");
 doc.setFontSize(8);
 doc.text("Real-time GPS fleet tracking", M + 10, 101);
@@ -327,27 +327,27 @@ doc.text("Change Report", M, 143);
 
 doc.setFont("helvetica", "normal");
 doc.setFontSize(11);
-doc.text("Everything that changed on Pulse, in one document.", M, 168);
+doc.text("Everything that changed on Live Track, in one document.", M, 168);
 
 doc.setFontSize(9);
 setTextC(C.faint);
 doc.text(REPORT_DATE.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }), M, 178);
-doc.text("Prepared for the Pulse team.", M, 184);
+doc.text("Prepared for the Live Track team.", M, 184);
 
 // footer marker
 setFillC(C.primary);
 doc.rect(0, H - 12, W, 4, "F");
 doc.setFontSize(8);
 doc.setTextColor(255);
-doc.text("PULSE  -  Change Report", M, H - 5);
+doc.text("LIVE TRACK  -  Change Report", M, H - 5);
 doc.text("v1.0", W - M, H - 5, { align: "right" });
 
 // -----------------------------------------------------------------------------
-// PAGE: What is Pulse
+// PAGE: What is Live Track
 // -----------------------------------------------------------------------------
 doc.addPage();
 y = M;
-h1("What is Pulse?");
+h1("What is Live Track?");
 for (const p of OVERVIEW) paragraph(p);
 
 h2("The people who use it");
@@ -472,7 +472,7 @@ for (let i = 2; i <= total; i++) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   setTextC(C.muted);
-  doc.text("PULSE  -  Platform Change Report", M, H - 7);
+  doc.text("LIVE TRACK  -  Platform Change Report", M, H - 7);
   doc.text(`Page ${i} of ${total}`, W - M, H - 7, { align: "right" });
 }
 

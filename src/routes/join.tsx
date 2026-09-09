@@ -25,7 +25,7 @@ async function redeemJoinCode(code: string, pin: string): Promise<{ email: strin
 }
 
 export const Route = createFileRoute("/join")({
-  head: () => ({ meta: [{ title: "Join — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Join — Live Track" }] }),
   component: JoinPage,
 });
 
@@ -125,7 +125,7 @@ function JoinPage() {
           <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
             <MapPin className="h-4 w-4 text-primary-foreground" />
           </span>
-          Pulse
+          Live Track
         </Link>
         <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
           <Ticket className="h-3.5 w-3.5" /> Parent join

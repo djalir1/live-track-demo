@@ -1,9 +1,9 @@
-// Standalone script that generates a Pulse System Guide PDF -- what the
+// Standalone script that generates a Live Track System Guide PDF -- what the
 // platform is, what it does, how each user type experiences it, and
 // exactly how to test the whole loop end-to-end.
 //
 // Run with: node scripts/generate-system-guide-pdf.mjs
-// Output:   PULSE-System-Guide.pdf at the project root.
+// Output:   LIVETRACK-System-Guide.pdf at the project root.
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(__dirname, "..", "PULSE-System-Guide.pdf");
+const OUT = resolve(__dirname, "..", "LIVETRACK-System-Guide.pdf");
 
 // jsPDF's default font is Windows-1252. Strip / substitute unicode.
 const UNI_MAP = {
@@ -51,7 +51,7 @@ function drawRunningFooter() {
   const p = doc.getNumberOfPages();
   setFillC(C.primary); doc.rect(0, H-10, W, 3, "F");
   setTextC(C.muted); doc.setFont("helvetica","normal"); doc.setFontSize(8);
-  doc.text(a("PULSE - System Guide"), M, H-4);
+  doc.text(a("LIVE TRACK - System Guide"), M, H-4);
   doc.text(`Page ${p}`, W-M, H-4, { align:"right" });
 }
 
@@ -129,7 +129,7 @@ setFillC(C.primaryDeep); doc.rect(0,148,W,3,"F");
 setFillC([255,255,255]); doc.circle(M,100,5,"F");
 setFillC(C.primary); doc.circle(M,100,2.5,"F");
 doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(11);
-doc.text("PULSE", M+10, 96);
+doc.text("LIVE TRACK", M+10, 96);
 doc.setFont("helvetica","normal"); doc.setFontSize(8);
 doc.text("Real-time bus tracking, parent-first", M+10, 101);
 doc.setFont("helvetica","bold"); doc.setFontSize(36);
@@ -142,18 +142,18 @@ doc.text(new Date().toLocaleDateString(undefined,{weekday:"long",year:"numeric",
 doc.text("For the pilot with the Kigali school + anyone joining the team.", M, 184);
 setFillC(C.primary); doc.rect(0,H-12,W,4,"F");
 doc.setFontSize(8); doc.setTextColor(255);
-doc.text(a("PULSE - System Guide"), M, H-5);
+doc.text(a("LIVE TRACK - System Guide"), M, H-5);
 doc.text("v1.0", W-M, H-5, { align:"right" });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PAGE 1 — What is Pulse
+// PAGE 1 — What is Live Track
 // ─────────────────────────────────────────────────────────────────────────────
 doc.addPage(); y = M; drawRunningFooter();
-h1("What is Pulse?");
-paragraph("Pulse is a real-time bus tracking platform for schools. Every driver's phone becomes a live GPS device -- no separate hardware, no SIM per vehicle, no installer visit. The driver opens the app, taps Start, and their bus streams live to the school's admin dashboard and to every parent linked to a child on that bus.");
+h1("What is Live Track?");
+paragraph("Live Track is a real-time bus tracking platform for schools. Every driver's phone becomes a live GPS device -- no separate hardware, no SIM per vehicle, no installer visit. The driver opens the app, taps Start, and their bus streams live to the school's admin dashboard and to every parent linked to a child on that bus.");
 paragraph("The platform was built first for a Kigali school in closed pilot, but every feature -- driver app, admin dashboard, parent map -- adapts to any operator that needs live visibility over people they trust with vehicles. Delivery, ride-share, field teams: same system, same phones.");
 
-h2("The three questions Pulse answers");
+h2("The three questions Live Track answers");
 bulletList([
   "PARENT: Where is my child's bus right now, and when will it arrive at our stop?",
   "ADMIN: Where is every bus on my fleet right now, and what happened yesterday?",

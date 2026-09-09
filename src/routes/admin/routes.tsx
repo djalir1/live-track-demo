@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 const MapPicker = lazy(() => import("@/components/MapPicker").then((m) => ({ default: m.MapPicker })));
 
 export const Route = createFileRoute("/admin/routes")({
-  head: () => ({ meta: [{ title: "Routes — School setup — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Routes — School setup — Live Track" }] }),
   component: RoutesPage,
 });
 

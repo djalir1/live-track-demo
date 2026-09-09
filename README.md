@@ -1,4 +1,4 @@
-# Pulse — Real-time GPS Tracking
+# Live Track — Real-time GPS Tracking
 
 A phone-as-tracker web app: drivers open the app on their phone and their live
 location streams to an admin dashboard. Built on **TanStack Start + React 19**

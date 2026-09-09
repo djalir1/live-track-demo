@@ -221,7 +221,7 @@ export function LivePreviewCard() {
           <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.78_0.17_80)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.18_150)]" />
         </div>
-        <div className="text-xs font-medium text-muted-foreground ml-2">pulse.app/dashboard</div>
+        <div className="text-xs font-medium text-muted-foreground ml-2">livetrack.app/dashboard</div>
         <div className="ml-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--moving)]">
           <span className="relative flex h-2 w-2">
             <span className="absolute inset-0 rounded-full bg-[var(--moving)] animate-ping opacity-60" />

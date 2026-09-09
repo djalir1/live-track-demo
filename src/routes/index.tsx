@@ -13,9 +13,9 @@ import { AnimatedWorld, LivePreviewCard } from "@/components/AnimatedWorld";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Pulse — Real-time GPS Fleet Tracking" },
+      { title: "Live Track — Real-time GPS Fleet Tracking" },
       { name: "description", content: "Turn any smartphone into a live GPS tracker. Real-time fleet, vehicle and team monitoring with a beautiful admin dashboard, trip playback, and PDF reports." },
-      { property: "og:title", content: "Pulse — Real-time GPS Tracking" },
+      { property: "og:title", content: "Live Track — Real-time GPS Tracking" },
       { property: "og:description", content: "Your phone is the tracker. Live map, history playback, PDF reports." },
     ],
   }),
@@ -159,7 +159,7 @@ function NavBar() {
           <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary shadow-glow">
             <MapPin className="h-4 w-4 text-primary-foreground" />
           </span>
-          Pulse
+          Live Track
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
           <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -270,7 +270,7 @@ function FeatureCard({ icon: Icon, title, desc, index }: { icon: typeof MapPin; 
 
 const STEPS = [
   { n: "01", title: "Provision each driver", desc: "Add drivers to your workspace with their vehicle type, plate number, and seat capacity. Admins are granted access from the dashboard.", Icon: Users },
-  { n: "02", title: "Drivers go live", desc: "The driver opens Pulse on their phone, taps Start tracking, and Wake Lock keeps the screen on for the whole shift.", Icon: Play },
+  { n: "02", title: "Drivers go live", desc: "The driver opens Live Track on their phone, taps Start tracking, and Wake Lock keeps the screen on for the whole shift.", Icon: Play },
   { n: "03", title: "You see everything, live", desc: "Every vehicle streams to the admin map in real time. Filter by status, search by plate, download daily PDF reports.", Icon: LineChart },
 ];
 
@@ -321,7 +321,7 @@ function UseCases() {
           <SectionEyebrow icon={Globe}>School buses first — every fleet next</SectionEyebrow>
           <h2 className="mt-4 font-display text-4xl md:text-5xl font-bold tracking-tighter">One platform, your fleet.</h2>
           <p className="mt-3 text-sm text-muted-foreground">
-            Right now Pulse is live with a Kigali school. Every piece of it — the driver app, the admin dashboard, the parent map — adapts to any operator that needs live visibility. If you're a school, a delivery company or a taxi fleet, ask us for your own instance.
+            Right now Live Track is live with a Kigali school. Every piece of it — the driver app, the admin dashboard, the parent map — adapts to any operator that needs live visibility. If you're a school, a delivery company or a taxi fleet, ask us for your own instance.
           </p>
         </div>
         <div className="mt-14 grid md:grid-cols-3 gap-4">
@@ -393,7 +393,7 @@ function Footer() {
             <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
               <MapPin className="h-4 w-4 text-primary-foreground" />
             </span>
-            Pulse
+            Live Track
           </Link>
           <p className="mt-3 text-sm text-muted-foreground max-w-xs">
             Real-time GPS tracking that turns any phone into a live device.
@@ -423,7 +423,7 @@ function Footer() {
         </div>
       </div>
       <div className="mt-10 pt-6 border-t border-border/50 mx-auto max-w-6xl px-4 flex flex-col sm:flex-row justify-between gap-2 text-xs text-muted-foreground">
-        <div>© {new Date().getFullYear()} Pulse Tracking</div>
+        <div>© {new Date().getFullYear()} Live Track</div>
         <div>Made for fleets that need to know.</div>
       </div>
     </footer>

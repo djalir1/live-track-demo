@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 import { VEHICLES, type VehicleType } from "@/lib/vehicles";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Sign in — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Sign in — Live Track" }] }),
   component: AuthPage,
 });
 
@@ -88,7 +88,7 @@ function AuthPage() {
           <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
             <MapPin className="h-4 w-4 text-primary-foreground" />
           </span>
-          Pulse
+          Live Track
         </Link>
 
         <h1 className="font-display text-2xl font-bold">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>

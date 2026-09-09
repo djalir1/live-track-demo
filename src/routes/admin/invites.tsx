@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { friendlyError } from "@/lib/friendly-errors";
 
 export const Route = createFileRoute("/admin/invites")({
-  head: () => ({ meta: [{ title: "Invites — School setup — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Invites — School setup — Live Track" }] }),
   component: InvitesPage,
 });
 
