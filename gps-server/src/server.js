@@ -89,4 +89,4 @@ http.createServer((req, res) => {
     ok: true,
     devices: Object.fromEntries([...devices].map(([k, v]) => [k, { ...v, lastPacket: v.lastPacket.toISOString() }])),
   }, null, 2));
-}).listen(HTTP_PORT, () => log(`🩺 health on http://localhost:${HTTP_PORT}`));
+}).listen(HTTP_PORT, "127.0.0.1", () => log(`🩺 health on http://127.0.0.1:${HTTP_PORT} (local only)`));

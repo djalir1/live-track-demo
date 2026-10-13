@@ -82,7 +82,24 @@ What we tried that does **not** work: playit.gg free (plain TCP is paid, and fre
 "Minecraft" tunnels route by the Minecraft handshake, which trackers don't send),
 bore (Windows Defender quarantines it), and Oracle Cloud free (card declined).
 
-### Production: a small VPS (~$4–5/month)
+### Production (current): Strettch Cloud, Kigali
+
+- Server: Strettch Cloud **Kigali-1**, 1 vCPU / 512 MB / 10 GB, Ubuntu 24.04, public IP
+  **102.202.208.186**. Costs 3,999 + 1,000 RWF (public IP) per month, paid by MoMo top-up.
+- Trackers report to `102.202.208.186:5023`, set by SMS `SERVER,0,102.202.208.186,5023,0#`.
+- Layout: code in `/opt/gps-server` (user `gps`), secrets in `/opt/gps-server/.env` (mode 600),
+  Node 22 in `/opt/node-v22.13.0-linux-x64`, 1 GB swap, systemd unit `gps.service`
+  (auto-restart, starts on boot). Health is `curl 127.0.0.1:8080`, run on the server (local only).
+- SSH: `ssh -i ~/.ssh/livetrack_gps root@102.202.208.186`. Key auth only; the public key
+  was added when the compute was created.
+- Logs: `journalctl -u gps -f`. Restart: `systemctl restart gps`.
+- Deploy a new version from `gps-server/` on a dev machine:
+  ```bash
+  tar -cf - package.json src fake-tracker.js test README.md | ssh -i ~/.ssh/livetrack_gps root@102.202.208.186 'tar -xf - -C /opt/gps-server && chown -R gps:gps /opt/gps-server && systemctl restart gps'
+  ```
+  Restarting drops tracker connections for a few seconds. They reconnect by themselves.
+
+### Production (any other VPS, ~$4–5/month)
 
 Any Linux VPS with a public IP works (Hetzner CX22, Contabo, DigitalOcean, Railway
 with a TCP proxy). On Ubuntu:
