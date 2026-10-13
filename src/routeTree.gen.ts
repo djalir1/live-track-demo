@@ -9,41 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TrackRouteImport } from './routes/track'
-import { Route as MeRouteImport } from './routes/me'
-import { Route as JoinRouteImport } from './routes/join'
-import { Route as HistoryRouteImport } from './routes/history'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AdminStudentsRouteImport } from './routes/admin/students'
-import { Route as AdminRoutesRouteImport } from './routes/admin/routes'
-import { Route as AdminInvitesRouteImport } from './routes/admin/invites'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as HistoryRouteImport } from './routes/history'
+import { Route as JoinRouteImport } from './routes/join'
+import { Route as MeRouteImport } from './routes/me'
+import { Route as TrackRouteImport } from './routes/track'
 import { Route as AdminBusesRouteImport } from './routes/admin/buses'
+import { Route as AdminDriversRouteImport } from './routes/admin/drivers'
+import { Route as AdminInvitesRouteImport } from './routes/admin/invites'
+import { Route as AdminRoutesRouteImport } from './routes/admin/routes'
+import { Route as AdminStudentsRouteImport } from './routes/admin/students'
 
-const TrackRoute = TrackRouteImport.update({
-  id: '/track',
-  path: '/track',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MeRoute = MeRouteImport.update({
-  id: '/me',
-  path: '/me',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const JoinRoute = JoinRouteImport.update({
-  id: '/join',
-  path: '/join',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HistoryRoute = HistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -51,19 +32,39 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminStudentsRoute = AdminStudentsRouteImport.update({
-  id: '/admin/students',
-  path: '/admin/students',
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoutesRoute = AdminRoutesRouteImport.update({
-  id: '/admin/routes',
-  path: '/admin/routes',
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeRoute = MeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackRoute = TrackRouteImport.update({
+  id: '/track',
+  path: '/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminBusesRoute = AdminBusesRouteImport.update({
+  id: '/admin/buses',
+  path: '/admin/buses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminDriversRoute = AdminDriversRouteImport.update({
+  id: '/admin/drivers',
+  path: '/admin/drivers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminInvitesRoute = AdminInvitesRouteImport.update({
@@ -71,9 +72,14 @@ const AdminInvitesRoute = AdminInvitesRouteImport.update({
   path: '/admin/invites',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminBusesRoute = AdminBusesRouteImport.update({
-  id: '/admin/buses',
-  path: '/admin/buses',
+const AdminRoutesRoute = AdminRoutesRouteImport.update({
+  id: '/admin/routes',
+  path: '/admin/routes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminStudentsRoute = AdminStudentsRouteImport.update({
+  id: '/admin/students',
+  path: '/admin/students',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/me': typeof MeRoute
   '/track': typeof TrackRoute
   '/admin/buses': typeof AdminBusesRoute
+  '/admin/drivers': typeof AdminDriversRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/admin/routes': typeof AdminRoutesRoute
   '/admin/students': typeof AdminStudentsRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/me': typeof MeRoute
   '/track': typeof TrackRoute
   '/admin/buses': typeof AdminBusesRoute
+  '/admin/drivers': typeof AdminDriversRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/admin/routes': typeof AdminRoutesRoute
   '/admin/students': typeof AdminStudentsRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/me': typeof MeRoute
   '/track': typeof TrackRoute
   '/admin/buses': typeof AdminBusesRoute
+  '/admin/drivers': typeof AdminDriversRoute
   '/admin/invites': typeof AdminInvitesRoute
   '/admin/routes': typeof AdminRoutesRoute
   '/admin/students': typeof AdminStudentsRoute
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | '/me'
     | '/track'
     | '/admin/buses'
+    | '/admin/drivers'
     | '/admin/invites'
     | '/admin/routes'
     | '/admin/students'
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/me'
     | '/track'
     | '/admin/buses'
+    | '/admin/drivers'
     | '/admin/invites'
     | '/admin/routes'
     | '/admin/students'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/me'
     | '/track'
     | '/admin/buses'
+    | '/admin/drivers'
     | '/admin/invites'
     | '/admin/routes'
     | '/admin/students'
@@ -168,6 +180,7 @@ export interface RootRouteChildren {
   MeRoute: typeof MeRoute
   TrackRoute: typeof TrackRoute
   AdminBusesRoute: typeof AdminBusesRoute
+  AdminDriversRoute: typeof AdminDriversRoute
   AdminInvitesRoute: typeof AdminInvitesRoute
   AdminRoutesRoute: typeof AdminRoutesRoute
   AdminStudentsRoute: typeof AdminStudentsRoute
@@ -175,39 +188,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/track': {
-      id: '/track'
-      path: '/track'
-      fullPath: '/track'
-      preLoaderRoute: typeof TrackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/me': {
-      id: '/me'
-      path: '/me'
-      fullPath: '/me'
-      preLoaderRoute: typeof MeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/join': {
-      id: '/join'
-      path: '/join'
-      fullPath: '/join'
-      preLoaderRoute: typeof JoinRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/history': {
-      id: '/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof HistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -217,25 +202,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/students': {
-      id: '/admin/students'
-      path: '/admin/students'
-      fullPath: '/admin/students'
-      preLoaderRoute: typeof AdminStudentsRouteImport
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/routes': {
-      id: '/admin/routes'
-      path: '/admin/routes'
-      fullPath: '/admin/routes'
-      preLoaderRoute: typeof AdminRoutesRouteImport
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/me': {
+      id: '/me'
+      path: '/me'
+      fullPath: '/me'
+      preLoaderRoute: typeof MeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/track': {
+      id: '/track'
+      path: '/track'
+      fullPath: '/track'
+      preLoaderRoute: typeof TrackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/buses': {
+      id: '/admin/buses'
+      path: '/admin/buses'
+      fullPath: '/admin/buses'
+      preLoaderRoute: typeof AdminBusesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/drivers': {
+      id: '/admin/drivers'
+      path: '/admin/drivers'
+      fullPath: '/admin/drivers'
+      preLoaderRoute: typeof AdminDriversRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/invites': {
@@ -245,11 +258,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminInvitesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/buses': {
-      id: '/admin/buses'
-      path: '/admin/buses'
-      fullPath: '/admin/buses'
-      preLoaderRoute: typeof AdminBusesRouteImport
+    '/admin/routes': {
+      id: '/admin/routes'
+      path: '/admin/routes'
+      fullPath: '/admin/routes'
+      preLoaderRoute: typeof AdminRoutesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/students': {
+      id: '/admin/students'
+      path: '/admin/students'
+      fullPath: '/admin/students'
+      preLoaderRoute: typeof AdminStudentsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -264,6 +284,7 @@ const rootRouteChildren: RootRouteChildren = {
   MeRoute: MeRoute,
   TrackRoute: TrackRoute,
   AdminBusesRoute: AdminBusesRoute,
+  AdminDriversRoute: AdminDriversRoute,
   AdminInvitesRoute: AdminInvitesRoute,
   AdminRoutesRoute: AdminRoutesRoute,
   AdminStudentsRoute: AdminStudentsRoute,

@@ -85,8 +85,8 @@ function TrackPage() {
   const live = stats.isTracking && stats.gpsActive;
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/50">
+    <div className="min-h-[100dvh] bg-background pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <header className="sticky top-0 z-30 pt-safe backdrop-blur-xl bg-background/70 border-b border-border/50">
         <div className="mx-auto max-w-md px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2 font-display font-bold">
             <span className="h-7 w-7 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
+import { MapAutoResize } from "@/components/MapAutoResize";
 import type { VehicleType } from "@/lib/vehicles";
 import {
   OSM_TILE_ATTRIBUTION,
@@ -180,6 +181,7 @@ export function ParentMap({ bus, stops, homeStopId, doneStopIds, className }: Pa
             zIndexOffset={1000}
           />
         )}
+        <MapAutoResize />
       </MapContainer>
     </div>
   );

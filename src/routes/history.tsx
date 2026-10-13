@@ -210,7 +210,7 @@ function HistoryPage() {
   }
 
   const infoPanel = (
-    <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft flex flex-col overflow-hidden h-full">
+    <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft flex flex-col overflow-hidden flex-1 min-h-0">
       <div className="p-3 sm:p-4 space-y-3 border-b border-border/50 shrink-0">
         <div className="space-y-2">
           <Label htmlFor="driver">Driver</Label>
@@ -346,7 +346,7 @@ function HistoryPage() {
   );
 
   const mapPanel = (
-    <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft overflow-hidden h-full min-h-[50vh]">
+    <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft overflow-hidden flex-1 min-h-0">
       <Suspense
         fallback={
           <div className="h-full w-full grid place-items-center text-muted-foreground">
@@ -385,8 +385,8 @@ function HistoryPage() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col">
-      <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/50">
+    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
+      <header className="shrink-0 z-30 pt-safe backdrop-blur-xl bg-background/70 border-b border-border/50">
         <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">
@@ -448,14 +448,14 @@ function HistoryPage() {
         </div>
       </header>
 
-      <div className="flex-1 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:grid lg:gap-4 lg:grid-cols-[360px_1fr] min-h-0">
+      <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[360px_1fr] lg:grid-rows-[minmax(0,1fr)]">
         <div
-          className={`${mobileView === "info" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}
+          className={`${mobileView === "info" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
         >
           {infoPanel}
         </div>
         <div
-          className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}
+          className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
         >
           {mapPanel}
         </div>

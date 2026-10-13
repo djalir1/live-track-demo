@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { useMapAutoResize } from "@/components/MapAutoResize";
 import type { LiveUser } from "@/types/tracking";
 import { getVehicle, vehicleSvgString } from "@/lib/vehicles";
 import {
@@ -78,8 +79,11 @@ function makeStopMarker(color: string) {
 
 function FitBounds({ users, selectedId }: { users: LiveUser[]; selectedId?: string | null }) {
   const map = useMap();
+  const resized = useMapAutoResize();
   const fittedRef = useRef(false);
   useEffect(() => {
+    // Hidden (0×0) map, e.g. the mobile list tab: fit once it's visible.
+    if (map.getSize().x === 0) return;
     if (selectedId) {
       const u = users.find((x) => x.user_id === selectedId && x.latitude != null);
       if (u) {
@@ -94,7 +98,7 @@ function FitBounds({ users, selectedId }: { users: LiveUser[]; selectedId?: stri
     if (pts.length === 1) map.setView(pts[0], 14);
     else map.fitBounds(L.latLngBounds(pts), { padding: [40, 40] });
     fittedRef.current = true;
-  }, [users, selectedId, map]);
+  }, [users, selectedId, map, resized]);
   return null;
 }
 
@@ -233,7 +237,10 @@ export function LiveMap({ users, selectedId, routePoints, stops }: LiveMapProps)
                     {phoneOff ? "Last seen " : "Updated "}
                     {formatDistanceToNow(new Date(u.last_seen))} ago
                     {phoneOff && staleMs > 10 * 60_000 && (
-                      <span className="text-[var(--stopped)]"> · {u.gps_tracker ? "engine off" : "driver stopped tracking"}</span>
+                      <span className="text-[var(--stopped)]">
+                        {" "}
+                        · {u.gps_tracker ? "engine off" : "driver stopped tracking"}
+                      </span>
                     )}
                   </div>
                 </div>

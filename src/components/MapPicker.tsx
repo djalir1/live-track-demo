@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from "react-leaflet";
+import { MapAutoResize } from "@/components/MapAutoResize";
 import {
   OSM_TILE_ATTRIBUTION,
   OSM_TILE_SUBDOMAINS,
@@ -97,6 +98,7 @@ export function MapPicker({
             />
           </>
         )}
+        <MapAutoResize />
       </MapContainer>
       <div className="absolute bottom-2 left-2 bg-background/85 border border-border/60 rounded-md px-2 py-1 text-[11px] text-muted-foreground">
         Click on the map to place the stop

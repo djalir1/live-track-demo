@@ -95,7 +95,9 @@ function Dashboard() {
     const driverIds = new Set((driversRes.data ?? []).map((r) => r.user_id));
     const profileMap = new Map(profiles.map((p) => [p.id, p]));
     const trackerDrivers = new Set(
-      ((trackersRes.data ?? []) as { driver_user_id: string | null }[]).map((b) => b.driver_user_id),
+      ((trackersRes.data ?? []) as { driver_user_id: string | null }[]).map(
+        (b) => b.driver_user_id,
+      ),
     );
     const merged: LiveUser[] = statuses
       .filter((s) => driverIds.has(s.user_id))
@@ -218,7 +220,7 @@ function Dashboard() {
   }
 
   const listPanel = (
-    <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft flex flex-col overflow-hidden h-full">
+    <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft flex flex-col overflow-hidden flex-1 min-h-0">
       <div className="p-3 sm:p-4 border-b border-border/50 space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -289,7 +291,8 @@ function Dashboard() {
                   )}
                   {phoneOff && (
                     <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground inline-flex items-center gap-1">
-                      <PowerOff className="h-2.5 w-2.5" /> {u.gps_tracker ? "Ignition off" : "Phone off"}
+                      <PowerOff className="h-2.5 w-2.5" />{" "}
+                      {u.gps_tracker ? "Ignition off" : "Phone off"}
                     </span>
                   )}
                 </div>
@@ -330,7 +333,7 @@ function Dashboard() {
   );
 
   const mapPanel = (
-    <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft overflow-hidden h-full min-h-[50vh]">
+    <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft overflow-hidden h-full min-h-0 flex-1">
       <Suspense
         fallback={
           <div className="h-full w-full grid place-items-center text-muted-foreground">
@@ -345,8 +348,8 @@ function Dashboard() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col">
-      <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/50">
+    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
+      <header className="shrink-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/50 pt-safe">
         <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link to="/" className="flex items-center gap-2 font-display font-bold shrink-0">
@@ -366,7 +369,13 @@ function Dashboard() {
               color="var(--moving)"
             />
             <KPI label="Offline" value={counts.offline} color="var(--offline)" />
-            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="Add and manage vehicles">
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="px-2 sm:px-3"
+              title="Add and manage vehicles"
+            >
               <Link to="/admin/buses">
                 <Bus className="h-4 w-4 sm:mr-1.5" />
                 <span className="hidden sm:inline">Vehicles</span>
@@ -421,7 +430,9 @@ function Dashboard() {
       </header>
 
       {activeBuses.length > 0 && (
-        <div className="mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3">
+        <div
+          className={`${mobileView === "map" ? "hidden lg:block" : ""} shrink-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3`}
+        >
           <div className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft px-3 py-2.5">
             <div className="flex items-center gap-2 mb-2 px-1">
               <span className="h-2 w-2 rounded-full bg-[var(--moving)] animate-pulse" />
@@ -443,7 +454,7 @@ function Dashboard() {
                       setSelected(u.user_id);
                       setMobileView("map");
                     }}
-                    className={`shrink-0 w-64 text-left rounded-xl border p-2.5 transition-all flex items-center gap-2.5 ${
+                    className={`shrink-0 w-56 sm:w-64 text-left rounded-xl border p-2.5 transition-all flex items-center gap-2.5 ${
                       isSelected
                         ? "bg-primary/10 border-primary shadow-glow"
                         : "bg-background/50 border-border/60 hover:border-primary/40"
@@ -482,14 +493,14 @@ function Dashboard() {
         </div>
       )}
 
-      <div className="flex-1 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] min-h-0">
+      <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)]">
         <div
-          className={`${mobileView === "list" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}
+          className={`${mobileView === "list" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
         >
           {listPanel}
         </div>
         <div
-          className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9rem)] lg:h-[calc(100dvh-6rem)]`}
+          className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
         >
           {mapPanel}
         </div>

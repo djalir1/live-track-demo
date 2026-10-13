@@ -151,6 +151,39 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* Buttons/links react instantly to taps (no double-tap-zoom delay). */
+  a,
+  button,
+  select,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+  /* iOS zooms into any field under 16px; keep phones at 16px. */
+  @media (pointer: coarse) {
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1em) !important;
+    }
+  }
+  /* Installed app: behave like a native app, not a web page. */
+  @media (display-mode: standalone) {
+    body {
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    input,
+    textarea,
+    [contenteditable],
+    .selectable {
+      -webkit-user-select: text;
+      user-select: text;
+    }
   }
   h1,
   h2,
@@ -162,6 +195,10 @@
 }
 
 @layer utilities {
+  /* Clear the phone's status bar / notch (installed app draws under it). */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
   .bg-gradient-hero {
     background: var(--gradient-hero);
   }

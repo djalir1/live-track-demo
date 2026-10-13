@@ -154,7 +154,7 @@ function NavBar() {
   }, []);
 
   return (
-    <header className={`fixed top-0 inset-x-0 z-50 transition-all ${scrolled ? "backdrop-blur-xl bg-background/80 border-b border-border/50 shadow-sm" : "bg-transparent"}`}>
+    <header className={`fixed top-0 inset-x-0 z-50 pt-safe transition-all ${scrolled ? "backdrop-blur-xl bg-background/80 border-b border-border/50 shadow-sm" : "bg-transparent"}`}>
       <div className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
           <span className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary shadow-glow">

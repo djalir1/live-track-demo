@@ -457,7 +457,7 @@ function MePage() {
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
-      <header className="border-b border-border/50 backdrop-blur-xl bg-background/70 sticky top-0 z-30">
+      <header className="border-b border-border/50 backdrop-blur-xl bg-background/70 sticky top-0 z-30 pt-safe">
         <div className="mx-auto max-w-3xl px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-display font-bold">
             <span className="h-7 w-7 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
