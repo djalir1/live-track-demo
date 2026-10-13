@@ -29,6 +29,24 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     return text ? JSON.parse(text) : null;
   }
 
+  // ── Clock: trust GPS satellite time over the host clock ──────────────────
+  // A host with the wrong timezone (local time labelled as UTC) would stamp
+  // every row hours off. GPS fixes carry true UTC, so learn the host's offset
+  // from them, rounded to 15 min (timezone-sized) so a delayed/buffered fix
+  // can't skew it.
+  let clockOffsetMs = 0;
+  const nowMs = () => Date.now() + clockOffsetMs;
+  const nowIso = () => new Date(nowMs()).toISOString();
+  function learnClock(deviceTime) {
+    const t = deviceTime.getTime();
+    if (!Number.isFinite(t) || deviceTime.getUTCFullYear() < 2024) return;
+    const off = Math.round((t - Date.now()) / 900_000) * 900_000;
+    if (off !== clockOffsetMs) {
+      clockOffsetMs = off;
+      log(`🕒 host clock is ${-off / 60_000} min off GPS time — correcting timestamps`);
+    }
+  }
+
   // ── IMEI → bus lookup (cached) ────────────────────────────────────────────
   let busCache = new Map();
   let busCacheAt = 0;
@@ -109,14 +127,14 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (open) {
       const existing = await call(`trip_sessions?select=started_at&user_id=eq.${uid}&ended_at=is.null&limit=1`).catch(() => []);
       if (!existing?.length) {
-        await call("trip_sessions", { method: "POST", body: JSON.stringify({ user_id: uid, started_at: new Date().toISOString() }) });
+        await call("trip_sessions", { method: "POST", body: JSON.stringify({ user_id: uid, started_at: nowIso() }) });
         s.totalM = 0; // km counter is per trip, like the phone tracker
         log(`🟢 trip started for ${uid}`);
       }
     } else {
       await call(`trip_sessions?user_id=eq.${uid}&ended_at=is.null`, {
         method: "PATCH",
-        body: JSON.stringify({ ended_at: new Date().toISOString() }),
+        body: JSON.stringify({ ended_at: nowIso() }),
       });
       log(`🔴 trip ended for ${uid}`);
     }
@@ -130,6 +148,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     const uid = bus.driver_user_id;
     if (!uid) { log(`⚠️  bus ${bus.label ?? bus.id} has no driver assigned — position dropped`); return; }
 
+    if (fix.valid) learnClock(fix.deviceTime);
     const s = await getState(uid);
     if (fix.acc != null) s.acc = fix.acc;
     const ignitionOn = s.acc ?? true; // no ACC info → assume running
@@ -142,7 +161,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     s.last = fix;
 
     // Device clock can be on local time or drift; trust it only if close to now.
-    const now = Date.now();
+    const now = nowMs();
     const recordedAt = Math.abs(fix.deviceTime.getTime() - now) < 10 * 60_000 ? fix.deviceTime : new Date(now);
     const status = !ignitionOn ? "idle" : fix.speedKmh > MOVING_KMH ? "moving" : "stopped";
 
@@ -193,7 +212,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     await call(`device_status?user_id=eq.${uid}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ last_seen: new Date().toISOString(), is_tracking: acc, ...(s.battery != null ? { battery_level: s.battery } : {}), ...(acc ? {} : { status: "idle", speed_kmh: 0 }) }),
+      body: JSON.stringify({ last_seen: nowIso(), is_tracking: acc, ...(s.battery != null ? { battery_level: s.battery } : {}), ...(acc ? {} : { status: "idle", speed_kmh: 0 }) }),
     });
   }
 
