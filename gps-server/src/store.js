@@ -54,7 +54,42 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     const rows = await call("buses?select=id,school_id,label,plate,gps_imei,gps_driver_name,driver_user_id&gps_imei=not.is.null");
     busCache = new Map(rows.map((r) => [r.gps_imei, r]));
     busCacheAt = Date.now();
+    if (!dryRun) await syncTrackerProfiles(rows).catch((e) => log(`⚠️  driver profile sync: ${e.message}`));
   }
+
+  // Admins edit the driver name / vehicle name / plate on the bus row, but the
+  // dashboard reads them from the driver's profile, which admins can't write.
+  // Copy them onto tracker-driver accounts (never onto a real person's account).
+  const trackerAccount = new Map(); // uid → boolean
+  async function isTrackerAccount(uid) {
+    if (!trackerAccount.has(uid)) {
+      const res = await fetch(`${url}/auth/v1/admin/users/${uid}`, { headers });
+      if (!res.ok) return false;
+      trackerAccount.set(uid, /^gps-\d{15}@livetrack\.app$/.test((await res.json()).email ?? ""));
+    }
+    return trackerAccount.get(uid);
+  }
+  async function syncTrackerProfiles(rows) {
+    const linked = rows.filter((b) => b.driver_user_id);
+    if (!linked.length) return;
+    const profiles = await call(`profiles?select=id,display_name,vehicle_name,plate_number&id=in.(${linked.map((b) => b.driver_user_id).join(",")})`);
+    const byId = new Map(profiles.map((p) => [p.id, p]));
+    for (const b of linked) {
+      const p = byId.get(b.driver_user_id);
+      if (!p) continue;
+      const want = {
+        display_name: b.gps_driver_name?.trim() || p.display_name,
+        vehicle_name: b.label ?? p.vehicle_name,
+        plate_number: b.plate ?? p.plate_number,
+      };
+      if (want.display_name === p.display_name && want.vehicle_name === p.vehicle_name && want.plate_number === p.plate_number) continue;
+      if (!(await isTrackerAccount(b.driver_user_id))) continue;
+      await call(`profiles?id=eq.${b.driver_user_id}`, { method: "PATCH", body: JSON.stringify(want) });
+      log(`✏️  synced tracker driver "${want.display_name}" for ${b.label ?? b.plate ?? b.id}`);
+    }
+  }
+  // Keep names in sync even while the tracker is offline.
+  if (!dryRun) setInterval(() => refreshBuses().catch((e) => log(`⚠️  bus refresh: ${e.message}`)), BUS_CACHE_MS).unref();
   async function findBus(imei) {
     if (Date.now() - busCacheAt > BUS_CACHE_MS || !busCache.has(imei)) {
       if (dryRun && !url) return { id: "dry-run-bus", label: "Dry-run bus", driver_user_id: "dry-run-driver" };
@@ -94,7 +129,10 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       method: "PATCH",
       body: JSON.stringify({ display_name: name, school_id: bus.school_id, plate_number: bus.plate, vehicle_name: bus.label, vehicle_type: "bus" }),
     });
-    await call(`buses?id=eq.${bus.id}`, { method: "PATCH", body: JSON.stringify({ driver_user_id: uid }) });
+    // Record the name on the bus too: the Vehicles page edits it there, and a
+    // bus with gps_driver_name set marks its driver as a tracker account.
+    await call(`buses?id=eq.${bus.id}`, { method: "PATCH", body: JSON.stringify({ driver_user_id: uid, gps_driver_name: name }) });
+    bus.gps_driver_name = name;
     log(`👤 created tracker driver "${name}" for ${bus.label ?? bus.id}`);
     return uid;
   }
