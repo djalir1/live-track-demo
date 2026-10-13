@@ -1,16 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Bus as BusIcon, Satellite } from "lucide-react";
+import { Plus, Loader2, Trash2, Bus as BusIcon, Satellite, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AdminShell } from "@/components/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
 import { friendlyError } from "@/lib/friendly-errors";
+import { TRACKER_SETUP_SMS } from "@/lib/gps";
 
 export const Route = createFileRoute("/admin/buses")({
-  head: () => ({ meta: [{ title: "Buses — School setup — Live Track" }] }),
+  head: () => ({ meta: [{ title: "Vehicles — Live Track" }] }),
   component: BusesPage,
 });
 
@@ -77,7 +78,7 @@ function BusesPage() {
 
   async function createBus() {
     if (!schoolId) return;
-    if (!label.trim() && !plate.trim()) { toast.error("Give the bus a label or plate"); return; }
+    if (!label.trim() && !plate.trim()) { toast.error("Give the vehicle a name or plate"); return; }
     if (imei.trim() && !IMEI_RE.test(imei.trim())) { toast.error("Tracker IMEI must be 15 digits"); return; }
     setSaving(true);
     const { error } = await supabase.from("buses").insert({
@@ -92,6 +93,7 @@ function BusesPage() {
     });
     setSaving(false);
     if (error) return toast.error(friendlyError(error));
+    toast.success(imei.trim() ? "Vehicle added — now send the tracker its 3 SMS" : "Vehicle added");
     setLabel(""); setPlate(""); setCapacity(32); setRouteId(""); setDriverId(""); setImei(""); setGpsDriverName("");
     await bootstrap();
   }
@@ -104,7 +106,7 @@ function BusesPage() {
     if (next && !IMEI_RE.test(next)) { toast.error("Tracker IMEI must be 15 digits"); return; }
     const { error } = await supabase.from("buses").update({ gps_imei: next || null }).eq("id", bus.id);
     if (error) return toast.error(friendlyError(error));
-    toast.success(next ? "GPS tracker linked" : "GPS tracker removed");
+    toast.success(next ? "GPS tracker linked — send it the 3 SMS if it's new" : "GPS tracker removed");
     await bootstrap();
   }
 
@@ -128,11 +130,11 @@ function BusesPage() {
     <AdminShell>
       <div className="grid lg:grid-cols-[380px_1fr] gap-4">
         <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3 h-fit">
-          <div className="text-sm font-semibold">Add a bus</div>
+          <div className="text-sm font-semibold">Add a vehicle</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="bus-label">Label</Label>
-              <Input id="bus-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder='e.g. "Bus A"' className="h-9" />
+              <Label htmlFor="bus-label">Name</Label>
+              <Input id="bus-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder='e.g. "Bus 1"' className="h-9" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bus-plate">Plate</Label>
@@ -174,17 +176,41 @@ function BusesPage() {
           </div>
           <Button onClick={createBus} disabled={saving} className="w-full bg-gradient-primary shadow-glow">
             {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Plus className="h-4 w-4 mr-1.5" />}
-            Add bus
+            Add vehicle
           </Button>
+          <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
+            <div className="text-xs font-semibold flex items-center gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5 text-primary" /> New GPS tracker? Send these 3 SMS to its SIM number
+            </div>
+            <ol className="space-y-1.5">
+              {TRACKER_SETUP_SMS.map((c, i) => (
+                <li key={c.sms} className="text-[11px] text-muted-foreground">
+                  <span className="mr-1">{i + 1}.</span>
+                  <button
+                    type="button"
+                    onClick={() => { void navigator.clipboard?.writeText(c.sms); toast.success("SMS copied"); }}
+                    className="font-mono text-foreground bg-muted px-1.5 py-0.5 rounded hover:bg-primary/15"
+                    title="Copy"
+                  >
+                    {c.sms}
+                  </button>
+                  <span className="ml-1.5">{c.why}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-[11px] text-muted-foreground">
+              Then turn the ignition on. The vehicle appears on the dashboard within 1–2 minutes.
+            </p>
+          </div>
         </aside>
 
         <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4">
           <div className="text-sm font-semibold flex items-center justify-between">
-            Buses <span className="text-xs text-muted-foreground">{buses.length}</span>
+            Vehicles <span className="text-xs text-muted-foreground">{buses.length}</span>
           </div>
           {busy && <div className="text-xs text-muted-foreground flex items-center gap-2 py-4"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…</div>}
           <div className="mt-2 divide-y divide-border/50">
-            {buses.length === 0 && !busy && <div className="text-xs text-muted-foreground py-8 text-center">No buses yet — add one on the left.</div>}
+            {buses.length === 0 && !busy && <div className="text-xs text-muted-foreground py-8 text-center">No vehicles yet — add one on the left.</div>}
             {buses.map((b) => (
               <div key={b.id} className="py-3 flex items-center gap-3">
                 <span className="h-10 w-10 rounded-xl bg-primary/15 text-primary grid place-items-center"><BusIcon className="h-5 w-5" /></span>

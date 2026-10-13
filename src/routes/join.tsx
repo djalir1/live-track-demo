@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { friendlyError } from "@/lib/friendly-errors";
+import { PARENTS_ENABLED } from "@/lib/features";
+import { ComingSoon } from "@/components/ComingSoon";
 
 // Redeem an invite code via the Vercel serverless endpoint (/api/parent-redeem
 // in prod; identical Vite dev middleware locally). Returns the deterministic
@@ -26,7 +28,7 @@ async function redeemJoinCode(code: string, pin: string): Promise<{ email: strin
 
 export const Route = createFileRoute("/join")({
   head: () => ({ meta: [{ title: "Join — Live Track" }] }),
-  component: JoinPage,
+  component: () => (PARENTS_ENABLED ? <JoinPage /> : <ComingSoon title="Parent access is coming soon" description="Parents will soon follow their child's bus live from their phone. This part of Live Track is not open yet." />),
 });
 
 type Step = "code" | "pin" | "signin";

@@ -144,7 +144,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   /** Save one position fix. `acc` = ignition, null when the packet has none. */
   async function savePosition(imei, fix) {
     const bus = await findBus(imei);
-    if (!bus) { log(`⚠️  unknown IMEI ${imei} — set buses.gps_imei in Admin → Buses`); return; }
+    if (!bus) { log(`⚠️  unknown IMEI ${imei} — set buses.gps_imei in Dashboard → Vehicles`); return; }
     const uid = bus.driver_user_id;
     if (!uid) { log(`⚠️  bus ${bus.label ?? bus.id} has no driver assigned — position dropped`); return; }
 

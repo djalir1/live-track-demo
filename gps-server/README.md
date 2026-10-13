@@ -30,7 +30,7 @@ accept HTTP, so this small Node process sits in between.
 connects the server creates an auth user `gps-<imei>@livetrack.app` (random password,
 nobody logs in). Its name is `buses.gps_driver_name`, or `"<bus label> (GPS)"`. It
 then sets `buses.driver_user_id`. Admins set the IMEI and driver name in
-**Admin → Buses**.
+**Dashboard → Vehicles**.
 
 ## Files
 

@@ -8,10 +8,12 @@ import { Label } from "@/components/ui/label";
 import { AdminShell } from "@/components/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
 import { friendlyError } from "@/lib/friendly-errors";
+import { PARENTS_ENABLED } from "@/lib/features";
+import { ComingSoon } from "@/components/ComingSoon";
 
 export const Route = createFileRoute("/admin/invites")({
   head: () => ({ meta: [{ title: "Invites — School setup — Live Track" }] }),
-  component: InvitesPage,
+  component: () => (PARENTS_ENABLED ? <InvitesPage /> : <ComingSoon title="Parent invites are coming soon" description="Student rosters and parent invite codes will return when parent access opens." />),
 });
 
 // Unambiguous alphabet: no 0/O, no 1/I/L (spec).

@@ -19,4 +19,6 @@ export interface LiveUser {
   is_tracking: boolean;
   last_seen: string;
   address?: string | null;
+  /** Position comes from a hardware GPS tracker (buses.gps_imei), not a phone. */
+  gps_tracker?: boolean;
 }

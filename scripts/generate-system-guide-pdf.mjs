@@ -270,17 +270,19 @@ bulletList([
   "Create a route. Add stops in order: name, click a Leaflet map to set lat/lng, adjust the radius (default 120 m). Stops can be type 'pickup' or 'school'.",
   "Reorder stops with up/down arrows; delete stops.",
 ]);
-h3("/admin/buses -- provision each bus");
+h3("Vehicles button -> /admin/buses -- add and manage vehicles");
 bulletList([
-  "Set label + plate + capacity, assign a route, assign a driver (the picker only lists accounts with role='user').",
+  "Open it from the 'Vehicles' button in the dashboard header. Tabs at the top: Vehicles and Routes.",
+  "Add a vehicle: name + plate + capacity, optional route, and either a driver (phone app) or a GPS tracker IMEI + driver name.",
   "Change the driver of an existing bus from the Driver picker on its row.",
   "Optional: GPS tracker IMEI. A bus with a hardware tracker does not need a driver phone -- see 'GPS trackers in the buses'.",
 ]);
-h3("/admin/students -- roster");
+callout("note", "Parents paused", "Parent access (/join, /me) and the Students / Invites tabs are switched off while schools pilot bus tracking. They return by setting PARENTS_ENABLED = true in src/lib/features.ts.");
+h3("/admin/students -- roster (paused)");
 bulletList([
   "Add students. Assign each to a bus and to a home stop; the home-stop picker is limited to the stops on that bus's route.",
 ]);
-h3("/admin/invites -- generate parent codes");
+h3("/admin/invites -- generate parent codes (paused)");
 bulletList([
   "Pick one or more students -> generate an 8-character code from an unambiguous alphabet (no 0, O, 1, I, L).",
   "Optional parent phone (7-15 digits) and optional expiry (must be in the future). Live error message + disabled Generate button until the form is valid.",
@@ -299,15 +301,16 @@ h2("Add a bus with a tracker -- step by step (admin)");
 bulletList([
   "1. Install the tracker in the bus: red = +12V, black = ground, ACC wire = ignition. Leave the engine-cut relay wire disconnected.",
   "2. Put an MTN SIM with mobile data in the tracker. Note the SIM's phone number.",
-  "3. Open /admin/buses -> 'Add a bus'. Fill label, plate, capacity and route.",
+  "3. On the dashboard click 'Vehicles' (top bar). Under 'Add a vehicle' fill name, plate, capacity (route optional).",
   "4. GPS tracker IMEI: type the 15 digits from the tracker's label.",
   "5. Driver: leave it '-- unassigned --' and type a 'Driver name' (e.g. Eloge). That name is what the dashboard and parents see. (Or pick an existing driver if they also use the phone app.)",
-  "6. Click 'Add bus'.",
-  "7. From any phone, send these SMS to the tracker's SIM number (the IT person gives you the server address and port):",
+  "6. Click 'Add vehicle'.",
+  "7. From any phone, send these 3 SMS to the tracker's SIM number. They are also shown (tap to copy) under the form:",
   "     APN,internet.mtn#",
-  "     SERVER,0,<server address>,<port>,0#",
-  "     TIMER,10,300#      (every 10 s while moving, every 5 min parked)",
-  "8. Turn the ignition on. Within 1-2 minutes the bus appears on /dashboard under its driver name.",
+  "     SERVER,0,102.202.208.186,5023,0#",
+  "     TIMER,10,300#      (every 10 s while driving, every 5 min parked)",
+  "   The tracker answers each SMS (e.g. 'SERVER:0,102.202.208.186,5023,0'). Sending one twice is harmless.",
+  "8. Turn the ignition on. Within 1-2 minutes the vehicle appears on /dashboard under its driver name.",
 ]);
 
 h2("Existing bus: add or change a tracker");
@@ -318,9 +321,10 @@ bulletList([
 
 h2("What you see");
 bulletList([
-  "Ignition ON  -> a trip starts; the bus shows Moving / Parked with speed and km for the trip.",
-  "Ignition OFF -> the trip ends; the bus shows Idle at its last position. Parents see 'no trip'.",
-  "No messages for 90 s -> Offline (tracker unpowered, no signal, or server down).",
+  "Ignition ON  -> a trip starts; the vehicle shows Moving / Parked, 'Ignition: on', speed and km for the trip (updates every 10 s).",
+  "Ignition OFF -> the trip ends; the vehicle shows Idle and 'Ignition off' at its last position (updates every 5 min).",
+  "Offline -> no message for 1 min (ignition on) or 7 min (ignition off): tracker unpowered, no signal, no SIM credit, or server down.",
+  "/history -> pick the driver (e.g. Eloge) and the date: route on the map, stops with street names, distance, PDF report with every place passed and its time.",
   "Battery shows the tracker's own backup battery.",
 ]);
 
@@ -333,7 +337,7 @@ autoTable(doc, {
     ["GPRSSET#", "Shows APN and which server it reports to."],
     ["WHERE#", "Replies with the current position."],
     ["TIMER,10,300#", "Report every 10 s moving / 300 s parked."],
-    ["SERVER,0,<ip>,<port>,0#", "Point the tracker at our GPS server."],
+    ["SERVER,0,102.202.208.186,5023,0#", "Point the tracker at our GPS server."],
     ["SERVER,1,www.gpspos.net,6006,0#", "Back to the seller's original app."],
     ["RESET#", "Restart the tracker."],
   ],
@@ -350,6 +354,7 @@ bulletList([
   "Check the IMEI on /admin/buses is exactly the 15 digits on the label.",
   "Check the SIM has data credit and the tracker's lights are on (ignition/power).",
   "Ask IT to check the GPS server log: it prints 'login IMEI ...' when the tracker connects.",
+  "Keep the Strettch Cloud balance topped up (MoMo). If it runs out the GPS server stops and every tracker shows Offline.",
   "The driver of a tracker bus must NOT press Start in the phone app -- two sources would fight over the marker.",
 ]);
 
@@ -521,7 +526,7 @@ autoTable(doc, {
     ["/dashboard",    "Super admin",  "Live map of the whole fleet."],
     ["/history",      "Super admin",  "Any driver + any date -> route + PDF report."],
     ["/admin/routes", "Admin, School admin", "Routes and named stops (with Leaflet stop picker)."],
-    ["/admin/buses",  "Admin, School admin", "Buses; assign route + driver + GPS tracker IMEI."],
+    ["/admin/buses",  "Admin, School admin", "Vehicles: add, assign route + driver + GPS tracker IMEI."],
     ["/admin/students","Admin, School admin","Students; assign bus + home stop."],
     ["/admin/invites","Admin, School admin", "Generate + revoke parent codes."],
     ["/join",         "Parent",       "Enter code -> set PIN -> sign in. Returning-parent tab too."],

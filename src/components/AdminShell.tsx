@@ -2,6 +2,7 @@ import { Link, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { LogOut, MapPin, Route as RouteIcon, Bus, GraduationCap, ArrowLeft, Loader2, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth, canManageSchoolSetup } from "@/lib/auth-context";
+import { PARENTS_ENABLED } from "@/lib/features";
 import { useEffect, type ReactNode } from "react";
 
 // Shared header + tab nav for /admin/* screens. Guards access to
@@ -31,10 +32,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }
 
   const tabs = [
+    { to: "/admin/buses",    label: "Vehicles", Icon: Bus },
     { to: "/admin/routes",   label: "Routes",   Icon: RouteIcon },
-    { to: "/admin/buses",    label: "Buses",    Icon: Bus },
-    { to: "/admin/students", label: "Students", Icon: GraduationCap },
-    { to: "/admin/invites",  label: "Invites",  Icon: Ticket },
+    // Parent features (see src/lib/features.ts)
+    ...(PARENTS_ENABLED
+      ? ([
+          { to: "/admin/students", label: "Students", Icon: GraduationCap },
+          { to: "/admin/invites",  label: "Invites",  Icon: Ticket },
+        ] as const)
+      : []),
   ] as const;
 
   return (
@@ -54,7 +60,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <span className="hidden sm:inline">Live Track</span>
             </Link>
             <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
-              School setup
+              Vehicles &amp; routes
             </span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">

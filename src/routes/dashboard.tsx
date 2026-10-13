@@ -16,7 +16,7 @@ import {
   Battery,
   BatteryWarning,
   PowerOff,
-  Clock,
+  Bus,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -73,7 +73,7 @@ function Dashboard() {
   }, [user, role, loading, navigate]);
 
   const load = async () => {
-    const [statusesRes, profilesRes, driversRes] = await Promise.all([
+    const [statusesRes, profilesRes, driversRes, trackersRes] = await Promise.all([
       supabase.from("device_status").select("*"),
       supabase
         .from("profiles")
@@ -81,6 +81,8 @@ function Dashboard() {
       // Only accounts explicitly assigned the 'user' (driver) role can appear
       // in the live list. Admin/parent/school_admin accounts are excluded.
       supabase.from("user_roles").select("user_id").eq("role", "user"),
+      // Drivers whose vehicle carries a hardware GPS tracker.
+      supabase.from("buses").select("driver_user_id").not("gps_imei", "is", null),
     ]);
     if (statusesRes.error) {
       console.error("[dashboard] device_status error", statusesRes.error);
@@ -92,6 +94,9 @@ function Dashboard() {
     const profiles = profilesRes.data ?? [];
     const driverIds = new Set((driversRes.data ?? []).map((r) => r.user_id));
     const profileMap = new Map(profiles.map((p) => [p.id, p]));
+    const trackerDrivers = new Set(
+      ((trackersRes.data ?? []) as { driver_user_id: string | null }[]).map((b) => b.driver_user_id),
+    );
     const merged: LiveUser[] = statuses
       .filter((s) => driverIds.has(s.user_id))
       .map((s) => {
@@ -101,7 +106,11 @@ function Dashboard() {
         // hard, or lost network — all of which are "offline" for the admin's
         // purposes. Otherwise trust the tracker's own state (moving / stopped
         // / idle) since it reflects the last real GPS reading.
-        const fresh = Date.now() - new Date(s.last_seen).getTime() < 30_000;
+        // Hardware trackers report every 10 s with ignition on but only every
+        // 5 min parked (TIMER,10,300#), so they get a wider window.
+        const gpsTracker = trackerDrivers.has(s.user_id);
+        const freshMs = gpsTracker ? (s.is_tracking ? 60_000 : 7 * 60_000) : 30_000;
+        const fresh = Date.now() - new Date(s.last_seen).getTime() < freshMs;
         return {
           user_id: s.user_id,
           display_name: p?.display_name ?? "Unknown",
@@ -118,6 +127,7 @@ function Dashboard() {
           is_tracking: s.is_tracking,
           last_seen: s.last_seen,
           address: cachedReverseGeocode(s.latitude, s.longitude),
+          gps_tracker: gpsTracker,
         };
       });
     setUsers(merged);
@@ -279,7 +289,7 @@ function Dashboard() {
                   )}
                   {phoneOff && (
                     <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground inline-flex items-center gap-1">
-                      <PowerOff className="h-2.5 w-2.5" /> Phone off
+                      <PowerOff className="h-2.5 w-2.5" /> {u.gps_tracker ? "Ignition off" : "Phone off"}
                     </span>
                   )}
                 </div>
@@ -356,22 +366,11 @@ function Dashboard() {
               color="var(--moving)"
             />
             <KPI label="Offline" value={counts.offline} color="var(--offline)" />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="px-2 sm:px-3 opacity-80"
-              title="School setup — coming soon"
-              onClick={() =>
-                toast.info("School setup is coming soon.", {
-                  description: "Routes, stops and student rosters will land in the next release.",
-                })
-              }
-            >
-              <Clock className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">School setup</span>
-              <span className="ml-1.5 hidden sm:inline text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                Soon
-              </span>
+            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="Add and manage vehicles">
+              <Link to="/admin/buses">
+                <Bus className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Vehicles</span>
+              </Link>
             </Button>
             <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="Trip history">
               <Link to="/history">

@@ -8,10 +8,12 @@ import { Label } from "@/components/ui/label";
 import { AdminShell } from "@/components/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
 import { friendlyError } from "@/lib/friendly-errors";
+import { PARENTS_ENABLED } from "@/lib/features";
+import { ComingSoon } from "@/components/ComingSoon";
 
 export const Route = createFileRoute("/admin/students")({
   head: () => ({ meta: [{ title: "Students — School setup — Live Track" }] }),
-  component: StudentsPage,
+  component: () => (PARENTS_ENABLED ? <StudentsPage /> : <ComingSoon title="Students are coming soon" description="Student rosters and parent invite codes will return when parent access opens." />),
 });
 
 interface StudentRow {

@@ -225,7 +225,7 @@ export function LiveMap({ users, selectedId, routePoints, stops }: LiveMapProps)
                       Battery: <b>{u.battery_level ?? "—"}%</b>
                     </div>
                     <div>
-                      Phone: <b>{phoneOff ? "off" : "on"}</b>
+                      {u.gps_tracker ? "Ignition" : "Phone"}: <b>{phoneOff ? "off" : "on"}</b>
                     </div>
                   </div>
                   {u.address && <div className="text-muted-foreground">📍 {u.address}</div>}
@@ -233,7 +233,7 @@ export function LiveMap({ users, selectedId, routePoints, stops }: LiveMapProps)
                     {phoneOff ? "Last seen " : "Updated "}
                     {formatDistanceToNow(new Date(u.last_seen))} ago
                     {phoneOff && staleMs > 10 * 60_000 && (
-                      <span className="text-[var(--stopped)]"> · driver stopped tracking</span>
+                      <span className="text-[var(--stopped)]"> · {u.gps_tracker ? "engine off" : "driver stopped tracking"}</span>
                     )}
                   </div>
                 </div>

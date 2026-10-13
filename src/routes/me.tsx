@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { PARENTS_ENABLED } from "@/lib/features";
+import { ComingSoon } from "@/components/ComingSoon";
 import type { VehicleType } from "@/lib/vehicles";
 import { getVehicle } from "@/lib/vehicles";
 import { cachedReverseGeocode, reverseGeocode } from "@/lib/geocode";
@@ -19,7 +21,7 @@ const ParentMap = lazy(() => import("@/components/ParentMap").then((m) => ({ def
 
 export const Route = createFileRoute("/me")({
   head: () => ({ meta: [{ title: "My child — Live Track" }] }),
-  component: MePage,
+  component: () => (PARENTS_ENABLED ? <MePage /> : <ComingSoon title="Parent access is coming soon" description="Parents will soon follow their child's bus live from their phone. This part of Live Track is not open yet." />),
 });
 
 // ── Types ───────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
+import { PARENTS_ENABLED } from "@/lib/features";
 import { AnimatedWorld, LivePreviewCard } from "@/components/AnimatedWorld";
 
 export const Route = createFileRoute("/")({
@@ -167,9 +168,11 @@ function NavBar() {
           <a href="#use-cases" className="hover:text-foreground transition-colors">Use cases</a>
         </nav>
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex" title="Parent — enter invite code">
-            <Link to="/join">Parent</Link>
-          </Button>
+          {PARENTS_ENABLED && (
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex" title="Parent — enter invite code">
+              <Link to="/join">Parent</Link>
+            </Button>
+          )}
           <Button asChild variant="ghost" size="sm"><Link to="/auth">Sign in</Link></Button>
           <Button asChild size="sm" className="bg-gradient-primary shadow-glow">
             <Link to="/auth">Access workspace</Link>
@@ -414,13 +417,15 @@ function Footer() {
             <li><Link to="/auth" className="hover:text-foreground transition-colors">Access workspace</Link></li>
           </ul>
         </div>
-        <div className="text-sm">
-          <div className="font-semibold mb-3">For parents</div>
-          <ul className="space-y-2 text-muted-foreground">
-            <li><Link to="/join" className="hover:text-foreground transition-colors">Enter invite code</Link></li>
-            <li><Link to="/me" className="hover:text-foreground transition-colors">Track my child</Link></li>
-          </ul>
-        </div>
+        {PARENTS_ENABLED && (
+          <div className="text-sm">
+            <div className="font-semibold mb-3">For parents</div>
+            <ul className="space-y-2 text-muted-foreground">
+              <li><Link to="/join" className="hover:text-foreground transition-colors">Enter invite code</Link></li>
+              <li><Link to="/me" className="hover:text-foreground transition-colors">Track my child</Link></li>
+            </ul>
+          </div>
+        )}
       </div>
       <div className="mt-10 pt-6 border-t border-border/50 mx-auto max-w-6xl px-4 flex flex-col sm:flex-row justify-between gap-2 text-xs text-muted-foreground">
         <div>© {new Date().getFullYear()} Live Track</div>
