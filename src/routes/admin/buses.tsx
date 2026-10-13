@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Bus as BusIcon } from "lucide-react";
+import { Plus, Loader2, Trash2, Bus as BusIcon, Satellite } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,11 @@ interface BusRow {
   id: string; school_id: string; route_id: string | null;
   plate: string | null; label: string | null; capacity: number | null;
   driver_user_id: string | null;
+  gps_imei: string | null;
+  gps_driver_name: string | null;
 }
+const IMEI_RE = /^[0-9]{15}$/;
+
 interface RouteRow { id: string; name: string; }
 interface DriverRow { id: string; display_name: string; plate_number: string | null; }
 
@@ -35,7 +39,11 @@ function BusesPage() {
   const [capacity, setCapacity] = useState<number | "">(32);
   const [routeId, setRouteId] = useState<string>("");
   const [driverId, setDriverId] = useState<string>("");
+  const [imei, setImei] = useState("");
+  const [gpsDriverName, setGpsDriverName] = useState("");
   const [saving, setSaving] = useState(false);
+  // per-row IMEI edits, keyed by bus id
+  const [imeiEdits, setImeiEdits] = useState<Record<string, string>>({});
 
   useEffect(() => { void bootstrap(); }, []);
 
@@ -70,6 +78,7 @@ function BusesPage() {
   async function createBus() {
     if (!schoolId) return;
     if (!label.trim() && !plate.trim()) { toast.error("Give the bus a label or plate"); return; }
+    if (imei.trim() && !IMEI_RE.test(imei.trim())) { toast.error("Tracker IMEI must be 15 digits"); return; }
     setSaving(true);
     const { error } = await supabase.from("buses").insert({
       school_id: schoolId,
@@ -78,10 +87,31 @@ function BusesPage() {
       plate: plate.trim() || null,
       label: label.trim() || null,
       capacity: capacity === "" ? null : Number(capacity),
+      gps_imei: imei.trim() || null,
+      gps_driver_name: imei.trim() && !driverId ? gpsDriverName.trim() || null : null,
     });
     setSaving(false);
     if (error) return toast.error(friendlyError(error));
-    setLabel(""); setPlate(""); setCapacity(32); setRouteId(""); setDriverId("");
+    setLabel(""); setPlate(""); setCapacity(32); setRouteId(""); setDriverId(""); setImei(""); setGpsDriverName("");
+    await bootstrap();
+  }
+
+  async function saveImei(bus: BusRow) {
+    const edited = imeiEdits[bus.id];
+    if (edited === undefined) return; // focused and left without typing
+    const next = edited.trim();
+    if (next === (bus.gps_imei ?? "")) return;
+    if (next && !IMEI_RE.test(next)) { toast.error("Tracker IMEI must be 15 digits"); return; }
+    const { error } = await supabase.from("buses").update({ gps_imei: next || null }).eq("id", bus.id);
+    if (error) return toast.error(friendlyError(error));
+    toast.success(next ? "GPS tracker linked" : "GPS tracker removed");
+    await bootstrap();
+  }
+
+  async function changeDriver(bus: BusRow, nextDriverId: string) {
+    const { error } = await supabase.from("buses").update({ driver_user_id: nextDriverId || null }).eq("id", bus.id);
+    if (error) return toast.error(friendlyError(error));
+    toast.success("Driver updated");
     await bootstrap();
   }
 
@@ -128,6 +158,19 @@ function BusesPage() {
                 {drivers.map((d) => <option key={d.id} value={d.id}>{d.display_name}{d.plate_number ? ` (${d.plate_number})` : ""}</option>)}
               </select>
             </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label htmlFor="bus-imei">GPS tracker IMEI (optional)</Label>
+              <Input id="bus-imei" inputMode="numeric" value={imei} onChange={(e) => setImei(e.target.value.replace(/\D/g, ""))} placeholder="15 digits, on the tracker label" className="h-9 font-mono" />
+            </div>
+            {imei && !driverId && (
+              <div className="space-y-1.5 col-span-2">
+                <Label htmlFor="bus-gps-driver">Driver name (shown for the tracker)</Label>
+                <Input id="bus-gps-driver" value={gpsDriverName} onChange={(e) => setGpsDriverName(e.target.value)} placeholder='e.g. "Eloge"' className="h-9" />
+                <p className="text-[11px] text-muted-foreground">
+                  No driver app needed: the tracker acts as this driver's phone. The account is created automatically the first time the tracker connects.
+                </p>
+              </div>
+            )}
           </div>
           <Button onClick={createBus} disabled={saving} className="w-full bg-gradient-primary shadow-glow">
             {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Plus className="h-4 w-4 mr-1.5" />}
@@ -151,7 +194,36 @@ function BusesPage() {
                     {b.plate && b.label && <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">{b.plate}</span>}
                   </div>
                   <div className="text-xs text-muted-foreground truncate">
-                    Route: {routeName(b.route_id)} · Driver: {driverName(b.driver_user_id)} · Capacity: {b.capacity ?? "—"}
+                    Route: {routeName(b.route_id)} · Capacity: {b.capacity ?? "—"}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+                    <span className="text-muted-foreground">Driver:</span>
+                    <select aria-label="Driver" value={b.driver_user_id ?? ""} onChange={(e) => changeDriver(b, e.target.value)}
+                      className="h-7 max-w-[220px] rounded-md bg-background/50 border border-input px-2 text-xs">
+                      <option value="">— unassigned —</option>
+                      {b.driver_user_id && !drivers.some((d) => d.id === b.driver_user_id) && (
+                        <option value={b.driver_user_id}>{driverName(b.driver_user_id)}</option>
+                      )}
+                      {drivers.map((d) => <option key={d.id} value={d.id}>{d.display_name}{d.plate_number ? ` (${d.plate_number})` : ""}</option>)}
+                    </select>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Satellite className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <Input
+                      aria-label="GPS tracker IMEI"
+                      inputMode="numeric"
+                      value={imeiEdits[b.id] ?? b.gps_imei ?? ""}
+                      onChange={(e) => setImeiEdits((m) => ({ ...m, [b.id]: e.target.value.replace(/\D/g, "") }))}
+                      onBlur={() => saveImei(b)}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                      placeholder="GPS tracker IMEI"
+                      className="h-7 max-w-[220px] text-xs font-mono"
+                    />
+                    {b.gps_imei && !b.driver_user_id && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Driver "{b.gps_driver_name || `${b.label ?? "Bus"} (GPS)`}" is created when the tracker connects
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button onClick={() => deleteBus(b.id)} className="p-2 rounded hover:bg-destructive/15 text-destructive" aria-label="Delete">

@@ -23,6 +23,10 @@ with a **Supabase** backend (Auth, Postgres, RLS, Realtime).
 - **Mobile-friendly** — dashboard and history collapse to a tab-switch
   (Drivers ⇄ Map) layout on small screens.
 
+- **Hardware GPS trackers** — buses can carry a 4G GT06 tracker instead of a
+  driver phone. See [`gps-server/README.md`](gps-server/README.md) for setup
+  and the *GPS trackers in the buses* chapter of `LIVETRACK-System-Guide.pdf`.
+
 ## Local development
 
 ```bash

@@ -273,6 +273,8 @@ bulletList([
 h3("/admin/buses -- provision each bus");
 bulletList([
   "Set label + plate + capacity, assign a route, assign a driver (the picker only lists accounts with role='user').",
+  "Change the driver of an existing bus from the Driver picker on its row.",
+  "Optional: GPS tracker IMEI. A bus with a hardware tracker does not need a driver phone -- see 'GPS trackers in the buses'.",
 ]);
 h3("/admin/students -- roster");
 bulletList([
@@ -283,6 +285,72 @@ bulletList([
   "Pick one or more students -> generate an 8-character code from an unambiguous alphabet (no 0, O, 1, I, L).",
   "Optional parent phone (7-15 digits) and optional expiry (must be in the future). Live error message + disabled Generate button until the form is valid.",
   "List existing codes with 'unused / used / expired' badges. Copy a code to clipboard, or revoke an unused one.",
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GPS trackers in the buses (hardware GT06 trackers)
+// ─────────────────────────────────────────────────────────────────────────────
+doc.addPage(); y = M; drawRunningFooter();
+h1("GPS trackers in the buses");
+paragraph("Instead of a driver's phone, a bus can carry a small 4G GPS tracker (GT06 / GT07L / GT08L, sold as 'GPSPOS'). The tracker acts exactly like a driver's phone: the bus appears on /dashboard, parents see it on /me, stop alerts fire, and /history shows the route, km, speed and stops. No one has to open an app or press Start.");
+callout("note", "How it flows", "Tracker (SIM, 4G) -> Live Track GPS server -> Supabase -> dashboard and parents. The tracker is identified by its IMEI (15 digits on its label).");
+
+h2("Add a bus with a tracker -- step by step (admin)");
+bulletList([
+  "1. Install the tracker in the bus: red = +12V, black = ground, ACC wire = ignition. Leave the engine-cut relay wire disconnected.",
+  "2. Put an MTN SIM with mobile data in the tracker. Note the SIM's phone number.",
+  "3. Open /admin/buses -> 'Add a bus'. Fill label, plate, capacity and route.",
+  "4. GPS tracker IMEI: type the 15 digits from the tracker's label.",
+  "5. Driver: leave it '-- unassigned --' and type a 'Driver name' (e.g. Eloge). That name is what the dashboard and parents see. (Or pick an existing driver if they also use the phone app.)",
+  "6. Click 'Add bus'.",
+  "7. From any phone, send these SMS to the tracker's SIM number (the IT person gives you the server address and port):",
+  "     APN,internet.mtn#",
+  "     SERVER,0,<server address>,<port>,0#",
+  "     TIMER,10,300#      (every 10 s while moving, every 5 min parked)",
+  "8. Turn the ignition on. Within 1-2 minutes the bus appears on /dashboard under its driver name.",
+]);
+
+h2("Existing bus: add or change a tracker");
+bulletList([
+  "On /admin/buses each bus row has a 'GPS tracker IMEI' box. Type the IMEI and press Enter (or click away). Clear the box to unlink the tracker.",
+  "Moving a tracker to another bus: clear it on the old bus first, then type it on the new bus.",
+]);
+
+h2("What you see");
+bulletList([
+  "Ignition ON  -> a trip starts; the bus shows Moving / Parked with speed and km for the trip.",
+  "Ignition OFF -> the trip ends; the bus shows Idle at its last position. Parents see 'no trip'.",
+  "No messages for 90 s -> Offline (tracker unpowered, no signal, or server down).",
+  "Battery shows the tracker's own backup battery.",
+]);
+
+h2("Useful SMS commands (send to the tracker's SIM)");
+autoTable(doc, {
+  startY: y, margin: { left: M, right: M },
+  head: [["SMS", "What it does"]],
+  body: [
+    ["PARAM#", "Shows IMEI, report interval, heartbeat."],
+    ["GPRSSET#", "Shows APN and which server it reports to."],
+    ["WHERE#", "Replies with the current position."],
+    ["TIMER,10,300#", "Report every 10 s moving / 300 s parked."],
+    ["SERVER,0,<ip>,<port>,0#", "Point the tracker at our GPS server."],
+    ["SERVER,1,www.gpspos.net,6006,0#", "Back to the seller's original app."],
+    ["RESET#", "Restart the tracker."],
+  ],
+  headStyles: { fillColor: C.primary, textColor: 255, fontStyle: "bold", fontSize: 9 },
+  alternateRowStyles: { fillColor: C.tile },
+  styles: { fontSize: 8.5, cellPadding: 2.2, textColor: C.ink },
+  columnStyles: { 0: { cellWidth: 62, fontStyle: "bold" }, 1: { cellWidth: "auto" } },
+});
+y = doc.lastAutoTable.finalY + 8;
+
+h2("If a tracker bus does not show up");
+bulletList([
+  "Send GPRSSET# -- the server address/port must match what IT gave you, and APN must be internet.mtn.",
+  "Check the IMEI on /admin/buses is exactly the 15 digits on the label.",
+  "Check the SIM has data credit and the tracker's lights are on (ignition/power).",
+  "Ask IT to check the GPS server log: it prints 'login IMEI ...' when the tracker connects.",
+  "The driver of a tracker bus must NOT press Start in the phone app -- two sources would fight over the marker.",
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -453,7 +521,7 @@ autoTable(doc, {
     ["/dashboard",    "Super admin",  "Live map of the whole fleet."],
     ["/history",      "Super admin",  "Any driver + any date -> route + PDF report."],
     ["/admin/routes", "Admin, School admin", "Routes and named stops (with Leaflet stop picker)."],
-    ["/admin/buses",  "Admin, School admin", "Buses; assign route + driver."],
+    ["/admin/buses",  "Admin, School admin", "Buses; assign route + driver + GPS tracker IMEI."],
     ["/admin/students","Admin, School admin","Students; assign bus + home stop."],
     ["/admin/invites","Admin, School admin", "Generate + revoke parent codes."],
     ["/join",         "Parent",       "Enter code -> set PIN -> sign in. Returning-parent tab too."],

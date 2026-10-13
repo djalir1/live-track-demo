@@ -1,0 +1,13 @@
+{
+  "name": "live-track-gps-server",
+  "private": true,
+  "type": "module",
+  "description": "GT06 TCP listener that feeds hardware GPS trackers into Live Track (Supabase)",
+  "engines": { "node": ">=20.6" },
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dry": "DRY_RUN=1 node src/server.js",
+    "fake": "node fake-tracker.js",
+    "test": "node --test test/*.test.js"
+  }
+}
