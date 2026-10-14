@@ -1,13 +1,8 @@
 import { Fragment, useEffect, useMemo } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, Polyline, Marker, Popup, useMap } from "react-leaflet";
 import { useMapAutoResize } from "@/components/MapAutoResize";
-import {
-  OSM_TILE_ATTRIBUTION,
-  OSM_TILE_SUBDOMAINS,
-  OSM_TILE_URL,
-  OSM_MAX_ZOOM,
-} from "@/lib/mapTiles";
+import { BaseMap } from "@/components/BaseMap";
 import { distM, tripColor, type LatLon, type Trip } from "@/lib/day-report";
 import { fmtDuration, fmtTime } from "@/lib/time";
 
@@ -94,12 +89,7 @@ export function TripMap({ trips, selected, onSelect, placeOf }: TripMapProps) {
       className="h-full w-full rounded-2xl overflow-hidden"
       scrollWheelZoom
     >
-      <TileLayer
-        url={OSM_TILE_URL}
-        attribution={OSM_TILE_ATTRIBUTION}
-        subdomains={OSM_TILE_SUBDOMAINS}
-        maxZoom={OSM_MAX_ZOOM}
-      />
+      <BaseMap />
       <FitTo trips={trips} selected={selected} />
       {lines.map(({ trip, pts, arrows }) => {
         const color = tripColor(trip.index);

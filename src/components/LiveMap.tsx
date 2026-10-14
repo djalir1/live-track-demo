@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, Marker, Popup, useMap } from "react-leaflet";
 import { useMapAutoResize } from "@/components/MapAutoResize";
 import type { LiveUser } from "@/types/tracking";
 import { getVehicle } from "@/lib/vehicles";
-import {
-  OSM_TILE_ATTRIBUTION,
-  OSM_TILE_SUBDOMAINS,
-  OSM_TILE_URL,
-  OSM_MAX_ZOOM,
-} from "@/lib/mapTiles";
+import { BaseMap } from "@/components/BaseMap";
 import { ago } from "@/lib/time";
 import { STATUS_COLOR, STATUS_LABEL } from "@/lib/status";
 
@@ -281,12 +276,7 @@ export function LiveMap({ users, selectedId, follow = true }: LiveMapProps) {
       scrollWheelZoom
       zoomControl={false}
     >
-      <TileLayer
-        url={OSM_TILE_URL}
-        attribution={OSM_TILE_ATTRIBUTION}
-        subdomains={OSM_TILE_SUBDOMAINS}
-        maxZoom={OSM_MAX_ZOOM}
-      />
+      <BaseMap />
       <Camera users={located} selectedId={selectedId} follow={follow} />
       <ZoomControlBottomRight />
       {located.map((u) => (

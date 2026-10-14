@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
+import { MapContainer, Marker, Polyline, useMap } from "react-leaflet";
 import { MapAutoResize } from "@/components/MapAutoResize";
 import type { VehicleType } from "@/lib/vehicles";
-import {
-  OSM_TILE_ATTRIBUTION,
-  OSM_TILE_SUBDOMAINS,
-  OSM_TILE_URL,
-  OSM_MAX_ZOOM,
-} from "@/lib/mapTiles";
+import { BaseMap } from "@/components/BaseMap";
 import { vehicleSvgString } from "@/lib/vehicles";
 
 // A calm, single-bus map for the parent /me screen. One route line, all
@@ -143,12 +138,7 @@ export function ParentMap({ bus, stops, homeStopId, doneStopIds, className }: Pa
   return (
     <div className={`relative overflow-hidden ${className ?? "h-full w-full"}`}>
       <MapContainer center={initialCentre} zoom={13} className="h-full w-full" scrollWheelZoom>
-        <TileLayer
-          url={OSM_TILE_URL}
-          attribution={OSM_TILE_ATTRIBUTION}
-          subdomains={OSM_TILE_SUBDOMAINS}
-          maxZoom={OSM_MAX_ZOOM}
-        />
+        <BaseMap />
         <CameraGovernor busLatLng={busLatLng} stops={stops} />
 
         {line.length > 1 && (

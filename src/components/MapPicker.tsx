@@ -1,13 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Circle, useMap, useMapEvents } from "react-leaflet";
 import { MapAutoResize } from "@/components/MapAutoResize";
-import {
-  OSM_TILE_ATTRIBUTION,
-  OSM_TILE_SUBDOMAINS,
-  OSM_TILE_URL,
-  OSM_MAX_ZOOM,
-} from "@/lib/mapTiles";
+import { BaseMap } from "@/components/BaseMap";
 
 // Click-to-place map used on /admin/routes when adding a stop.
 // Emits (lat, lng) whenever the marker moves; radius circle is display-only
@@ -80,12 +75,7 @@ export function MapPicker({
         scrollWheelZoom
         style={{ height: "100%", width: "100%" }}
       >
-        <TileLayer
-          url={OSM_TILE_URL}
-          attribution={OSM_TILE_ATTRIBUTION}
-          subdomains={OSM_TILE_SUBDOMAINS}
-          maxZoom={OSM_MAX_ZOOM}
-        />
+        <BaseMap />
         <ClickHandler onPick={onPick} />
         <Recenter lat={lat} lng={lng} />
         {lat != null && lng != null && (
