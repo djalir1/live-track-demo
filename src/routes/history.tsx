@@ -13,7 +13,6 @@ import {
   List,
   Map as MapIcon,
   ParkingSquare,
-  Power,
   TimerReset,
   WifiOff,
   User,
@@ -373,11 +372,6 @@ function HistoryPage() {
         {!busy && report && hasData && (
           <>
             <Totals report={report} />
-            {report.trips.length === 0 && (
-              <div className="rounded-xl border border-border/50 bg-background/40 p-3 text-sm text-muted-foreground">
-                No trips — the vehicle stayed parked all day.
-              </div>
-            )}
             <Timeline
               report={report}
               placeOf={placeOf}
@@ -539,37 +533,27 @@ function Totals({ report }: { report: DayReport }) {
       color: "var(--primary)",
     },
     { label: "Driving", value: fmtDuration(t.drivingMs), Icon: Clock, color: "#22c55e" },
-    { label: "Engine on", value: fmtDuration(t.engineOnMs), Icon: Power, color: "#6366f1" },
+    { label: "Stops", value: String(t.stops), Icon: TimerReset, color: "#f59e0b" },
     {
-      label: "Stopped, engine on",
-      value: fmtDuration(t.stoppedMs),
-      Icon: TimerReset,
-      color: "#f59e0b",
-    },
-    { label: "Parked", value: fmtDuration(t.parkedMs), Icon: ParkingSquare, color: "#3b82f6" },
-    {
-      label: "Top / avg speed",
-      value: `${t.topSpeedKmh.toFixed(0)} / ${t.avgMovingKmh.toFixed(0)} km/h`,
+      label: "Top speed",
+      value: `${t.topSpeedKmh.toFixed(0)} km/h`,
       Icon: Gauge,
       color: "#ec4899",
     },
   ];
   return (
     <div className="space-y-2">
-      <div className="text-xs text-muted-foreground">
-        {t.trips === 0
-          ? "No trips"
-          : `${t.trips} trip${t.trips > 1 ? "s" : ""} · ${t.stops} stop${t.stops === 1 ? "" : "s"} · first start ${fmtTime(t.firstStart!)} · last stop ${fmtTime(t.lastEnd!)}`}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-4 gap-1.5">
         {tiles.map((x) => (
-          <div key={x.label} className="rounded-xl border border-border/50 bg-background/40 p-2.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <x.Icon className="h-3.5 w-3.5 shrink-0" />{" "}
-              <span className="truncate">{x.label}</span>
+          <div
+            key={x.label}
+            className="rounded-xl border border-border/50 bg-background/40 px-2 py-2 min-w-0"
+          >
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <x.Icon className="h-3 w-3 shrink-0" /> <span className="truncate">{x.label}</span>
             </div>
             <div
-              className="mt-0.5 font-display font-bold text-base tabular-nums"
+              className="mt-0.5 font-display font-bold text-sm tabular-nums truncate"
               style={{ color: x.color }}
             >
               {x.value}
@@ -577,14 +561,16 @@ function Totals({ report }: { report: DayReport }) {
           </div>
         ))}
       </div>
-      {t.estimatedKm > 0.05 && (
-        <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
-          <WifiOff className="h-3.5 w-3.5 shrink-0 mt-px" />
-          Signal was lost {t.gaps} time{t.gaps > 1 ? "s" : ""} while driving ({fmtDuration(t.gapMs)}
-          ); {t.estimatedKm.toFixed(1)} km of the distance is estimated as a straight line across
-          those gaps.
-        </p>
-      )}
+      <div className="text-xs text-muted-foreground">
+        {t.trips === 0
+          ? "No trips — parked all day."
+          : `${t.trips} trip${t.trips > 1 ? "s" : ""} · ${fmtTime(t.firstStart!)}–${fmtTime(t.lastEnd!)} · engine on ${fmtDuration(t.engineOnMs)} · stopped ${fmtDuration(t.stoppedMs)} · parked ${fmtDuration(t.parkedMs)}`}
+        {t.estimatedKm > 0.05 && (
+          <span className="inline-flex items-center gap-1 ml-1">
+            · <WifiOff className="h-3 w-3" /> {t.estimatedKm.toFixed(1)} km estimated (no signal)
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -617,19 +603,16 @@ function Timeline({
         if (e.kind === "parked") {
           const p = e.p;
           return (
-            <li key={`p${p.from}`} className="relative pl-8">
-              <span className="absolute left-0 top-1.5 h-6 w-6 rounded-full bg-[#3b82f6]/15 text-[#3b82f6] grid place-items-center">
+            <li
+              key={`p${p.from}`}
+              className="relative pl-8 text-xs text-muted-foreground flex items-center min-h-6"
+            >
+              <span className="absolute left-0 top-0 h-6 w-6 rounded-full bg-[#3b82f6]/15 text-[#3b82f6] grid place-items-center">
                 <ParkingSquare className="h-3.5 w-3.5" />
               </span>
-              <div className="text-xs">
-                <span className="font-medium">
-                  Parked {fmtTime(p.from)}–{p.ongoing ? "now" : fmtTime(p.to)}
-                </span>
-                <span className="text-muted-foreground"> · {fmtDuration(p.ms)}</span>
-              </div>
-              <div className="text-xs text-muted-foreground truncate">
-                {placeOf(p) ?? "Locating…"}
-              </div>
+              <span className="truncate">
+                Parked {fmtTime(p.from)}–{p.ongoing ? "now" : fmtTime(p.to)} · {fmtDuration(p.ms)}
+              </span>
             </li>
           );
         }
@@ -647,7 +630,7 @@ function Timeline({
             </span>
             <button
               onClick={() => onSelect(active ? null : t.index)}
-              className={`w-full text-left rounded-xl border p-3 space-y-2 transition-colors ${
+              className={`w-full text-left rounded-xl border p-2.5 space-y-1 transition-colors ${
                 active
                   ? "bg-accent border-foreground/20"
                   : "bg-background/40 border-border/50 hover:border-primary/40"
@@ -662,71 +645,53 @@ function Timeline({
                   {t.distanceKm.toFixed(1)} km
                 </div>
               </div>
-              {driver && (
-                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                  <User className="h-3 w-3" /> {driver}
-                </div>
-              )}
-              <div className="text-xs space-y-0.5">
-                <div className="flex gap-1.5 min-w-0">
-                  <span className="h-4 w-4 shrink-0 rounded-full bg-[#16a34a] text-white text-[9px] font-bold grid place-items-center">
-                    A
-                  </span>
-                  <span className="truncate">
-                    {t.start ? (placeOf(t.start) ?? "Locating…") : "—"}
-                  </span>
-                </div>
-                <div className="flex gap-1.5 min-w-0">
-                  <span className="h-4 w-4 shrink-0 rounded-full bg-[#dc2626] text-white text-[9px] font-bold grid place-items-center">
-                    B
-                  </span>
-                  <span className="truncate">
-                    {t.ongoing ? "On the road" : t.end ? (placeOf(t.end) ?? "Locating…") : "—"}
-                  </span>
-                </div>
+              <div className="text-xs truncate">
+                <span className="text-[#16a34a] font-bold">A</span>{" "}
+                {t.start ? (placeOf(t.start) ?? "…") : "—"}
+                <span className="text-muted-foreground"> → </span>
+                <span className="text-[#dc2626] font-bold">B</span>{" "}
+                {t.ongoing ? "on the road" : t.end ? (placeOf(t.end) ?? "…") : "—"}
               </div>
-              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                <Mini label="Driving" value={fmtDuration(t.drivingMs)} />
-                <Mini label="Stopped" value={fmtDuration(t.stoppedMs)} />
-                <Mini label="Top speed" value={`${t.topSpeedKmh.toFixed(0)} km/h`} />
+              <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2">
+                {driver && (
+                  <span className="inline-flex items-center gap-1">
+                    <User className="h-3 w-3" /> {driver}
+                  </span>
+                )}
+                <span>{fmtDuration(t.drivingMs)} driving</span>
+                <span>
+                  {t.stops.length} stop{t.stops.length === 1 ? "" : "s"}
+                  {t.stops.length > 0 && ` (${fmtDuration(t.stoppedMs)})`}
+                </span>
+                <span>top {t.topSpeedKmh.toFixed(0)} km/h</span>
+                {t.gaps.length > 0 && (
+                  <span className="text-destructive inline-flex items-center gap-1">
+                    <WifiOff className="h-3 w-3" /> no signal{" "}
+                    {fmtDuration(t.gaps.reduce((a, g) => a + g.ms, 0))}
+                  </span>
+                )}
               </div>
-              {t.stops.length > 0 && (
-                <ol className="space-y-1 pt-1 border-t border-border/40">
-                  {t.stops.map((s, i) => (
-                    <li key={i} className="text-xs flex gap-2">
+              {active && t.stops.length > 0 && (
+                <ol className="space-y-1 pt-1.5 border-t border-border/40">
+                  {t.stops.map((st, k) => (
+                    <li key={k} className="text-xs flex gap-2 min-w-0">
                       <span className="h-4 w-4 shrink-0 rounded-full bg-[#f59e0b] text-black text-[9px] font-bold grid place-items-center mt-px">
-                        {i + 1}
+                        {k + 1}
                       </span>
-                      <span className="min-w-0">
-                        <span className="tabular-nums">
-                          {fmtTime(s.startedAt)}–{fmtTime(s.endedAt)}
-                        </span>
-                        <span className="text-muted-foreground"> · {fmtDuration(s.ms)} · </span>
-                        <span className="text-muted-foreground">{placeOf(s) ?? "Locating…"}</span>
-                      </span>
+                      <span className="tabular-nums shrink-0">{fmtTime(st.startedAt)}</span>
+                      <span className="text-muted-foreground shrink-0">{fmtDuration(st.ms)}</span>
+                      <span className="text-muted-foreground truncate">{placeOf(st) ?? "…"}</span>
                     </li>
                   ))}
                 </ol>
               )}
-              {t.gaps.length > 0 && (
-                <div className="text-[11px] text-destructive flex items-center gap-1">
-                  <WifiOff className="h-3 w-3" /> Signal lost {t.gaps.length}× (
-                  {fmtDuration(t.gaps.reduce((a, g) => a + g.ms, 0))})
-                </div>
+              {!active && t.stops.length > 0 && (
+                <div className="text-[11px] text-primary">Tap to see the stops on the map</div>
               )}
             </button>
           </li>
         );
       })}
     </ol>
-  );
-}
-
-function Mini({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-background/60 border border-border/40 px-2 py-1">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="font-semibold tabular-nums">{value}</div>
-    </div>
   );
 }

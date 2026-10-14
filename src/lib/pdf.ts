@@ -44,7 +44,6 @@ export async function generateDayReportPdf(input: DayReportPdfInput): Promise<vo
     spots.push(...t.stops);
     if (t.end) spots.push(t.end);
   }
-  spots.push(...report.parked);
   const key = (p: LatLon) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`;
   const names = new Map<string, string>();
   const uniq = [...new Map(spots.map((p) => [key(p), p])).values()];
@@ -125,59 +124,42 @@ export async function generateDayReportPdf(input: DayReportPdfInput): Promise<vo
   // ── Totals ────────────────────────────────────────────────────────────────
   const T = report.totals;
   const tiles: Array<{ label: string; value: string; color: RGB }> = [
-    { label: "Trips", value: String(T.trips), color: BRAND.primary },
     { label: "Distance", value: `${T.distanceKm.toFixed(1)} km`, color: BRAND.primary },
-    { label: "Driving", value: fmtDuration(T.drivingMs), color: BRAND.green },
-    { label: "Engine on", value: fmtDuration(T.engineOnMs), color: BRAND.blue },
-    { label: "Stopped, engine on", value: fmtDuration(T.stoppedMs), color: BRAND.amber },
-    { label: "Parked", value: fmtDuration(T.parkedMs), color: BRAND.blue },
+    { label: "Driving time", value: fmtDuration(T.drivingMs), color: BRAND.green },
     { label: "Stops", value: String(T.stops), color: BRAND.amber },
-    {
-      label: "Top / avg speed",
-      value: `${T.topSpeedKmh.toFixed(0)} / ${T.avgMovingKmh.toFixed(0)} km/h`,
-      color: BRAND.pink,
-    },
+    { label: "Top speed", value: `${T.topSpeedKmh.toFixed(0)} km/h`, color: BRAND.pink },
   ];
   const cols = 4;
   const gap = 3;
   const tw = (W - 2 * M - gap * (cols - 1)) / cols;
   const th = 17;
   tiles.forEach((t, i) => {
-    const x = M + (i % cols) * (tw + gap);
-    const yy = y + Math.floor(i / cols) * (th + gap);
+    const x = M + i * (tw + gap);
     doc.setDrawColor(...BRAND.line);
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(x, yy, tw, th, 2, 2, "FD");
+    doc.roundedRect(x, y, tw, th, 2, 2, "FD");
     doc.setFillColor(...t.color);
-    doc.rect(x, yy, 1.3, th, "F");
+    doc.rect(x, y, 1.3, th, "F");
     doc.setTextColor(...BRAND.muted);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.8);
-    doc.text(t.label.toUpperCase(), x + 4, yy + 6);
+    doc.text(t.label.toUpperCase(), x + 4, y + 6);
     doc.setTextColor(...BRAND.ink);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11.5);
-    doc.text(t.value, x + 4, yy + 13);
+    doc.text(t.value, x + 4, y + 13);
   });
-  y += 2 * (th + gap) + 4;
+  y += th + 6;
 
-  const span = T.trips
-    ? `First departure ${fmtTime(T.firstStart!)} · last arrival ${fmtTime(T.lastEnd!)}`
-    : "The vehicle did not move this day.";
+  const summary = T.trips
+    ? `${T.trips} trip${T.trips > 1 ? "s" : ""} between ${fmtTime(T.firstStart!)} and ${fmtTime(T.lastEnd!)}. Engine on ${fmtDuration(T.engineOnMs)} (stopped with engine on ${fmtDuration(T.stoppedMs)}), parked ${fmtDuration(T.parkedMs)}.${T.gaps ? ` ${T.estimatedKm.toFixed(1)} km estimated where the signal was lost.` : ""}`
+    : "The vehicle stayed parked all day.";
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(9);
   doc.setTextColor(...BRAND.muted);
-  doc.text(span, M, y);
-  if (T.gaps > 0) {
-    doc.setTextColor(...BRAND.danger);
-    doc.text(
-      `Signal lost ${T.gaps}× while driving (${fmtDuration(T.gapMs)}); ${T.estimatedKm.toFixed(1)} km estimated across the gaps.`,
-      W - M,
-      y,
-      { align: "right" },
-    );
-  }
-  y += 6;
+  const lines = doc.splitTextToSize(summary, W - 2 * M);
+  doc.text(lines, M, y);
+  y += lines.length * 4.2 + 5;
 
   const section = (title: string, note?: string) => {
     if (y > H - 40) {
@@ -212,97 +194,68 @@ export async function generateDayReportPdf(input: DayReportPdfInput): Promise<vo
     y = doc.lastAutoTable.finalY + 7;
   };
 
-  // ── Day at a glance ───────────────────────────────────────────────────────
-  type Row = { at: number; cells: string[]; color?: RGB };
-  const rows: Row[] = [
-    ...report.parked.map((p) => ({
-      at: Date.parse(p.from),
-      cells: [
-        `${fmtTime(p.from)}–${p.ongoing ? "end" : fmtTime(p.to)}`,
-        "Parked",
-        place(p),
-        fmtDuration(p.ms),
-      ],
-    })),
-    ...report.trips.map((t) => ({
-      at: Date.parse(t.startedAt),
-      color: hex(tripColor(t.index)),
-      cells: [
+  // ── Trips ─────────────────────────────────────────────────────────────────
+  if (report.trips.length) {
+    section("Trips", "Kigali time");
+    table(
+      ["#", "Time", "From  →  To", "Distance", "Driving", "Stops"],
+      report.trips.map((t) => [
+        String(t.index),
         `${fmtTime(t.startedAt)}–${t.ongoing ? "now" : fmtTime(t.endedAt)}`,
-        `Trip ${t.index}${driverAt(t.startedAt) ? ` · ${driverAt(t.startedAt)}` : ""}`,
-        `${place(t.start)}  →  ${t.ongoing ? "on the road" : place(t.end)}`,
-        `${t.distanceKm.toFixed(1)} km · ${fmtDuration(t.drivingMs)} driving${t.stops.length ? ` · ${t.stops.length} stop${t.stops.length > 1 ? "s" : ""}` : ""}`,
-      ],
-    })),
-  ].sort((a, b) => a.at - b.at);
-
-  section("Day at a glance", "Kigali time");
-  table(
-    ["Time", "Activity", "Where", "Summary"],
-    rows.map((r) => r.cells),
-    {
-      columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 32, fontStyle: "bold" },
-        2: { cellWidth: "auto" },
-        3: { cellWidth: 46 },
-      },
-      didParseCell: (d) => {
-        const r = rows[d.row.index];
-        if (d.section === "body" && d.column.index === 1 && r?.color)
-          d.cell.styles.textColor = r.color;
-      },
-    },
-  );
-
-  // ── Each trip ─────────────────────────────────────────────────────────────
-  for (const t of report.trips) {
-    const driver = driverAt(t.startedAt);
-    section(
-      `Trip ${t.index} · ${fmtTime(t.startedAt)}–${t.ongoing ? "now" : fmtTime(t.endedAt)}`,
-      [
-        driver,
+        `${place(t.start)}  →  ${t.ongoing ? "on the road" : place(t.end)}${
+          driverAt(t.startedAt) && drivers.length > 1
+            ? `
+${driverAt(t.startedAt)}`
+            : ""
+        }`,
         `${t.distanceKm.toFixed(1)} km`,
-        `engine on ${fmtDuration(t.engineOnMs)}`,
-        `driving ${fmtDuration(t.drivingMs)}`,
-        `stopped ${fmtDuration(t.stoppedMs)}`,
-        `top ${t.topSpeedKmh.toFixed(0)} km/h`,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-    );
-    const body: string[][] = [[fmtTime(t.startedAt), "Departed", place(t.start), ""]];
-    t.stops.forEach((s, i) =>
-      body.push([
-        `${fmtTime(s.startedAt)}–${fmtTime(s.endedAt)}`,
-        `Stop ${i + 1}`,
-        place(s),
-        fmtDuration(s.ms),
+        fmtDuration(t.drivingMs),
+        String(t.stops.length),
       ]),
+      {
+        columnStyles: {
+          0: { cellWidth: 8, fontStyle: "bold" },
+          1: { cellWidth: 24 },
+          2: { cellWidth: "auto" },
+          3: { cellWidth: 20, halign: "right" },
+          4: { cellWidth: 20, halign: "right" },
+          5: { cellWidth: 14, halign: "right" },
+        },
+        didParseCell: (d) => {
+          const t = report.trips[d.row.index];
+          if (d.section === "body" && d.column.index === 0 && t)
+            d.cell.styles.textColor = hex(tripColor(t.index));
+        },
+      },
     );
-    for (const g of t.gaps)
-      body.push([
-        `${fmtTime(g.from)}–${fmtTime(g.to)}`,
-        "Signal lost",
-        place(g),
-        `${fmtDuration(g.ms)} · ~${g.estimatedKm.toFixed(1)} km`,
-      ]);
-    body.sort((a, b) => a[0].localeCompare(b[0]));
-    if (!t.ongoing) body.push([fmtTime(t.endedAt), "Arrived", place(t.end), ""]);
-    table(["Time", "Event", "Place", "Duration"], body, {
-      headStyles: {
-        fillColor: hex(tripColor(t.index)),
-        textColor: 255,
-        fontStyle: "bold",
-        fontSize: 8.5,
+  }
+
+  // ── Stops ─────────────────────────────────────────────────────────────────
+  const stops = report.trips.flatMap((t) => t.stops.map((st) => ({ t, st })));
+  if (stops.length) {
+    section("Stops", "where the vehicle stood still for a minute or more during a trip");
+    table(
+      ["Trip", "Time", "Stopped", "Place"],
+      stops.map(({ t, st }) => [
+        String(t.index),
+        `${fmtTime(st.startedAt)}–${fmtTime(st.endedAt)}`,
+        fmtDuration(st.ms),
+        place(st),
+      ]),
+      {
+        columnStyles: {
+          0: { cellWidth: 12, fontStyle: "bold", halign: "center" },
+          1: { cellWidth: 26 },
+          2: { cellWidth: 20 },
+          3: { cellWidth: "auto" },
+        },
+        didParseCell: (d) => {
+          const r = stops[d.row.index];
+          if (d.section === "body" && d.column.index === 0 && r)
+            d.cell.styles.textColor = hex(tripColor(r.t.index));
+        },
       },
-      columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 24, fontStyle: "bold" },
-        2: { cellWidth: "auto" },
-        3: { cellWidth: 30 },
-      },
-    });
+    );
   }
 
   // ── Footer ────────────────────────────────────────────────────────────────
