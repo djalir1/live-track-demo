@@ -1,20 +1,19 @@
 // Vector basemap styles (OpenFreeMap, free, no API key) tuned to read like
 // Google Maps: coloured place icons and labels by category, street names from
-// zoom 14. Light = OpenFreeMap "liberty"; dark = OpenFreeMap "dark" plus
-// liberty's place layers recoloured for a dark background (the stock dark
-// style has no places at all).
+// zoom 14. Both themes are OpenFreeMap "liberty"; dark mode only recolours it.
 import type { StyleSpecification, LayerSpecification } from "maplibre-gl";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles";
 
 type Theme = "light" | "dark";
 
-// Category → colour, Google-style. [light, dark]
-const CATEGORIES: Array<[string[], string, string]> = [
+// Category → colour, Google-style. One mid-tone set that reads on both themes:
+// the colour is per place type (data-driven), and changing a data-driven
+// colour on a theme switch makes MapLibre re-process every tile.
+const CATEGORIES: Array<[string[], string]> = [
   [
     ["restaurant", "fast_food", "cafe", "bar", "pub", "ice_cream", "bakery", "beer", "food_court"],
-    "#e8710a",
-    "#fba65d",
+    "#ef7d16",
   ],
   [
     [
@@ -35,11 +34,10 @@ const CATEGORIES: Array<[string[], string, string]> = [
       "books",
       "electronics",
     ],
-    "#1a73e8",
-    "#8ab4f8",
+    "#3b82f6",
   ],
-  [["lodging", "hotel", "hostel", "guest_house", "motel"], "#e8437f", "#f48fb1"],
-  [["hospital", "doctors", "pharmacy", "dentist", "clinic", "veterinary"], "#d93025", "#f28b82"],
+  [["lodging", "hotel", "hostel", "guest_house", "motel"], "#ec4f8c"],
+  [["hospital", "doctors", "pharmacy", "dentist", "clinic", "veterinary"], "#e5483d"],
   [
     [
       "park",
@@ -53,8 +51,7 @@ const CATEGORIES: Array<[string[], string, string]> = [
       "zoo",
       "campsite",
     ],
-    "#188038",
-    "#81c995",
+    "#2f9e57",
   ],
   [
     [
@@ -68,18 +65,16 @@ const CATEGORIES: Array<[string[], string, string]> = [
       "castle",
       "monument",
     ],
-    "#9334e6",
-    "#c58af9",
+    "#a855f7",
   ],
-  [["bus", "rail", "airport", "fuel", "parking", "car_rental"], "#3367d6", "#8ab4f8"],
+  [["bus", "rail", "airport", "fuel", "parking", "car_rental"], "#3b82f6"],
 ];
-const DEFAULT_TEXT: Record<Theme, string> = { light: "#5f6368", dark: "#bdc1c6" };
+const DEFAULT_TEXT = "#8a8f98";
 
-function categoryColor(theme: Theme): unknown {
+function categoryColor(): unknown {
   const expr: unknown[] = ["match", ["get", "class"]];
-  for (const [classes, light, dark] of CATEGORIES)
-    expr.push(classes, theme === "light" ? light : dark);
-  expr.push(DEFAULT_TEXT[theme]);
+  for (const [classes, color] of CATEGORIES) expr.push(classes, color);
+  expr.push(DEFAULT_TEXT);
   return expr;
 }
 
@@ -93,7 +88,7 @@ function tunePoi(layer: LayerSpecification, theme: Theme): LayerSpecification {
   if (POI_MINZOOM[l.id] !== undefined) l.minzoom = POI_MINZOOM[l.id];
   l.layout["text-font"] = ["Noto Sans Regular"];
   l.layout["text-size"] = 11.5;
-  l.paint["text-color"] = categoryColor(theme);
+  l.paint["text-color"] = categoryColor();
   l.paint["text-halo-color"] = theme === "light" ? "#ffffff" : DARK_BG;
   l.paint["text-halo-width"] = 1.2;
   l.paint["text-halo-blur"] = 0;
@@ -114,52 +109,108 @@ function fetchStyle(name: string): Promise<StyleSpecification> {
   return p;
 }
 
-// The stock dark style is near-black with roads barely visible. Repaint it in
-// a navy palette (matching the app) with clearly readable roads.
+// Dark = the same liberty layers repainted in a navy palette (matching the
+// app). Only colours differ between the themes, never layers, filters or
+// layout, so switching theme is a repaint: no tile is re-parsed and nothing
+// disappears mid-switch.
 const DARK_BG = "#111827";
-const DARK_PAINT: Record<string, Record<string, unknown>> = {
-  background: { "background-color": DARK_BG },
-  water: { "fill-color": "#0c2236" },
-  waterway: { "line-color": "#0c2236" },
-  water_name: { "text-color": "#5b88b5", "text-halo-color": DARK_BG },
-  landuse_residential: { "fill-color": "#141d2c", "fill-opacity": 1 },
-  landuse_park: { "fill-color": "#11261f" },
-  landcover_wood: { "fill-color": "#11261f" },
-  building: { "fill-color": "#1a2333", "fill-outline-color": "#222d40" },
-  highway_path: { "line-color": "#2c384b" },
-  highway_minor: { "line-color": "#263142", "line-opacity": 1 },
-  highway_major_casing: { "line-color": "#1b2433" },
-  highway_major_inner: { "line-color": "#3b475b" },
-  highway_major_subtle: { "line-color": "#3b475b" },
-  highway_motorway_casing: { "line-color": "#1b2433" },
-  highway_motorway_inner: { "line-color": "#4d5a70" },
-  highway_motorway_subtle: { "line-color": "#4d5a70" },
-  highway_name_other: { "text-color": "#9aa4b2", "text-halo-color": DARK_BG },
-  highway_name_motorway: { "text-color": "#b4bdc9", "text-halo-color": DARK_BG },
+const D = {
+  land: "#151e2e",
+  green: "#13281f",
+  greenEdge: "#173126",
+  water: "#0c2236",
+  waterText: "#5b88b5",
+  pale: "#182131",
+  hospital: "#2a1a24",
+  school: "#1d2236",
+  casing: "#0d1320",
+  motorway: "#5b6577",
+  major: "#4a5568",
+  minor: "#2f3b4f",
+  rail: "#3a4458",
+  building: "#1c2535",
+  buildingEdge: "#232e40",
+  boundary: "#4b5563",
+  roadText: "#9aa4b2",
+  placeText: "#cbd5e1",
 };
+
+function darkPaint(l: LayerSpecification): Record<string, unknown> | null {
+  const id = l.id;
+  if (id === "background") return { "background-color": DARK_BG };
+  if (id === "natural_earth") return { "raster-opacity": 0.15 };
+  if (id === "park") return { "fill-color": D.green, "fill-outline-color": D.green };
+  if (id === "park_outline") return { "line-color": D.greenEdge };
+  if (/^(landcover_(wood|grass)|landuse_(pitch|track|cemetery))$/.test(id))
+    return { "fill-color": D.green };
+  if (id === "landuse_residential") return { "fill-color": D.land };
+  if (id === "landuse_hospital") return { "fill-color": D.hospital };
+  if (id === "landuse_school") return { "fill-color": D.school };
+  if (/^(landcover_(ice|sand)|aeroway_fill)$/.test(id)) return { "fill-color": D.pale };
+  if (id === "water") return { "fill-color": D.water };
+  if (id.startsWith("waterway_") && l.type === "line") return { "line-color": D.water };
+  if (/^aeroway_(runway|taxiway)$/.test(id)) return { "line-color": D.minor };
+  if (id === "building") return { "fill-color": D.building, "fill-outline-color": D.buildingEdge };
+  if (id === "building-3d") return { "fill-extrusion-color": D.building };
+  if (id.startsWith("boundary_")) return { "line-color": D.boundary };
+  if (/^(road|tunnel|bridge)_/.test(id) && l.type === "line") {
+    if (id.includes("rail")) return { "line-color": D.rail };
+    if (id.endsWith("_casing")) return { "line-color": D.casing };
+    if (id.includes("motorway")) return { "line-color": D.motorway };
+    if (/trunk|primary|secondary|tertiary|_link$/.test(id)) return { "line-color": D.major };
+    return { "line-color": D.minor };
+  }
+  if (l.type === "symbol") {
+    if (/^(waterway_line_label|water_name_)/.test(id))
+      return { "text-color": D.waterText, "text-halo-color": DARK_BG };
+    if (id.startsWith("highway-name"))
+      return { "text-color": D.roadText, "text-halo-color": DARK_BG, "text-halo-width": 1 };
+    if (id === "airport" || id.startsWith("label_"))
+      return { "text-color": D.placeText, "text-halo-color": DARK_BG };
+  }
+  return null;
+}
 
 const isPoi = (l: LayerSpecification) => l.id.startsWith("poi_");
 
-export async function loadMapStyle(theme: Theme): Promise<StyleSpecification> {
-  const liberty = structuredClone(await fetchStyle("liberty"));
-  if (theme === "light") {
-    liberty.layers = liberty.layers.map((l) => (isPoi(l) ? tunePoi(l, "light") : l));
-    return liberty;
-  }
+const built = new Map<Theme, Promise<StyleSpecification>>();
 
-  const dark = structuredClone(await fetchStyle("dark"));
-  const pois = liberty.layers.filter(isPoi).map((l) => tunePoi(l, "dark"));
-  dark.layers = dark.layers.map((l) => {
-    const paint = DARK_PAINT[l.id];
+/** The finished style for a theme; built once, then served from memory. */
+export function loadMapStyle(theme: Theme): Promise<StyleSpecification> {
+  let p = built.get(theme);
+  if (!p) {
+    p = buildMapStyle(theme);
+    p.catch(() => built.delete(theme));
+    built.set(theme, p);
+  }
+  // A fresh copy each time: MapLibre may hold on to (or touch) what it is given.
+  return p.then((st) => structuredClone(st));
+}
+
+/** Warm both themes so the first paint and every toggle are instant. */
+export function prefetchMapStyles() {
+  if (typeof window === "undefined") return;
+  loadMapStyle("light").catch(() => {});
+  loadMapStyle("dark").catch(() => {});
+}
+
+async function buildMapStyle(theme: Theme): Promise<StyleSpecification> {
+  const style = structuredClone(await fetchStyle("liberty"));
+  style.layers = style.layers.map((l) => {
+    if (isPoi(l)) return tunePoi(l, theme);
+    // Road names get a halo in both themes so the property set is identical.
+    if (theme === "light" && l.id.startsWith("highway-name")) {
+      const c = structuredClone(l) as LayerSpecification & { paint?: Record<string, unknown> };
+      c.paint = { ...c.paint, "text-halo-color": "#f8f4f0", "text-halo-width": 1 };
+      return c as LayerSpecification;
+    }
+    const paint = theme === "dark" ? darkPaint(l) : null;
     if (!paint) return l;
     const c = structuredClone(l) as LayerSpecification & { paint?: Record<string, unknown> };
     c.paint = { ...c.paint, ...paint };
     return c as LayerSpecification;
   });
-  // Places sit above roads and street names, below boundaries and towns.
-  const at = dark.layers.findIndex((l) => l.id === "boundary_state");
-  dark.layers.splice(at < 0 ? dark.layers.length : at, 0, ...pois);
-  return dark;
+  return style;
 }
 
 export function supportsWebGL(): boolean {
