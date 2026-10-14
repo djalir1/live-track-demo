@@ -203,7 +203,7 @@ begin
     join public.user_roles ur on ur.user_id = p.id and ur.role = 'user'
     join auth.users u on u.id = p.id
    where p.school_id is not null
-     and u.email not like 'gps-%@livetrack.app';
+     and u.email not ilike '%gps%@livetrack.app';  -- gps-server tracker accounts
 
   -- 2. Each bus's current driver → a driver row (if needed) + open assignment.
   for r in

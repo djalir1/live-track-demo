@@ -65,7 +65,8 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (!trackerAccount.has(uid)) {
       const res = await fetch(`${url}/auth/v1/admin/users/${uid}`, { headers });
       if (!res.ok) return false;
-      trackerAccount.set(uid, /^gps-\d{15}@livetrack\.app$/.test((await res.json()).email ?? ""));
+      // gps-<imei>@livetrack.app, or older hand-made ones like eloge.gps-tracker@livetrack.app
+      trackerAccount.set(uid, /gps.*@livetrack\.app$/i.test((await res.json()).email ?? ""));
     }
     return trackerAccount.get(uid);
   }
