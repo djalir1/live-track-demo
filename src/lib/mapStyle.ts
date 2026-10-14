@@ -94,7 +94,7 @@ function tunePoi(layer: LayerSpecification, theme: Theme): LayerSpecification {
   l.layout["text-font"] = ["Noto Sans Regular"];
   l.layout["text-size"] = 11.5;
   l.paint["text-color"] = categoryColor(theme);
-  l.paint["text-halo-color"] = theme === "light" ? "#ffffff" : "#1f2228";
+  l.paint["text-halo-color"] = theme === "light" ? "#ffffff" : DARK_BG;
   l.paint["text-halo-width"] = 1.2;
   l.paint["text-halo-blur"] = 0;
   return l;
@@ -114,6 +114,30 @@ function fetchStyle(name: string): Promise<StyleSpecification> {
   return p;
 }
 
+// The stock dark style is near-black with roads barely visible. Repaint it in
+// a navy palette (matching the app) with clearly readable roads.
+const DARK_BG = "#111827";
+const DARK_PAINT: Record<string, Record<string, unknown>> = {
+  background: { "background-color": DARK_BG },
+  water: { "fill-color": "#0c2236" },
+  waterway: { "line-color": "#0c2236" },
+  water_name: { "text-color": "#5b88b5", "text-halo-color": DARK_BG },
+  landuse_residential: { "fill-color": "#141d2c", "fill-opacity": 1 },
+  landuse_park: { "fill-color": "#11261f" },
+  landcover_wood: { "fill-color": "#11261f" },
+  building: { "fill-color": "#1a2333", "fill-outline-color": "#222d40" },
+  highway_path: { "line-color": "#2c384b" },
+  highway_minor: { "line-color": "#263142", "line-opacity": 1 },
+  highway_major_casing: { "line-color": "#1b2433" },
+  highway_major_inner: { "line-color": "#3b475b" },
+  highway_major_subtle: { "line-color": "#3b475b" },
+  highway_motorway_casing: { "line-color": "#1b2433" },
+  highway_motorway_inner: { "line-color": "#4d5a70" },
+  highway_motorway_subtle: { "line-color": "#4d5a70" },
+  highway_name_other: { "text-color": "#9aa4b2", "text-halo-color": DARK_BG },
+  highway_name_motorway: { "text-color": "#b4bdc9", "text-halo-color": DARK_BG },
+};
+
 const isPoi = (l: LayerSpecification) => l.id.startsWith("poi_");
 
 export async function loadMapStyle(theme: Theme): Promise<StyleSpecification> {
@@ -126,14 +150,11 @@ export async function loadMapStyle(theme: Theme): Promise<StyleSpecification> {
   const dark = structuredClone(await fetchStyle("dark"));
   const pois = liberty.layers.filter(isPoi).map((l) => tunePoi(l, "dark"));
   dark.layers = dark.layers.map((l) => {
-    // Stock street names are near-black on black; make them readable.
-    if (l.id === "highway_name_other" || l.id === "highway_name_motorway") {
-      const c = structuredClone(l) as LayerSpecification & { paint: Record<string, unknown> };
-      c.paint["text-color"] = "#9aa0a6";
-      c.paint["text-halo-color"] = "#16181d";
-      return c;
-    }
-    return l;
+    const paint = DARK_PAINT[l.id];
+    if (!paint) return l;
+    const c = structuredClone(l) as LayerSpecification & { paint?: Record<string, unknown> };
+    c.paint = { ...c.paint, ...paint };
+    return c as LayerSpecification;
   });
   // Places sit above roads and street names, below boundaries and towns.
   const at = dark.layers.findIndex((l) => l.id === "boundary_state");
