@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -18,7 +18,6 @@ import {
   PowerOff,
   Bus,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +27,10 @@ import { supabase } from "@/integrations/supabase/client";
 import type { LiveUser, TrackingStatus } from "@/types/tracking";
 import { getVehicle } from "@/lib/vehicles";
 import { reverseGeocode, cachedReverseGeocode } from "@/lib/geocode";
-import { friendlyError } from "@/lib/friendly-errors";
+import { STATUS_COLOR, STATUS_LABEL } from "@/lib/status";
+import { db } from "@/lib/fleet";
+import { ago, serverNow, syncServerClock } from "@/lib/time";
+import type { Database } from "@/integrations/supabase/types";
 
 const LiveMap = lazy(() => import("@/components/LiveMap").then((m) => ({ default: m.LiveMap })));
 
@@ -40,23 +42,31 @@ export const Route = createFileRoute("/dashboard")({
 const FILTERS: { key: "all" | TrackingStatus; label: string }[] = [
   { key: "all", label: "All" },
   { key: "moving", label: "Moving" },
-  { key: "stopped", label: "Parked" },
-  { key: "idle", label: "Idle" },
+  { key: "stopped", label: STATUS_LABEL.stopped },
+  { key: "idle", label: STATUS_LABEL.idle },
   { key: "offline", label: "Offline" },
 ];
 
-const DOT: Record<TrackingStatus, string> = {
-  moving: "var(--moving)",
-  stopped: "var(--stopped)",
-  idle: "var(--idle)",
-  offline: "var(--offline)",
-};
+const DOT = STATUS_COLOR;
+
+type DeviceRow = Database["public"]["Tables"]["device_status"]["Row"];
+type ProfileLite = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "id" | "display_name" | "vehicle_name" | "vehicle_type" | "plate_number" | "seats"
+>;
+interface Meta {
+  profiles: Map<string, ProfileLite>;
+  driverIds: Set<string>;
+  trackerDrivers: Set<string | null>;
+}
+// ~100 m cell, the granularity street names are looked up at.
+const addrKey = (lat: number | null, lon: number | null) =>
+  `${(lat ?? 0).toFixed(3)},${(lon ?? 0).toFixed(3)}`;
 
 function Dashboard() {
   const { user, role, loading, signOut } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
-  const [users, setUsers] = useState<LiveUser[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | TrackingStatus>("all");
   const [selected, setSelected] = useState<string | null>(null);
@@ -72,7 +82,14 @@ function Dashboard() {
     if (role !== "admin") navigate({ to: "/track" });
   }, [user, role, loading, navigate]);
 
-  const load = async () => {
+  // Device rows come in by realtime, one vehicle at a time; names/roles change
+  // rarely and are refreshed every minute. Nothing is re-queried per GPS fix.
+  const [rows, setRows] = useState<Map<string, DeviceRow>>(new Map());
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [addresses, setAddresses] = useState<Record<string, string>>({});
+  const [, setTick] = useState(0);
+
+  const loadMeta = async (): Promise<boolean> => {
     const [statusesRes, profilesRes, driversRes, trackersRes] = await Promise.all([
       supabase.from("device_status").select("*"),
       supabase
@@ -82,98 +99,131 @@ function Dashboard() {
       // in the live list. Admin/parent/school_admin accounts are excluded.
       supabase.from("user_roles").select("user_id").eq("role", "user"),
       // Drivers whose vehicle carries a hardware GPS tracker.
-      supabase.from("buses").select("driver_user_id").not("gps_imei", "is", null),
+      db.from("buses").select("driver_user_id").not("gps_imei", "is", null),
     ]);
-    if (statusesRes.error) {
-      console.error("[dashboard] device_status error", statusesRes.error);
-      toast.error(friendlyError(statusesRes.error, "Couldn't load the driver list right now."));
+    const err = statusesRes.error ?? profilesRes.error ?? driversRes.error ?? trackersRes.error;
+    if (err) {
+      // Keep showing the last good data (never blank the map on a hiccup). An
+      // expired session after the phone slept is the usual cause: refresh it.
+      console.error("[dashboard] load error", err);
+      if (/jwt|token|401/i.test(`${err.message} ${(err as { code?: string }).code ?? ""}`)) {
+        await supabase.auth.refreshSession().catch(() => null);
+      }
+      return false;
     }
-    if (profilesRes.error) console.error("[dashboard] profiles error", profilesRes.error);
-    if (driversRes.error) console.error("[dashboard] user_roles error", driversRes.error);
-    const statuses = statusesRes.data ?? [];
-    const profiles = profilesRes.data ?? [];
-    const driverIds = new Set((driversRes.data ?? []).map((r) => r.user_id));
-    const profileMap = new Map(profiles.map((p) => [p.id, p]));
-    const trackerDrivers = new Set(
-      ((trackersRes.data ?? []) as { driver_user_id: string | null }[]).map(
-        (b) => b.driver_user_id,
+    setMeta({
+      profiles: new Map((profilesRes.data ?? []).map((p) => [p.id, p])),
+      driverIds: new Set((driversRes.data ?? []).map((r) => r.user_id)),
+      trackerDrivers: new Set(
+        ((trackersRes.data ?? []) as { driver_user_id: string | null }[]).map(
+          (b) => b.driver_user_id,
+        ),
       ),
-    );
-    const merged: LiveUser[] = statuses
-      .filter((s) => driverIds.has(s.user_id))
-      .map((s) => {
-        const p = profileMap.get(s.user_id);
-        // Presence = freshness. Tracker upserts roughly every 8s while active,
-        // so if we haven't heard in 30s the phone is either off, backgrounded
-        // hard, or lost network — all of which are "offline" for the admin's
-        // purposes. Otherwise trust the tracker's own state (moving / stopped
-        // / idle) since it reflects the last real GPS reading.
-        // Hardware trackers report every 10 s with ignition on but only every
-        // 5 min parked (TIMER,10,300#), so they get a wider window.
-        const gpsTracker = trackerDrivers.has(s.user_id);
-        const freshMs = gpsTracker ? (s.is_tracking ? 60_000 : 7 * 60_000) : 30_000;
-        const fresh = Date.now() - new Date(s.last_seen).getTime() < freshMs;
-        return {
-          user_id: s.user_id,
-          display_name: p?.display_name ?? "Unknown",
-          vehicle_name: p?.vehicle_name ?? null,
-          vehicle_type: p?.vehicle_type ?? "car",
-          plate_number: p?.plate_number ?? null,
-          seats: p?.seats ?? null,
-          status: fresh ? s.status : "offline",
-          latitude: s.latitude,
-          longitude: s.longitude,
-          speed_kmh: s.speed_kmh,
-          heading: s.heading ?? null,
-          battery_level: s.battery_level,
-          is_tracking: s.is_tracking,
-          last_seen: s.last_seen,
-          address: cachedReverseGeocode(s.latitude, s.longitude),
-          gps_tracker: gpsTracker,
-        };
-      });
-    setUsers(merged);
+    });
+    setRows(new Map((statusesRes.data ?? []).map((r) => [r.user_id, r as DeviceRow])));
+    return true;
   };
 
   useEffect(() => {
     if (role !== "admin") return;
-    load();
+    void syncServerClock();
+    let failures = 0;
+    const refresh = async () => {
+      const ok = await loadMeta();
+      failures = ok ? 0 : failures + 1;
+      if (failures === 3) toast.error("Can't reach the server — showing the last known positions.");
+    };
+    void refresh();
     const ch = supabase
       .channel("device_status_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "device_status" }, () =>
-        load(),
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "device_status" },
+        (payload) => {
+          const row = (payload.new ?? null) as DeviceRow | null;
+          if (!row?.user_id) return;
+          setRows((prev) => new Map(prev).set(row.user_id, row));
+        },
       )
       .subscribe();
-    const i = window.setInterval(load, 15000);
+    const metaTimer = window.setInterval(refresh, 60_000);
+    // Re-evaluate freshness (moving -> offline) without any network traffic.
+    const tickTimer = window.setInterval(() => setTick((n) => n + 1), 5_000);
+    // Phone back from sleep: resync the clock and catch up immediately.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void syncServerClock(true);
+      void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       supabase.removeChannel(ch);
-      window.clearInterval(i);
+      window.clearInterval(metaTimer);
+      window.clearInterval(tickTimer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
+  const now = serverNow();
+  const users: LiveUser[] = [];
+  if (meta) {
+    for (const s of rows.values()) {
+      if (!meta.driverIds.has(s.user_id)) continue;
+      const p = meta.profiles.get(s.user_id);
+      // Presence = freshness, measured on the server's clock. Phones upsert
+      // about every 8 s while tracking. Hardware trackers report every 10 s with
+      // ignition on but only every 5 min parked (TIMER,10,300#) plus a 3-min
+      // heartbeat, so they get a wider window.
+      const gpsTracker = meta.trackerDrivers.has(s.user_id);
+      const freshMs = gpsTracker ? (s.is_tracking ? 60_000 : 7 * 60_000) : 45_000;
+      const fresh = now - new Date(s.last_seen).getTime() < freshMs;
+      users.push({
+        user_id: s.user_id,
+        display_name: p?.display_name ?? "Unknown",
+        vehicle_name: p?.vehicle_name ?? null,
+        vehicle_type: p?.vehicle_type ?? "car",
+        plate_number: p?.plate_number ?? null,
+        seats: p?.seats ?? null,
+        status: fresh ? s.status : "offline",
+        latitude: s.latitude,
+        longitude: s.longitude,
+        speed_kmh: fresh ? s.speed_kmh : 0,
+        heading: s.heading ?? null,
+        battery_level: s.battery_level,
+        is_tracking: fresh && s.is_tracking,
+        last_seen: s.last_seen,
+        address:
+          addresses[addrKey(s.latitude, s.longitude)] ??
+          cachedReverseGeocode(s.latitude, s.longitude),
+        gps_tracker: gpsTracker,
+      });
+    }
+  }
+
+  // Street names: at most one lookup per ~100 m cell (geocode.ts caches and
+  // rate-limits to 1/s), so a moving fleet doesn't hammer the geocoder.
+  const addrNeeded = users
+    .filter((u) => u.latitude != null && !u.address)
+    .map((u) => addrKey(u.latitude, u.longitude))
+    .join("|");
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      for (const u of users) {
-        if (u.latitude == null || u.longitude == null) continue;
-        if (u.address) continue;
-        const label = await reverseGeocode(u.latitude, u.longitude);
+      for (const key of addrNeeded ? addrNeeded.split("|") : []) {
+        const [lat, lon] = key.split(",").map(Number);
+        const label = await reverseGeocode(lat, lon);
         if (cancelled) return;
-        if (label)
-          setUsers((prev) =>
-            prev.map((x) => (x.user_id === u.user_id ? { ...x, address: label } : x)),
-          );
+        if (label) setAddresses((prev) => ({ ...prev, [key]: label }));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [users.map((u) => `${u.user_id}:${u.latitude}:${u.longitude}`).join("|")]);
+  }, [addrNeeded]);
 
   // The list is filtered by status + search. The MAP still shows every driver
   // so admins never lose sight of a vehicle when they narrow the filter.
-  const filteredList = useMemo(() => {
+  const filteredList = (() => {
     return users.filter((u) => {
       if (filter !== "all" && u.status !== filter) return false;
       if (
@@ -185,28 +235,25 @@ function Dashboard() {
         return false;
       return true;
     });
-  }, [users, filter, search]);
+  })();
 
-  const counts = useMemo(
-    () => ({
-      all: users.length,
-      moving: users.filter((u) => u.status === "moving").length,
-      stopped: users.filter((u) => u.status === "stopped").length,
-      idle: users.filter((u) => u.status === "idle").length,
-      offline: users.filter((u) => u.status === "offline").length,
-    }),
-    [users],
-  );
+  const counts = ((): Record<"all" | TrackingStatus, number> => ({
+    all: users.length,
+    moving: users.filter((u) => u.status === "moving").length,
+    stopped: users.filter((u) => u.status === "stopped").length,
+    idle: users.filter((u) => u.status === "idle").length,
+    offline: users.filter((u) => u.status === "offline").length,
+  }))();
 
   // Buses that are actively online right now — moving buses first (most
   // urgent), then idle, then parked. Offline devices are excluded so the strip
   // only shows what an admin can currently intervene on.
-  const activeBuses = useMemo(() => {
-    const order: Record<TrackingStatus, number> = { moving: 0, idle: 1, stopped: 2, offline: 3 };
+  const activeBuses = (() => {
+    const order: Record<TrackingStatus, number> = { moving: 0, stopped: 1, idle: 2, offline: 3 };
     return users
       .filter((u) => u.status !== "offline" && u.is_tracking && u.latitude != null)
       .sort((a, b) => order[a.status] - order[b.status] || (b.speed_kmh ?? 0) - (a.speed_kmh ?? 0));
-  }, [users]);
+  })();
 
   if (loading || role !== "admin") {
     return (
@@ -321,9 +368,7 @@ function Dashboard() {
                   )}
                   {u.battery_level ?? "—"}%
                 </div>
-                <div className="text-muted-foreground">
-                  {formatDistanceToNow(new Date(u.last_seen), { addSuffix: false })}
-                </div>
+                <div className="text-muted-foreground">{ago(u.last_seen)}</div>
               </div>
             </motion.button>
           );

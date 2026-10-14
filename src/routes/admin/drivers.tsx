@@ -24,6 +24,7 @@ import { AdminShell } from "@/components/AdminShell";
 import { AssignmentHistory } from "@/components/AssignmentHistory";
 import { IconBtn } from "@/components/IconButton";
 import { friendlyError } from "@/lib/friendly-errors";
+import { fmtDate } from "@/lib/time";
 import { assignDriver, busName, db, loadFleet, type Driver, type Fleet } from "@/lib/fleet";
 
 export const Route = createFileRoute("/admin/drivers")({
@@ -337,7 +338,7 @@ function DriversPage() {
                             <span className="font-medium">{busName(cur.bus)}</span>
                             <span className="text-muted-foreground">
                               {" "}
-                              since {new Date(cur.since).toLocaleDateString()}
+                              since {fmtDate(cur.since)}
                             </span>
                           </span>
                         ) : (

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 // Extended for the school-transport layer (parent-phase1 branch).
@@ -45,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const roleFetchFor = useRef<string | null>(null);
   // Tracks the last uid we've seen so we can wipe role on identity changes.
   const lastUidRef = useRef<string | null>(null);
+  // Distinguishes "user tapped Sign out" from the session being dropped.
+  const signingOutRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       const uid = s?.user?.id ?? null;
       const prevUid = lastUidRef.current;
+      if (event === "SIGNED_OUT" && prevUid && !signingOutRef.current) {
+        // Supabase dropped the session (refresh token rejected, e.g. revoked
+        // or reused from another tab). Say so instead of silently bouncing.
+        console.warn("[auth] session ended without sign-out");
+        toast.error("Your session expired — please sign in again.");
+      }
       lastUidRef.current = uid;
 
       setSession(s);
@@ -95,9 +104,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "INITIAL_SESSION") setInitialised(true);
     });
 
+    // Phone/PWA back from the background: timers were paused, so make sure the
+    // access token is fresh before screens start querying again.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void supabase.auth.getSession();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -108,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // UPDATE (not upsert) so admin accounts without a device_status row stay
     // clean; the tracker's own stop() also does this on the Stop button.
     const uid = lastUidRef.current;
+    signingOutRef.current = true;
     if (uid) {
       try {
         await supabase
@@ -125,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     roleFetchFor.current = null;
     lastUidRef.current = null;
+    signingOutRef.current = false;
     setRole(null);
     setUser(null);
     setSession(null);

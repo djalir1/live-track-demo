@@ -155,7 +155,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         const rows = await call(`device_status?select=total_distance_m&user_id=eq.${uid}`).catch(() => []);
         totalM = rows?.[0]?.total_distance_m ?? 0;
       }
-      state.set(uid, { last: null, totalM, tripOpen: null, acc: null });
+      state.set(uid, { last: null, totalM, tripOpen: null, acc: null, lastSaved: null, lastSavedAt: 0 });
     }
     return state.get(uid);
   }
@@ -221,18 +221,27 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         last_seen: new Date(now).toISOString(),
       }),
     });
-    await call("location_history", {
-      method: "POST",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({
-        user_id: uid,
-        latitude: fix.latitude,
-        longitude: fix.longitude,
-        speed_kmh: fix.speedKmh,
-        ...(s.battery != null ? { battery_level: s.battery } : {}),
-        recorded_at: recordedAt.toISOString(),
-      }),
-    });
+    // Parked (ignition off) and not moved: one history row per 30 min is
+    // plenty — device_status above already says it's alive. Saves ~250
+    // identical rows per vehicle per night.
+    const parkedRepeat =
+      !ignitionOn && s.lastSaved && haversine(s.lastSaved, fix) < 30 && now - s.lastSavedAt < 30 * 60_000;
+    if (!parkedRepeat) {
+      await call("location_history", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          user_id: uid,
+          latitude: fix.latitude,
+          longitude: fix.longitude,
+          speed_kmh: fix.speedKmh,
+          ...(s.battery != null ? { battery_level: s.battery } : {}),
+          recorded_at: recordedAt.toISOString(),
+        }),
+      });
+      s.lastSaved = fix;
+      s.lastSavedAt = now;
+    }
     log(`📍 ${bus.label ?? bus.plate ?? bus.id} ${fix.latitude.toFixed(6)},${fix.longitude.toFixed(6)} ${fix.speedKmh} km/h acc=${ignitionOn ? "on" : "off"} → ${status}`);
   }
 

@@ -1,7 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { format, startOfDay, endOfDay } from "date-fns";
 import {
   MapPin,
   ArrowLeft,
@@ -11,10 +9,16 @@ import {
   Gauge,
   Route as RouteIcon,
   Clock,
-  Square,
   Activity,
   List,
   Map as MapIcon,
+  ParkingSquare,
+  Power,
+  TimerReset,
+  WifiOff,
+  User,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,47 +26,84 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/integrations/supabase/client";
-import { getVehicle, type VehicleType } from "@/lib/vehicles";
-import {
-  buildTripSummary,
-  formatDurationMinutes,
-  type RawPoint,
-  type TripSummary,
-} from "@/lib/trip";
 import { reverseGeocode, cachedReverseGeocode } from "@/lib/geocode";
 import { friendlyError } from "@/lib/friendly-errors";
-import { generateTripReport } from "@/lib/pdf";
+import {
+  buildDayReport,
+  tripColor,
+  type DayReport,
+  type LatLon,
+  type RawPoint,
+  type SessionRow,
+} from "@/lib/day-report";
+import { busName, db, loadFleet, type Assignment, type Fleet } from "@/lib/fleet";
+import {
+  fmtDuration,
+  fmtLongDate,
+  fmtTime,
+  kigaliDayRange,
+  serverNow,
+  syncServerClock,
+  todayKigali,
+} from "@/lib/time";
 
-const LiveMap = lazy(() => import("@/components/LiveMap").then((m) => ({ default: m.LiveMap })));
+const TripMap = lazy(() => import("@/components/TripMap").then((m) => ({ default: m.TripMap })));
 
 export const Route = createFileRoute("/history")({
   head: () => ({ meta: [{ title: "Trip History — Live Track" }] }),
   component: HistoryPage,
 });
 
-interface DriverOption {
-  id: string;
-  display_name: string;
-  vehicle_name: string | null;
-  vehicle_type: VehicleType;
-  plate_number: string | null;
-  seats: number | null;
+/** What can be reported on: a vehicle (its tracker / current driver's phone) or an app driver. */
+interface Subject {
+  key: string;
+  userId: string; // positions are stored per account
+  title: string;
+  subtitle: string | null;
+  plate: string | null;
+  busId: string | null;
 }
 
-function todayISO() {
-  return format(new Date(), "yyyy-MM-dd");
+// The API returns at most 1,000 rows per request; a busy day at one fix per
+// 10 s is ~8,600. Page through it.
+async function fetchDayPoints(userId: string, start: string, end: string) {
+  const PAGE = 1000;
+  const all: RawPoint[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("location_history")
+      .select("latitude, longitude, speed_kmh, battery_level, recorded_at")
+      .eq("user_id", userId)
+      .gte("recorded_at", start)
+      .lt("recorded_at", end)
+      .order("recorded_at", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) return { data: null, error };
+    all.push(...((data ?? []) as RawPoint[]));
+    if (!data || data.length < PAGE) return { data: all, error: null };
+  }
+}
+
+const placeKey = (p: LatLon) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`;
+
+function shiftDay(day: string, by: number) {
+  const d = new Date(`${day}T12:00:00+02:00`);
+  d.setUTCDate(d.getUTCDate() + by);
+  return d.toISOString().slice(0, 10);
 }
 
 function HistoryPage() {
   const { user, role, loading } = useAuth();
   const navigate = useNavigate();
 
-  const [drivers, setDrivers] = useState<DriverOption[]>([]);
-  const [driverId, setDriverId] = useState<string>("");
-  const [date, setDate] = useState<string>(todayISO());
+  const [fleet, setFleet] = useState<Fleet | null>(null);
+  const [subjectKey, setSubjectKey] = useState("");
+  const [date, setDate] = useState<string>(todayKigali());
   const [busy, setBusy] = useState(false);
-  const [trip, setTrip] = useState<TripSummary | null>(null);
-  const [stopAddresses, setStopAddresses] = useState<Record<string, string>>({});
+  const [report, setReport] = useState<DayReport | null>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [places, setPlaces] = useState<Record<string, string>>({});
+  const [selectedTrip, setSelectedTrip] = useState<number | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [mobileView, setMobileView] = useState<"info" | "map">("info");
 
@@ -78,117 +119,164 @@ function HistoryPage() {
 
   useEffect(() => {
     if (role !== "admin") return;
-    (async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, vehicle_name, vehicle_type, plate_number, seats")
-        .order("display_name");
-      if (error) {
-        toast.error(friendlyError(error, "Couldn't load drivers."));
-        return;
-      }
-      setDrivers(data ?? []);
-      if ((data?.length ?? 0) > 0) setDriverId((prev) => prev || data![0].id);
-    })();
+    void syncServerClock().then(() => setDate(todayKigali()));
+    loadFleet()
+      .then(setFleet)
+      .catch((e) => toast.error(friendlyError(e, "Couldn't load vehicles.")));
   }, [role]);
 
-  const driver = useMemo(() => drivers.find((d) => d.id === driverId) ?? null, [drivers, driverId]);
-
-  const loadTrip = async () => {
-    if (!driverId || !date) return;
-    setBusy(true);
-    setTrip(null);
-    try {
-      const day = new Date(date + "T00:00:00");
-      const dayStart = startOfDay(day).toISOString();
-      const dayEnd = endOfDay(day).toISOString();
-      const [pointsRes, sessionsRes] = await Promise.all([
-        supabase
-          .from("location_history")
-          .select("latitude, longitude, speed_kmh, battery_level, recorded_at")
-          .eq("user_id", driverId)
-          .gte("recorded_at", dayStart)
-          .lte("recorded_at", dayEnd)
-          .order("recorded_at", { ascending: true }),
-        // Any session that overlaps the day: started before day-end AND
-        // (ended after day-start OR still open).
-        supabase
-          .from("trip_sessions")
-          .select("started_at, ended_at")
-          .eq("user_id", driverId)
-          .lte("started_at", dayEnd)
-          .or(`ended_at.gte.${dayStart},ended_at.is.null`),
-      ]);
-      if (pointsRes.error) throw pointsRes.error;
-      if (sessionsRes.error) throw sessionsRes.error;
-      const summary = buildTripSummary(
-        (pointsRes.data ?? []) as RawPoint[],
-        sessionsRes.data ?? [],
-      );
-      setTrip(summary);
-    } catch (e) {
-      toast.error(friendlyError(e, "Couldn't load this trip."));
-    } finally {
-      setBusy(false);
+  // Vehicles first (what owners think in), then app drivers not tied to one.
+  const subjects = useMemo<Subject[]>(() => {
+    if (!fleet) return [];
+    const out: Subject[] = [];
+    const seen = new Set<string>();
+    for (const b of fleet.buses) {
+      if (!b.driver_user_id) continue;
+      seen.add(b.driver_user_id);
+      const cur = fleet.open.find((a) => a.bus_id === b.id);
+      const driver = cur ? fleet.drivers.find((d) => d.id === cur.driver_id)?.full_name : null;
+      out.push({
+        key: `bus:${b.id}`,
+        userId: b.driver_user_id,
+        title: busName(b),
+        subtitle: driver ?? null,
+        plate: b.plate,
+        busId: b.id,
+      });
     }
-  };
+    for (const d of fleet.drivers) {
+      if (!d.active || !d.user_id || seen.has(d.user_id)) continue;
+      out.push({
+        key: `drv:${d.id}`,
+        userId: d.user_id,
+        title: d.full_name,
+        subtitle: "Driver app",
+        plate: null,
+        busId: null,
+      });
+    }
+    return out;
+  }, [fleet]);
 
   useEffect(() => {
-    if (driverId && date) void loadTrip(); /* eslint-disable-next-line */
-  }, [driverId, date]);
+    if (!subjectKey && subjects.length) setSubjectKey(subjects[0].key);
+  }, [subjects, subjectKey]);
+  const subject = subjects.find((s) => s.key === subjectKey) ?? null;
 
   useEffect(() => {
-    if (!trip) return;
+    if (!subject || !date) return;
     let cancelled = false;
     (async () => {
-      const next: Record<string, string> = {};
-      for (const s of trip.stops) {
-        const key = `${s.lat.toFixed(4)},${s.lon.toFixed(4)}`;
-        const cached = cachedReverseGeocode(s.lat, s.lon);
-        if (cached) next[key] = cached;
-        else {
-          const label = await reverseGeocode(s.lat, s.lon);
-          if (cancelled) return;
-          if (label) next[key] = label;
-          setStopAddresses((prev) => ({ ...prev, ...next }));
-        }
+      setBusy(true);
+      setReport(null);
+      setSelectedTrip(null);
+      try {
+        const { start, end } = kigaliDayRange(date);
+        const [pointsRes, beforeRes, sessionsRes, assignRes] = await Promise.all([
+          fetchDayPoints(subject.userId, start, end),
+          // Where it was parked when the day began.
+          supabase
+            .from("location_history")
+            .select("latitude, longitude, speed_kmh, battery_level, recorded_at")
+            .eq("user_id", subject.userId)
+            .lt("recorded_at", start)
+            .order("recorded_at", { ascending: false })
+            .limit(1),
+          db
+            .from("trip_sessions")
+            .select("started_at, ended_at")
+            .eq("user_id", subject.userId)
+            .lt("started_at", end)
+            .or(`ended_at.gte.${start},ended_at.is.null`),
+          subject.busId
+            ? db
+                .from("vehicle_assignments")
+                .select("id, bus_id, driver_id, started_at, ended_at")
+                .eq("bus_id", subject.busId)
+                .lt("started_at", end)
+                .or(`ended_at.gte.${start},ended_at.is.null`)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+        for (const r of [pointsRes, beforeRes, sessionsRes, assignRes]) if (r.error) throw r.error;
+        if (cancelled) return;
+        setAssignments((assignRes.data ?? []) as Assignment[]);
+        setReport(
+          buildDayReport(
+            (pointsRes.data ?? []) as RawPoint[],
+            (sessionsRes.data ?? []) as SessionRow[],
+            {
+              from: start,
+              to: end,
+              now: serverNow(),
+              before: (beforeRes.data?.[0] as RawPoint | undefined) ?? null,
+            },
+          ),
+        );
+      } catch (e) {
+        if (!cancelled) toast.error(friendlyError(e, "Couldn't load this day."));
+      } finally {
+        if (!cancelled) setBusy(false);
       }
-      setStopAddresses((prev) => ({ ...prev, ...next }));
     })();
     return () => {
       cancelled = true;
     };
-  }, [trip]);
+  }, [subject?.userId, subject?.busId, date]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const routePoints = useMemo<[number, number][]>(
-    () => (trip?.points ?? []).map((p) => [p.latitude, p.longitude]),
-    [trip],
-  );
-  const stopsForMap = useMemo(
-    () =>
-      (trip?.stops ?? []).map((s) => ({
-        lat: s.lat,
-        lon: s.lon,
-        label:
-          stopAddresses[`${s.lat.toFixed(4)},${s.lon.toFixed(4)}`] ??
-          `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`,
-        when: `${format(new Date(s.startedAt), "p")} — ${format(new Date(s.endedAt), "p")} (${formatDurationMinutes(s.durationMinutes)})`,
-      })),
-    [trip, stopAddresses],
-  );
+  // Street names for every place shown (trip ends, stops, parking spots).
+  const placeList = useMemo<LatLon[]>(() => {
+    if (!report) return [];
+    const all: LatLon[] = [];
+    for (const t of report.trips) {
+      if (t.start) all.push(t.start);
+      all.push(...t.stops);
+      if (t.end) all.push(t.end);
+    }
+    all.push(...report.parked);
+    return all;
+  }, [report]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const seen = new Set<string>();
+      for (const p of placeList) {
+        const k = placeKey(p);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        const cached = cachedReverseGeocode(p.lat, p.lon);
+        const label = cached ?? (await reverseGeocode(p.lat, p.lon));
+        if (cancelled) return;
+        if (label) setPlaces((prev) => (prev[k] === label ? prev : { ...prev, [k]: label }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [placeList]);
+  const placeOf = (p: LatLon) => places[placeKey(p)] ?? null;
+
+  /** Who was assigned to the vehicle when a trip started. */
+  const driverAt = (iso: string): string | null => {
+    if (!fleet) return null;
+    if (!subject?.busId) return subject?.title ?? null;
+    const t = Date.parse(iso);
+    const a = assignments.find(
+      (x) => Date.parse(x.started_at) <= t && (x.ended_at == null || Date.parse(x.ended_at) > t),
+    );
+    return a ? (fleet.drivers.find((d) => d.id === a.driver_id)?.full_name ?? null) : null;
+  };
 
   const onExportPdf = async () => {
-    if (!trip || !driver) return;
+    if (!report || !subject) return;
     setPdfBusy(true);
     try {
-      await generateTripReport({
-        driverName: driver.display_name,
-        vehicleName: driver.vehicle_name,
-        vehicleType: driver.vehicle_type,
-        plateNumber: driver.plate_number,
-        seats: driver.seats,
-        date: new Date(date + "T00:00:00"),
-        trip,
+      const { generateDayReportPdf } = await import("@/lib/pdf");
+      await generateDayReportPdf({
+        vehicle: subject.title,
+        plate: subject.plate,
+        day: date,
+        report,
+        driverAt,
       });
       toast.success("PDF report downloaded");
     } catch (e) {
@@ -209,38 +297,63 @@ function HistoryPage() {
     );
   }
 
+  const today = todayKigali();
+  const hasData = !!report && report.pointCount > 0;
+
   const infoPanel = (
     <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft flex flex-col overflow-hidden flex-1 min-h-0">
       <div className="p-3 sm:p-4 space-y-3 border-b border-border/50 shrink-0">
-        <div className="space-y-2">
-          <Label htmlFor="driver">Driver</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="subject">Vehicle</Label>
           <select
-            id="driver"
-            value={driverId}
-            onChange={(e) => setDriverId(e.target.value)}
+            id="subject"
+            value={subjectKey}
+            onChange={(e) => setSubjectKey(e.target.value)}
             className="w-full h-10 rounded-md bg-background/50 border border-input px-3 text-sm"
           >
-            {drivers.length === 0 && <option value="">No drivers yet</option>}
-            {drivers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.display_name}
-                {d.vehicle_name ? ` — ${d.vehicle_name}` : ""}
+            {subjects.length === 0 && <option value="">No vehicles yet</option>}
+            {subjects.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.title}
+                {s.plate && s.plate !== s.title ? ` (${s.plate})` : ""}
+                {s.subtitle ? ` · ${s.subtitle}` : ""}
               </option>
             ))}
           </select>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="date">Date</Label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              max={todayISO()}
-              className="pl-9 h-10"
-            />
+        <div className="space-y-1.5">
+          <Label htmlFor="date">Day</Label>
+          <div className="flex gap-1.5">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              aria-label="Previous day"
+              onClick={() => setDate((d) => shiftDay(d, -1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="relative flex-1">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                id="date"
+                type="date"
+                value={date}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+                max={today}
+                className="pl-9 h-10"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              aria-label="Next day"
+              disabled={date >= today}
+              onClick={() => setDate((d) => shiftDay(d, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>
@@ -248,97 +361,33 @@ function HistoryPage() {
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-0">
         {busy && (
           <div className="text-sm text-muted-foreground flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading trip…
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading the day…
           </div>
         )}
-        {!busy && trip && trip.points.length === 0 && (
+        {!busy && report && !hasData && (
           <div className="text-sm text-muted-foreground text-center py-8">
             <Activity className="h-6 w-6 mx-auto mb-2 opacity-40" />
-            No trip data recorded on this day.
+            Nothing recorded on {fmtLongDate(`${date}T12:00:00+02:00`)}.
           </div>
         )}
-        {!busy && trip && trip.points.length > 0 && driver && (
+        {!busy && report && hasData && (
           <>
-            <SummaryTiles trip={trip} />
-            <div className="rounded-xl border border-border/50 bg-background/40 p-3 space-y-2 text-sm">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">Driver</div>
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const V = getVehicle(driver.vehicle_type).Icon;
-                  return <V size={22} className="text-primary" />;
-                })()}
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{driver.display_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {getVehicle(driver.vehicle_type).label}
-                    {driver.vehicle_name ? ` · ${driver.vehicle_name}` : ""}
-                  </div>
-                </div>
-                {driver.plate_number && (
-                  <span className="font-mono font-bold text-xs bg-muted px-2 py-1 rounded shrink-0">
-                    {driver.plate_number}
-                  </span>
-                )}
-              </div>
-              {driver.seats != null && (
-                <div className="text-xs text-muted-foreground">
-                  Seats: <span className="font-medium text-foreground">{driver.seats}</span>
-                </div>
-              )}
-            </div>
-            {trip.gaps.length > 0 && (
-              <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 space-y-2">
-                <div className="text-xs text-destructive uppercase tracking-wider">
-                  Signal lost ({trip.gaps.length})
-                </div>
-                <ul className="space-y-1.5 text-xs">
-                  {trip.gaps.map((g, i) => (
-                    <li key={i} className="flex items-center justify-between gap-2">
-                      <span className="tabular-nums">
-                        {format(new Date(g.from), "HH:mm")}–{format(new Date(g.to), "HH:mm")}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {formatDurationMinutes(g.durationMinutes)} · jump {g.jumpedKm.toFixed(1)} km
-                        discarded
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+            <Totals report={report} />
+            {report.trips.length === 0 && (
+              <div className="rounded-xl border border-border/50 bg-background/40 p-3 text-sm text-muted-foreground">
+                No trips — the vehicle stayed parked all day.
               </div>
             )}
-            {trip.stops.length > 0 && (
-              <div className="rounded-xl border border-border/50 bg-background/40 p-3 space-y-2">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                  Stops ({trip.stops.length})
-                </div>
-                <ol className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {trip.stops.map((s, i) => {
-                    const key = `${s.lat.toFixed(4)},${s.lon.toFixed(4)}`;
-                    return (
-                      <li
-                        key={i}
-                        className="text-xs bg-background/50 rounded-lg p-2 border border-border/40"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="h-5 w-5 rounded-full bg-[var(--idle)] text-black grid place-items-center text-[10px] font-bold shrink-0">
-                            {i + 1}
-                          </span>
-                          <div className="min-w-0">
-                            <div className="truncate font-medium">
-                              {stopAddresses[key] ?? "Locating…"}
-                            </div>
-                            <div className="text-muted-foreground">
-                              {format(new Date(s.startedAt), "p")} ·{" "}
-                              {formatDurationMinutes(s.durationMinutes)}
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </div>
-            )}
+            <Timeline
+              report={report}
+              placeOf={placeOf}
+              driverAt={driverAt}
+              selected={selectedTrip}
+              onSelect={(i) => {
+                setSelectedTrip(i);
+                if (i != null) setMobileView("map");
+              }}
+            />
           </>
         )}
       </div>
@@ -346,7 +395,7 @@ function HistoryPage() {
   );
 
   const mapPanel = (
-    <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft overflow-hidden flex-1 min-h-0">
+    <section className="relative rounded-2xl bg-gradient-card border border-border/60 shadow-soft overflow-hidden flex-1 min-h-0">
       <Suspense
         fallback={
           <div className="h-full w-full grid place-items-center text-muted-foreground">
@@ -354,33 +403,32 @@ function HistoryPage() {
           </div>
         }
       >
-        <LiveMap
-          users={
-            driver && trip && trip.points.length > 0
-              ? [
-                  {
-                    user_id: driver.id,
-                    display_name: driver.display_name,
-                    vehicle_name: driver.vehicle_name,
-                    vehicle_type: driver.vehicle_type,
-                    plate_number: driver.plate_number,
-                    seats: driver.seats,
-                    status: "stopped",
-                    latitude: trip.points[trip.points.length - 1].latitude,
-                    longitude: trip.points[trip.points.length - 1].longitude,
-                    speed_kmh: trip.points[trip.points.length - 1].speed_kmh,
-                    heading: null,
-                    battery_level: trip.points[trip.points.length - 1].battery_level,
-                    is_tracking: false,
-                    last_seen: trip.points[trip.points.length - 1].recorded_at,
-                  },
-                ]
-              : []
-          }
-          routePoints={routePoints}
-          stops={stopsForMap}
+        <TripMap
+          trips={report?.trips ?? []}
+          selected={selectedTrip}
+          onSelect={setSelectedTrip}
+          placeOf={placeOf}
         />
       </Suspense>
+      {report && report.trips.length > 1 && (
+        <div className="absolute top-2 left-2 right-2 z-[500] flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
+          <TripChip
+            active={selectedTrip == null}
+            color="#64748b"
+            label="All trips"
+            onClick={() => setSelectedTrip(null)}
+          />
+          {report.trips.map((t) => (
+            <TripChip
+              key={t.index}
+              active={selectedTrip === t.index}
+              color={tripColor(t.index)}
+              label={`Trip ${t.index} · ${fmtTime(t.startedAt)}`}
+              onClick={() => setSelectedTrip(t.index)}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 
@@ -405,50 +453,41 @@ function HistoryPage() {
               Trip History
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={onExportPdf}
-              disabled={!trip || pdfBusy || (trip?.points.length ?? 0) === 0}
-              size="sm"
-              className="bg-gradient-primary shadow-glow"
-            >
-              {pdfBusy ? (
-                <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 sm:mr-1.5" />
-              )}
-              <span className="hidden sm:inline">Export PDF</span>
-              <span className="sm:hidden">PDF</span>
-            </Button>
-          </div>
+          <Button
+            onClick={onExportPdf}
+            disabled={!hasData || pdfBusy}
+            size="sm"
+            className="bg-gradient-primary shadow-glow"
+          >
+            {pdfBusy ? (
+              <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 sm:mr-1.5" />
+            )}
+            <span className="hidden sm:inline">Export PDF</span>
+            <span className="sm:hidden">PDF</span>
+          </Button>
         </div>
 
-        {/* Mobile-only view switcher */}
         <div className="lg:hidden mx-auto max-w-[1600px] px-3 pb-2 flex gap-2">
-          <button
-            onClick={() => setMobileView("info")}
-            className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
-              mobileView === "info"
-                ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                : "bg-background/50 border-border text-muted-foreground"
-            }`}
-          >
-            <List className="h-4 w-4" /> Trip details
-          </button>
-          <button
-            onClick={() => setMobileView("map")}
-            className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
-              mobileView === "map"
-                ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                : "bg-background/50 border-border text-muted-foreground"
-            }`}
-          >
-            <MapIcon className="h-4 w-4" /> Route
-          </button>
+          {(["info", "map"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setMobileView(v)}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
+                mobileView === v
+                  ? "bg-primary text-primary-foreground border-primary shadow-glow"
+                  : "bg-background/50 border-border text-muted-foreground"
+              }`}
+            >
+              {v === "info" ? <List className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
+              {v === "info" ? "Day summary" : "Route"}
+            </button>
+          ))}
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[360px_1fr] lg:grid-rows-[minmax(0,1fr)]">
+      <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)]">
         <div
           className={`${mobileView === "info" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
         >
@@ -464,52 +503,230 @@ function HistoryPage() {
   );
 }
 
-function SummaryTiles({ trip }: { trip: TripSummary }) {
+function TripChip({
+  active,
+  color,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  color: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium border shadow-soft backdrop-blur ${
+        active
+          ? "bg-background text-foreground border-foreground/30"
+          : "bg-background/80 text-muted-foreground border-border"
+      }`}
+    >
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+      {label}
+    </button>
+  );
+}
+
+function Totals({ report }: { report: DayReport }) {
+  const t = report.totals;
   const tiles = [
     {
       label: "Distance",
-      value: `${trip.totalDistanceKm.toFixed(2)} km`,
+      value: `${t.distanceKm.toFixed(1)} km`,
       Icon: RouteIcon,
       color: "var(--primary)",
     },
+    { label: "Driving", value: fmtDuration(t.drivingMs), Icon: Clock, color: "#22c55e" },
+    { label: "Engine on", value: fmtDuration(t.engineOnMs), Icon: Power, color: "#6366f1" },
     {
-      label: "Driving time",
-      value: formatDurationMinutes(trip.totalMovingMinutes),
-      Icon: Clock,
-      color: "var(--moving)",
+      label: "Stopped, engine on",
+      value: fmtDuration(t.stoppedMs),
+      Icon: TimerReset,
+      color: "#f59e0b",
     },
+    { label: "Parked", value: fmtDuration(t.parkedMs), Icon: ParkingSquare, color: "#3b82f6" },
     {
-      label: "Stopped time",
-      value: formatDurationMinutes(trip.totalStoppedMinutes),
-      Icon: Square,
-      color: "var(--idle)",
-    },
-    {
-      label: "Top speed",
-      value: `${trip.topSpeedKmh.toFixed(0)} km/h`,
+      label: "Top / avg speed",
+      value: `${t.topSpeedKmh.toFixed(0)} / ${t.avgMovingKmh.toFixed(0)} km/h`,
       Icon: Gauge,
-      color: "var(--stopped)",
+      color: "#ec4899",
     },
   ];
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="grid grid-cols-2 gap-2"
-    >
-      {tiles.map((t) => (
-        <div key={t.label} className="rounded-xl border border-border/50 bg-background/40 p-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <t.Icon className="h-3.5 w-3.5" /> {t.label}
+    <div className="space-y-2">
+      <div className="text-xs text-muted-foreground">
+        {t.trips === 0
+          ? "No trips"
+          : `${t.trips} trip${t.trips > 1 ? "s" : ""} · ${t.stops} stop${t.stops === 1 ? "" : "s"} · first start ${fmtTime(t.firstStart!)} · last stop ${fmtTime(t.lastEnd!)}`}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {tiles.map((x) => (
+          <div key={x.label} className="rounded-xl border border-border/50 bg-background/40 p-2.5">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <x.Icon className="h-3.5 w-3.5 shrink-0" />{" "}
+              <span className="truncate">{x.label}</span>
+            </div>
+            <div
+              className="mt-0.5 font-display font-bold text-base tabular-nums"
+              style={{ color: x.color }}
+            >
+              {x.value}
+            </div>
           </div>
-          <div
-            className="mt-1 font-display font-bold text-lg tabular-nums"
-            style={{ color: t.color }}
-          >
-            {t.value}
-          </div>
-        </div>
-      ))}
-    </motion.div>
+        ))}
+      </div>
+      {t.estimatedKm > 0.05 && (
+        <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+          <WifiOff className="h-3.5 w-3.5 shrink-0 mt-px" />
+          Signal was lost {t.gaps} time{t.gaps > 1 ? "s" : ""} while driving ({fmtDuration(t.gapMs)}
+          ); {t.estimatedKm.toFixed(1)} km of the distance is estimated as a straight line across
+          those gaps.
+        </p>
+      )}
+    </div>
+  );
+}
+
+type Event =
+  | { kind: "parked"; at: number; p: DayReport["parked"][number] }
+  | { kind: "trip"; at: number; t: DayReport["trips"][number] };
+
+function Timeline({
+  report,
+  placeOf,
+  driverAt,
+  selected,
+  onSelect,
+}: {
+  report: DayReport;
+  placeOf: (p: LatLon) => string | null;
+  driverAt: (iso: string) => string | null;
+  selected: number | null;
+  onSelect: (i: number | null) => void;
+}) {
+  const events: Event[] = [
+    ...report.parked.map((p) => ({ kind: "parked" as const, at: Date.parse(p.from), p })),
+    ...report.trips.map((t) => ({ kind: "trip" as const, at: Date.parse(t.startedAt), t })),
+  ].sort((a, b) => a.at - b.at);
+
+  return (
+    <ol className="relative space-y-2 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-px before:bg-border">
+      {events.map((e) => {
+        if (e.kind === "parked") {
+          const p = e.p;
+          return (
+            <li key={`p${p.from}`} className="relative pl-8">
+              <span className="absolute left-0 top-1.5 h-6 w-6 rounded-full bg-[#3b82f6]/15 text-[#3b82f6] grid place-items-center">
+                <ParkingSquare className="h-3.5 w-3.5" />
+              </span>
+              <div className="text-xs">
+                <span className="font-medium">
+                  Parked {fmtTime(p.from)}–{p.ongoing ? "now" : fmtTime(p.to)}
+                </span>
+                <span className="text-muted-foreground"> · {fmtDuration(p.ms)}</span>
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {placeOf(p) ?? "Locating…"}
+              </div>
+            </li>
+          );
+        }
+        const t = e.t;
+        const color = tripColor(t.index);
+        const driver = driverAt(t.startedAt);
+        const active = selected === t.index;
+        return (
+          <li key={`t${t.index}`} className="relative pl-8">
+            <span
+              className="absolute left-0 top-2 h-6 w-6 rounded-full grid place-items-center text-[10px] font-bold text-white"
+              style={{ background: color }}
+            >
+              {t.index}
+            </span>
+            <button
+              onClick={() => onSelect(active ? null : t.index)}
+              className={`w-full text-left rounded-xl border p-3 space-y-2 transition-colors ${
+                active
+                  ? "bg-accent border-foreground/20"
+                  : "bg-background/40 border-border/50 hover:border-primary/40"
+              }`}
+              style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-sm font-semibold">
+                  Trip {t.index} · {fmtTime(t.startedAt)}–{t.ongoing ? "now" : fmtTime(t.endedAt)}
+                </div>
+                <div className="text-xs font-semibold tabular-nums" style={{ color }}>
+                  {t.distanceKm.toFixed(1)} km
+                </div>
+              </div>
+              {driver && (
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <User className="h-3 w-3" /> {driver}
+                </div>
+              )}
+              <div className="text-xs space-y-0.5">
+                <div className="flex gap-1.5 min-w-0">
+                  <span className="h-4 w-4 shrink-0 rounded-full bg-[#16a34a] text-white text-[9px] font-bold grid place-items-center">
+                    A
+                  </span>
+                  <span className="truncate">
+                    {t.start ? (placeOf(t.start) ?? "Locating…") : "—"}
+                  </span>
+                </div>
+                <div className="flex gap-1.5 min-w-0">
+                  <span className="h-4 w-4 shrink-0 rounded-full bg-[#dc2626] text-white text-[9px] font-bold grid place-items-center">
+                    B
+                  </span>
+                  <span className="truncate">
+                    {t.ongoing ? "On the road" : t.end ? (placeOf(t.end) ?? "Locating…") : "—"}
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                <Mini label="Driving" value={fmtDuration(t.drivingMs)} />
+                <Mini label="Stopped" value={fmtDuration(t.stoppedMs)} />
+                <Mini label="Top speed" value={`${t.topSpeedKmh.toFixed(0)} km/h`} />
+              </div>
+              {t.stops.length > 0 && (
+                <ol className="space-y-1 pt-1 border-t border-border/40">
+                  {t.stops.map((s, i) => (
+                    <li key={i} className="text-xs flex gap-2">
+                      <span className="h-4 w-4 shrink-0 rounded-full bg-[#f59e0b] text-black text-[9px] font-bold grid place-items-center mt-px">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="tabular-nums">
+                          {fmtTime(s.startedAt)}–{fmtTime(s.endedAt)}
+                        </span>
+                        <span className="text-muted-foreground"> · {fmtDuration(s.ms)} · </span>
+                        <span className="text-muted-foreground">{placeOf(s) ?? "Locating…"}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {t.gaps.length > 0 && (
+                <div className="text-[11px] text-destructive flex items-center gap-1">
+                  <WifiOff className="h-3 w-3" /> Signal lost {t.gaps.length}× (
+                  {fmtDuration(t.gaps.reduce((a, g) => a + g.ms, 0))})
+                </div>
+              )}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-background/60 border border-border/40 px-2 py-1">
+      <div className="text-muted-foreground">{label}</div>
+      <div className="font-semibold tabular-nums">{value}</div>
+    </div>
   );
 }

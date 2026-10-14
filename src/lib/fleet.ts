@@ -8,6 +8,7 @@
 // gps_driver_name for the gps-server and dashboard.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { fmtDateTime, fmtDuration, serverNow } from "@/lib/time";
 
 // The generated types predate the fleet tables; use an untyped client here.
 export const db = supabase as unknown as SupabaseClient;
@@ -127,23 +128,8 @@ export async function assignDriver(busId: string, driverId: string | null) {
   if (error) throw error;
 }
 
-const DAY = 86_400_000;
+/** "14 Oct 2026, 08:10 → now · 2 d" in Kigali time. */
 export function formatPeriod(a: Assignment): string {
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleString(undefined, {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  const end = a.ended_at ? new Date(a.ended_at).getTime() : Date.now();
-  const ms = end - new Date(a.started_at).getTime();
-  const span =
-    ms >= DAY
-      ? `${Math.floor(ms / DAY)} d`
-      : ms >= 3_600_000
-        ? `${Math.floor(ms / 3_600_000)} h`
-        : `${Math.max(1, Math.round(ms / 60_000))} min`;
-  return `${fmt(a.started_at)} → ${a.ended_at ? fmt(a.ended_at) : "now"} · ${span}`;
+  const end = a.ended_at ? new Date(a.ended_at).getTime() : serverNow();
+  return `${fmtDateTime(a.started_at)} → ${a.ended_at ? fmtDateTime(a.ended_at) : "now"} · ${fmtDuration(end - new Date(a.started_at).getTime())}`;
 }

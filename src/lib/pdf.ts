@@ -1,419 +1,327 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { format } from "date-fns";
-import type { TripSummary } from "./trip";
-import { formatDurationMinutes, selectWaypoints } from "./trip";
-import { getVehicle, type VehicleType } from "./vehicles";
+import { tripColor, type DayReport, type LatLon } from "./day-report";
 import { reverseGeocode, reverseGeocodeAddress } from "./geocode";
+import { fmtDateTime, fmtDuration, fmtLongDate, fmtTime, serverNow } from "./time";
 
-export interface ReportInput {
-  driverName: string;
-  vehicleName: string | null;
-  vehicleType: VehicleType;
-  plateNumber: string | null;
-  seats: number | null;
-  date: Date;
-  trip: TripSummary;
+// Daily vehicle report: what an owner needs at a glance — trips, where it
+// went and stopped, how long the engine ran, how long it was parked. All
+// times are Kigali time regardless of the computer that prints it.
+
+export interface DayReportPdfInput {
+  vehicle: string;
+  plate: string | null;
+  /** yyyy-MM-dd, a Kigali calendar day */
+  day: string;
+  report: DayReport;
+  driverAt: (iso: string) => string | null;
 }
 
-// Brand palette (RGB) — kept in one place so a rebrand is one edit.
+type RGB = [number, number, number];
 const BRAND = {
-  primary: [88, 80, 236] as [number, number, number],
-  primaryDark: [56, 48, 180] as [number, number, number],
-  ink: [24, 27, 40] as [number, number, number],
-  muted: [110, 116, 138] as [number, number, number],
-  line: [225, 228, 235] as [number, number, number],
-  tileBg: [246, 247, 251] as [number, number, number],
-  moving: [34, 197, 94] as [number, number, number],
-  stopped: [59, 130, 246] as [number, number, number],
-  amber: [245, 158, 11] as [number, number, number],
-  danger: [239, 68, 68] as [number, number, number],
+  primary: [88, 80, 236] as RGB,
+  primaryDark: [56, 48, 180] as RGB,
+  ink: [24, 27, 40] as RGB,
+  muted: [110, 116, 138] as RGB,
+  line: [225, 228, 235] as RGB,
+  tileBg: [246, 247, 251] as RGB,
+  green: [22, 163, 74] as RGB,
+  amber: [217, 119, 6] as RGB,
+  blue: [37, 99, 235] as RGB,
+  pink: [219, 39, 119] as RGB,
+  danger: [220, 38, 38] as RGB,
 };
+const hex = (h: string): RGB => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as RGB;
 
-export async function generateTripReport(input: ReportInput): Promise<void> {
-  const { driverName, vehicleName, vehicleType, plateNumber, seats, date, trip } = input;
-  const vehicle = getVehicle(vehicleType);
+export async function generateDayReportPdf(input: DayReportPdfInput): Promise<void> {
+  const { vehicle, plate, day, report, driverAt } = input;
+  const dayDate = `${day}T12:00:00+02:00`;
 
-  const startPt = trip.points[0];
-  const endPt = trip.points[trip.points.length - 1];
-  const waypoints = selectWaypoints(trip.points);
-  // Rate-limited queue lives inside geocode.ts (1 request/second globally). We
-  // fire everything here in parallel and let the queue serialize the network.
-  const [startRec, endRec, stopAddrs, waypointAddrs] = await Promise.all([
-    startPt ? reverseGeocodeAddress(startPt.latitude, startPt.longitude) : Promise.resolve(null),
-    endPt ? reverseGeocodeAddress(endPt.latitude, endPt.longitude) : Promise.resolve(null),
-    Promise.all(trip.stops.map((s) => reverseGeocode(s.lat, s.lon))),
-    Promise.all(waypoints.map((p) => reverseGeocode(p.latitude, p.longitude))),
+  // Place names (geocode.ts caches and rate-limits to 1 request/second).
+  const spots: LatLon[] = [];
+  for (const t of report.trips) {
+    if (t.start) spots.push(t.start);
+    spots.push(...t.stops);
+    if (t.end) spots.push(t.end);
+  }
+  spots.push(...report.parked);
+  const key = (p: LatLon) => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`;
+  const names = new Map<string, string>();
+  const uniq = [...new Map(spots.map((p) => [key(p), p])).values()];
+  const [labels, area] = await Promise.all([
+    Promise.all(uniq.map((p) => reverseGeocode(p.lat, p.lon))),
+    uniq[0] ? reverseGeocodeAddress(uniq[0].lat, uniq[0].lon) : Promise.resolve(null),
   ]);
-  const startAddr = startRec?.label ?? null;
-  const endAddr = endRec?.label ?? null;
-  // District for the report header: prefer the start point's district, fall back to end.
-  const district =
-    startRec?.parts.city_district ??
-    startRec?.parts.county ??
-    endRec?.parts.city_district ??
-    endRec?.parts.county ??
-    null;
-  const city = startRec?.parts.city ?? endRec?.parts.city ?? null;
+  uniq.forEach((p, i) => labels[i] && names.set(key(p), labels[i]!));
+  const place = (p: LatLon | null) =>
+    p ? (names.get(key(p)) ?? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`) : "—";
+  const district = area?.parts.city_district ?? area?.parts.county ?? null;
+  const city = area?.parts.city ?? null;
+
+  const drivers = [
+    ...new Set(report.trips.map((t) => driverAt(t.startedAt)).filter(Boolean)),
+  ] as string[];
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const M = 15;
+  const M = 14;
 
-  // -------- Header band --------
+  // ── Header ────────────────────────────────────────────────────────────────
   doc.setFillColor(...BRAND.primary);
-  doc.rect(0, 0, W, 34, "F");
+  doc.rect(0, 0, W, 30, "F");
   doc.setFillColor(...BRAND.primaryDark);
-  doc.rect(0, 30, W, 4, "F");
-
+  doc.rect(0, 27, W, 3, "F");
   doc.setTextColor(255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
-  doc.text("LIVE TRACK", M, 15);
+  doc.setFontSize(20);
+  doc.text("LIVE TRACK", M, 13);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text("Daily Trip Report", M, 21);
-
-  doc.setFontSize(11);
+  doc.text("Daily vehicle report", M, 19.5);
   doc.setFont("helvetica", "bold");
-  doc.text(format(date, "EEEE, LLLL d, yyyy"), W - M, 15, { align: "right" });
+  doc.setFontSize(11);
+  doc.text(fmtLongDate(dayDate), W - M, 13, { align: "right" });
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(format(date, "yyyy-MM-dd"), W - M, 21, { align: "right" });
-  if (district || city) {
-    doc.setFontSize(8);
-    doc.text([city, district].filter(Boolean).join(" · "), W - M, 27, { align: "right" });
-  }
+  doc.setFontSize(8.5);
+  doc.text([city, district].filter(Boolean).join(" · ") || "Kigali time (UTC+2)", W - M, 19.5, {
+    align: "right",
+  });
 
-  // -------- Driver / vehicle identity card --------
-  let y = 46;
+  // ── Vehicle card ──────────────────────────────────────────────────────────
+  let y = 38;
   doc.setDrawColor(...BRAND.line);
-  doc.setFillColor(255, 255, 255);
-  doc.roundedRect(M, y, W - M * 2, 30, 3, 3, "S");
-
+  doc.roundedRect(M, y, W - 2 * M, 22, 2.5, 2.5, "S");
   doc.setTextColor(...BRAND.muted);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.text("DRIVER", M + 5, y + 7);
+  doc.setFontSize(7.5);
+  doc.text("VEHICLE", M + 4, y + 6);
   doc.setTextColor(...BRAND.ink);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text(driverName, M + 5, y + 15);
+  doc.setFontSize(14);
+  doc.text(vehicle, M + 4, y + 13);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(...BRAND.muted);
-  const vehParts = [vehicle.label];
-  if (vehicleName) vehParts.push(vehicleName);
-  if (seats != null) vehParts.push(`${seats} seats`);
-  doc.text(vehParts.join(" · "), M + 5, y + 22);
-
-  // Plate on the right
-  if (plateNumber) {
+  doc.text(
+    drivers.length
+      ? `Driver${drivers.length > 1 ? "s" : ""}: ${drivers.join(", ")}`
+      : "Driver: not assigned",
+    M + 4,
+    y + 18.5,
+  );
+  if (plate) {
+    const pw = 40;
+    const px = W - M - 4 - pw;
     doc.setDrawColor(...BRAND.ink);
     doc.setFillColor(...BRAND.tileBg);
-    const plateW = 46;
-    const plateX = W - M - 5 - plateW;
-    const plateY = y + 8;
-    doc.roundedRect(plateX, plateY, plateW, 14, 2, 2, "FD");
-    doc.setTextColor(...BRAND.muted);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    doc.text("PLATE", plateX + 3, plateY + 4);
-    doc.setTextColor(...BRAND.ink);
+    doc.roundedRect(px, y + 5, pw, 12, 2, 2, "FD");
     doc.setFont("courier", "bold");
-    doc.setFontSize(13);
-    doc.text(plateNumber, plateX + plateW / 2, plateY + 11, { align: "center" });
+    doc.setFontSize(12.5);
+    doc.setTextColor(...BRAND.ink);
+    doc.text(plate, px + pw / 2, y + 13, { align: "center" });
   }
+  y += 28;
 
-  y += 40;
-
-  // -------- Summary tiles --------
-  const tiles: Array<{ label: string; value: string; color: [number, number, number] }> = [
-    { label: "Distance", value: `${trip.totalDistanceKm.toFixed(2)} km`, color: BRAND.primary },
+  // ── Totals ────────────────────────────────────────────────────────────────
+  const T = report.totals;
+  const tiles: Array<{ label: string; value: string; color: RGB }> = [
+    { label: "Trips", value: String(T.trips), color: BRAND.primary },
+    { label: "Distance", value: `${T.distanceKm.toFixed(1)} km`, color: BRAND.primary },
+    { label: "Driving", value: fmtDuration(T.drivingMs), color: BRAND.green },
+    { label: "Engine on", value: fmtDuration(T.engineOnMs), color: BRAND.blue },
+    { label: "Stopped, engine on", value: fmtDuration(T.stoppedMs), color: BRAND.amber },
+    { label: "Parked", value: fmtDuration(T.parkedMs), color: BRAND.blue },
+    { label: "Stops", value: String(T.stops), color: BRAND.amber },
     {
-      label: "Driving time",
-      value: formatDurationMinutes(trip.totalMovingMinutes),
-      color: BRAND.moving,
+      label: "Top / avg speed",
+      value: `${T.topSpeedKmh.toFixed(0)} / ${T.avgMovingKmh.toFixed(0)} km/h`,
+      color: BRAND.pink,
     },
-    {
-      label: "Stopped time",
-      value: formatDurationMinutes(trip.totalStoppedMinutes),
-      color: BRAND.amber,
-    },
-    { label: "Top speed", value: `${trip.topSpeedKmh.toFixed(0)} km/h`, color: BRAND.stopped },
-    {
-      label: "Avg moving speed",
-      value: `${trip.averageMovingSpeedKmh.toFixed(0)} km/h`,
-      color: BRAND.primary,
-    },
-    { label: "Stops", value: `${trip.stops.length}`, color: BRAND.amber },
   ];
-  const cols = 3;
-  const gap = 4;
-  const tileW = (W - M * 2 - gap * (cols - 1)) / cols;
-  const tileH = 22;
+  const cols = 4;
+  const gap = 3;
+  const tw = (W - 2 * M - gap * (cols - 1)) / cols;
+  const th = 17;
   tiles.forEach((t, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = M + col * (tileW + gap);
-    const yy = y + row * (tileH + gap);
+    const x = M + (i % cols) * (tw + gap);
+    const yy = y + Math.floor(i / cols) * (th + gap);
     doc.setDrawColor(...BRAND.line);
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(x, yy, tileW, tileH, 2.5, 2.5, "FD");
-    // Colored side bar
+    doc.roundedRect(x, yy, tw, th, 2, 2, "FD");
     doc.setFillColor(...t.color);
-    doc.rect(x, yy, 1.5, tileH, "F");
+    doc.rect(x, yy, 1.3, th, "F");
     doc.setTextColor(...BRAND.muted);
-    doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
-    doc.text(t.label.toUpperCase(), x + 5, yy + 7);
+    doc.setFontSize(6.8);
+    doc.text(t.label.toUpperCase(), x + 4, yy + 6);
     doc.setTextColor(...BRAND.ink);
-    doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text(t.value, x + 5, yy + 16);
+    doc.setFontSize(11.5);
+    doc.text(t.value, x + 4, yy + 13);
   });
-  y += Math.ceil(tiles.length / cols) * (tileH + gap) + 5;
+  y += 2 * (th + gap) + 4;
 
-  // -------- Route overview: start / end + battery --------
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(...BRAND.ink);
-  doc.text("Route overview", M, y);
-  y += 5;
-
-  const batteryStart = trip.points[0]?.battery_level ?? null;
-  const batteryEnd = trip.points[trip.points.length - 1]?.battery_level ?? null;
-  const batteryDrop = batteryStart != null && batteryEnd != null ? batteryStart - batteryEnd : null;
-
-  const infoLines: Array<{ label: string; value: string; color?: [number, number, number] }> = [];
-  if (trip.startedAt)
-    infoLines.push({
-      label: "Started",
-      value: `${format(new Date(trip.startedAt), "p")}${trip.startedAtApprox ? " (approx)" : ""} — ${startAddr ?? "—"}`,
-    });
-  if (trip.endedAt)
-    infoLines.push({
-      label: "Ended",
-      value: `${format(new Date(trip.endedAt), "p")}${trip.endedAtApprox ? " (approx)" : ""} — ${endAddr ?? "—"}`,
-    });
-  if (batteryStart != null)
-    infoLines.push({
-      label: "Battery at start",
-      value: `${batteryStart}%`,
-      color: batteryStart <= 20 ? BRAND.danger : BRAND.moving,
-    });
-  if (batteryEnd != null)
-    infoLines.push({
-      label: "Battery at end",
-      value: `${batteryEnd}%${batteryDrop != null ? ` (dropped ${batteryDrop}%)` : ""}`,
-      color: batteryEnd <= 20 ? BRAND.danger : BRAND.stopped,
-    });
-
-  doc.setDrawColor(...BRAND.line);
-  doc.setFillColor(...BRAND.tileBg);
-  const overviewH = infoLines.length * 6 + 6;
-  doc.roundedRect(M, y, W - M * 2, overviewH, 2.5, 2.5, "FD");
-  let iy = y + 6;
-  for (const line of infoLines) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...BRAND.muted);
-    doc.text(line.label + ":", M + 4, iy);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...(line.color ?? BRAND.ink));
-    doc.text(line.value, M + 34, iy);
-    iy += 6;
-  }
-  y += overviewH + 6;
-
-  // -------- Signal-lost segments --------
-  if (trip.gaps.length > 0) {
-    if (y > H - 60) {
-      doc.addPage();
-      y = 20;
-    }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+  const span = T.trips
+    ? `First departure ${fmtTime(T.firstStart!)} · last arrival ${fmtTime(T.lastEnd!)}`
+    : "The vehicle did not move this day.";
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...BRAND.muted);
+  doc.text(span, M, y);
+  if (T.gaps > 0) {
     doc.setTextColor(...BRAND.danger);
-    doc.text(`Signal lost (${trip.gaps.length})`, M, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...BRAND.muted);
-    doc.text("intervals excluded from distance and driving time", M + 40, y);
-    y += 3;
-    autoTable(doc, {
-      startY: y,
-      margin: { left: M, right: M },
-      head: [["From", "To", "Duration", "Discarded jump"]],
-      body: trip.gaps.map((g) => [
-        format(new Date(g.from), "HH:mm"),
-        format(new Date(g.to), "HH:mm"),
-        formatDurationMinutes(g.durationMinutes),
-        `${g.jumpedKm.toFixed(1)} km`,
-      ]),
-      headStyles: {
-        fillColor: BRAND.danger,
-        textColor: 255,
-        fontStyle: "bold",
-        fontSize: 9,
-      },
-      alternateRowStyles: { fillColor: BRAND.tileBg },
-      styles: { fontSize: 9, cellPadding: 2.5, textColor: BRAND.ink },
-    });
-    // @ts-expect-error autoTable augments the doc with lastAutoTable
-    y = doc.lastAutoTable.finalY + 8;
+    doc.text(
+      `Signal lost ${T.gaps}× while driving (${fmtDuration(T.gapMs)}); ${T.estimatedKm.toFixed(1)} km estimated across the gaps.`,
+      W - M,
+      y,
+      { align: "right" },
+    );
   }
+  y += 6;
 
-  // -------- Stops table --------
-  // Second-pass dedupe: even after trip.ts merges close stops geographically,
-  // two truly separate stops can share the same reverse-geocoded label (long
-  // road with no side streets). Merge consecutive rows that resolved to the
-  // exact same address so the admin doesn't see four identical lines.
-  const stopsWithAddr = trip.stops.map((s, i) => ({ ...s, address: stopAddrs[i] ?? null }));
-  type StopRow = (typeof stopsWithAddr)[number];
-  const dedupedStops: StopRow[] = [];
-  for (const s of stopsWithAddr) {
-    const last = dedupedStops[dedupedStops.length - 1];
-    if (last && last.address && s.address && last.address === s.address) {
-      const totalMs = new Date(s.endedAt).getTime() - new Date(last.startedAt).getTime();
-      dedupedStops[dedupedStops.length - 1] = {
-        ...last,
-        endedAt: s.endedAt,
-        durationMinutes: Math.round(totalMs / 60000),
-      };
-      continue;
-    }
-    dedupedStops.push(s);
-  }
-
-  if (dedupedStops.length > 0) {
-    if (y > H - 60) {
+  const section = (title: string, note?: string) => {
+    if (y > H - 40) {
       doc.addPage();
-      y = 20;
+      y = 18;
     }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...BRAND.ink);
-    doc.text(`Stops (${dedupedStops.length})`, M, y);
-    y += 3;
+    doc.text(title, M, y);
+    const titleW = doc.getTextWidth(title);
+    if (note) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...BRAND.muted);
+      doc.text(note, M + titleW + 3, y, { maxWidth: W - 2 * M - titleW - 3 });
+    }
+    y += 2.5;
+  };
+  const table = (head: string[], body: string[][], opts: Parameters<typeof autoTable>[1] = {}) => {
     autoTable(doc, {
       startY: y,
       margin: { left: M, right: M },
-      head: [["#", "Started", "Ended", "Duration", "Location"]],
-      body: dedupedStops.map((s, i) => [
-        String(i + 1),
-        format(new Date(s.startedAt), "HH:mm"),
-        format(new Date(s.endedAt), "HH:mm"),
-        formatDurationMinutes(s.durationMinutes),
-        s.address ?? `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`,
-      ]),
-      headStyles: {
-        fillColor: BRAND.primary,
-        textColor: 255,
-        fontStyle: "bold",
-        fontSize: 9,
-      },
+      head: [head],
+      body,
+      headStyles: { fillColor: BRAND.primary, textColor: 255, fontStyle: "bold", fontSize: 8.5 },
       alternateRowStyles: { fillColor: BRAND.tileBg },
-      styles: { fontSize: 9, cellPadding: 2.5, textColor: BRAND.ink },
-      columnStyles: {
-        0: { cellWidth: 8, halign: "center" },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 20 },
-        3: { cellWidth: 22 },
-        4: { cellWidth: "auto" },
-      },
+      styles: { fontSize: 8.5, cellPadding: 2, textColor: BRAND.ink, overflow: "linebreak" },
+      ...opts,
     });
     // @ts-expect-error autoTable augments the doc with lastAutoTable
-    y = doc.lastAutoTable.finalY + 8;
-  }
+    y = doc.lastAutoTable.finalY + 7;
+  };
 
-  // -------- Route narrative (waypoints) --------
-  // Build the raw rows, then collapse any consecutive rows that share the same
-  // place label — same reason as the stops table.
-  type RouteRow = { tag: string; time: string; place: string };
-  const rawRoute: RouteRow[] = [];
-  if (startPt && startAddr)
-    rawRoute.push({
-      tag: "Start",
-      time: format(new Date(startPt.recorded_at), "HH:mm"),
-      place: startAddr,
-    });
-  waypoints.forEach((p, i) => {
-    const place = waypointAddrs[i];
-    if (place)
-      rawRoute.push({ tag: String(i + 1), time: format(new Date(p.recorded_at), "HH:mm"), place });
-  });
-  if (endPt && endAddr)
-    rawRoute.push({
-      tag: "End",
-      time: format(new Date(endPt.recorded_at), "HH:mm"),
-      place: endAddr,
-    });
+  // ── Day at a glance ───────────────────────────────────────────────────────
+  type Row = { at: number; cells: string[]; color?: RGB };
+  const rows: Row[] = [
+    ...report.parked.map((p) => ({
+      at: Date.parse(p.from),
+      cells: [
+        `${fmtTime(p.from)}–${p.ongoing ? "end" : fmtTime(p.to)}`,
+        "Parked",
+        place(p),
+        fmtDuration(p.ms),
+      ],
+    })),
+    ...report.trips.map((t) => ({
+      at: Date.parse(t.startedAt),
+      color: hex(tripColor(t.index)),
+      cells: [
+        `${fmtTime(t.startedAt)}–${t.ongoing ? "now" : fmtTime(t.endedAt)}`,
+        `Trip ${t.index}${driverAt(t.startedAt) ? ` · ${driverAt(t.startedAt)}` : ""}`,
+        `${place(t.start)}  →  ${t.ongoing ? "on the road" : place(t.end)}`,
+        `${t.distanceKm.toFixed(1)} km · ${fmtDuration(t.drivingMs)} driving${t.stops.length ? ` · ${t.stops.length} stop${t.stops.length > 1 ? "s" : ""}` : ""}`,
+      ],
+    })),
+  ].sort((a, b) => a.at - b.at);
 
-  const dedupedRoute: RouteRow[] = [];
-  for (const r of rawRoute) {
-    const last = dedupedRoute[dedupedRoute.length - 1];
-    if (last && last.place === r.place && !(last.tag === "Start" || r.tag === "End")) continue;
-    dedupedRoute.push(r);
-  }
-  // Renumber the middle rows so gaps from de-dupe don't leave holes like 1, 3, 4, 6.
-  let seq = 0;
-  const renumberedRoute = dedupedRoute.map((r) => {
-    if (r.tag === "Start" || r.tag === "End") return r;
-    seq += 1;
-    return { ...r, tag: String(seq) };
-  });
-
-  if (renumberedRoute.length > 0) {
-    if (y > H - 60) {
-      doc.addPage();
-      y = 20;
-    }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(...BRAND.ink);
-    doc.text(`Route (${renumberedRoute.length} places)`, M, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...BRAND.muted);
-    doc.text("street names from OpenStreetMap", M + 44, y);
-    y += 3;
-    autoTable(doc, {
-      startY: y,
-      margin: { left: M, right: M },
-      head: [["#", "Time", "Place"]],
-      body: renumberedRoute.map((r) => [r.tag, r.time, r.place]),
-      headStyles: {
-        fillColor: BRAND.primary,
-        textColor: 255,
-        fontStyle: "bold",
-        fontSize: 9,
-      },
-      alternateRowStyles: { fillColor: BRAND.tileBg },
-      styles: { fontSize: 9, cellPadding: 2.2, textColor: BRAND.ink },
+  section("Day at a glance", "Kigali time");
+  table(
+    ["Time", "Activity", "Where", "Summary"],
+    rows.map((r) => r.cells),
+    {
       columnStyles: {
-        0: { cellWidth: 14, halign: "center", fontStyle: "bold" },
-        1: { cellWidth: 20 },
+        0: { cellWidth: 25 },
+        1: { cellWidth: 32, fontStyle: "bold" },
         2: { cellWidth: "auto" },
+        3: { cellWidth: 46 },
+      },
+      didParseCell: (d) => {
+        const r = rows[d.row.index];
+        if (d.section === "body" && d.column.index === 1 && r?.color)
+          d.cell.styles.textColor = r.color;
+      },
+    },
+  );
+
+  // ── Each trip ─────────────────────────────────────────────────────────────
+  for (const t of report.trips) {
+    const driver = driverAt(t.startedAt);
+    section(
+      `Trip ${t.index} · ${fmtTime(t.startedAt)}–${t.ongoing ? "now" : fmtTime(t.endedAt)}`,
+      [
+        driver,
+        `${t.distanceKm.toFixed(1)} km`,
+        `engine on ${fmtDuration(t.engineOnMs)}`,
+        `driving ${fmtDuration(t.drivingMs)}`,
+        `stopped ${fmtDuration(t.stoppedMs)}`,
+        `top ${t.topSpeedKmh.toFixed(0)} km/h`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    const body: string[][] = [[fmtTime(t.startedAt), "Departed", place(t.start), ""]];
+    t.stops.forEach((s, i) =>
+      body.push([
+        `${fmtTime(s.startedAt)}–${fmtTime(s.endedAt)}`,
+        `Stop ${i + 1}`,
+        place(s),
+        fmtDuration(s.ms),
+      ]),
+    );
+    for (const g of t.gaps)
+      body.push([
+        `${fmtTime(g.from)}–${fmtTime(g.to)}`,
+        "Signal lost",
+        place(g),
+        `${fmtDuration(g.ms)} · ~${g.estimatedKm.toFixed(1)} km`,
+      ]);
+    body.sort((a, b) => a[0].localeCompare(b[0]));
+    if (!t.ongoing) body.push([fmtTime(t.endedAt), "Arrived", place(t.end), ""]);
+    table(["Time", "Event", "Place", "Duration"], body, {
+      headStyles: {
+        fillColor: hex(tripColor(t.index)),
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 8.5,
+      },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 24, fontStyle: "bold" },
+        2: { cellWidth: "auto" },
+        3: { cellWidth: 30 },
       },
     });
   }
 
-  // -------- Footer on every page --------
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
+  // ── Footer ────────────────────────────────────────────────────────────────
+  const generated = fmtDateTime(serverNow());
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setDrawColor(...BRAND.line);
-    doc.line(M, H - 12, W - M, H - 12);
+    doc.line(M, H - 11, W - M, H - 11);
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...BRAND.muted);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Live Track · Generated ${format(new Date(), "PPpp")}`, M, H - 7);
-    doc.text(`Page ${i} of ${pageCount}`, W - M, H - 7, { align: "right" });
+    doc.text(
+      `Live Track · generated ${generated} (Kigali) · places from OpenStreetMap`,
+      M,
+      H - 6.5,
+    );
+    doc.text(`Page ${i} of ${pages}`, W - M, H - 6.5, { align: "right" });
   }
 
-  const fname = `livetrack-${driverName.replace(/\s+/g, "_")}-${format(date, "yyyy-MM-dd")}.pdf`;
-  doc.save(fname);
+  doc.save(`livetrack-${vehicle.replace(/[^\w-]+/g, "_")}-${day}.pdf`);
 }

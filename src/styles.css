@@ -255,13 +255,107 @@
   color: var(--color-foreground);
   border-color: var(--color-border);
 }
-/* Smooth position tweening for live bus markers between GPS updates.
-   Only applied to `.bus-marker-live` so parked/offline markers still snap
-   instantly, and static stop markers don't lag during map zoom. */
-.leaflet-marker-icon.bus-marker-live {
-  transition: transform 0.9s linear;
+/* ── Live vehicle markers (src/components/LiveMap.tsx) ─────────────────────
+   Position is animated in JS (requestAnimationFrame), never with a CSS
+   transition — that fought Leaflet's zoom animation and caused the jitter. */
+.veh-marker {
+  --veh-c: #71717a;
+}
+.veh-marker .veh-disc {
+  position: absolute;
+  inset: 9px;
+  border-radius: 9999px;
+  background: var(--veh-c);
+  border: 2.5px solid #fff;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
+  display: grid;
+  place-items: center;
+  transition: background-color 0.4s ease, transform 0.2s ease;
+}
+.veh-marker .veh-rot {
+  display: grid;
+  place-items: center;
+  transition: transform 0.9s cubic-bezier(0.33, 0, 0.2, 1);
   will-change: transform;
 }
-.leaflet-zoom-anim .leaflet-marker-icon.bus-marker-live {
-  transition: none;
+/* Direction-of-travel beam, like a phone's navigation dot. */
+.veh-marker .veh-beam {
+  position: absolute;
+  inset: -14px;
+  border-radius: 9999px;
+  background: conic-gradient(from -28deg, var(--veh-c) 0deg, transparent 56deg, transparent 360deg);
+  opacity: 0;
+  transition: transform 0.9s cubic-bezier(0.33, 0, 0.2, 1), opacity 0.4s ease;
+  -webkit-mask: radial-gradient(circle, #000 35%, transparent 72%);
+  mask: radial-gradient(circle, #000 35%, transparent 72%);
+}
+.veh-marker .veh-pulse {
+  position: absolute;
+  inset: 4px;
+  border-radius: 9999px;
+  background: var(--veh-c);
+  opacity: 0;
+}
+.veh-marker.is-moving .veh-beam {
+  opacity: 0.55;
+}
+.veh-marker.is-moving .veh-pulse {
+  animation: veh-pulse 2s ease-out infinite;
+}
+.veh-marker.is-offline .veh-disc {
+  filter: grayscale(1);
+  opacity: 0.75;
+}
+.veh-marker.is-selected .veh-disc {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.35), 0 6px 18px rgb(0 0 0 / 0.45);
+}
+.veh-marker .veh-label {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font: 600 10.5px/1.4 var(--font-sans, system-ui);
+  color: #fff;
+  background: rgb(15 18 30 / 0.82);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}
+.veh-marker .veh-speed {
+  color: var(--veh-c);
+  filter: brightness(1.25);
+}
+@keyframes veh-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+/* Numbered / lettered markers on the trip-history map. */
+.trip-pin {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  color: #fff;
+  font: 800 11px/1 var(--font-sans, system-ui);
+  border: 2px solid #fff;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.35);
+}
+.trip-arrow {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid #fff;
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.6));
 }

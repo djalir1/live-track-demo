@@ -23,6 +23,7 @@ import { AdminShell } from "@/components/AdminShell";
 import { AssignmentHistory } from "@/components/AssignmentHistory";
 import { IconBtn } from "@/components/IconButton";
 import { friendlyError } from "@/lib/friendly-errors";
+import { fmtDate } from "@/lib/time";
 import { TRACKER_SETUP_SMS } from "@/lib/gps";
 import { assignDriver, busName, db, loadFleet, type Bus, type Fleet } from "@/lib/fleet";
 
@@ -312,7 +313,7 @@ function BusesPage() {
                             <span className="font-medium">{cur.driver.full_name}</span>
                             <span className="text-muted-foreground">
                               {" "}
-                              since {new Date(cur.since).toLocaleDateString()}
+                              since {fmtDate(cur.since)}
                             </span>
                           </span>
                         ) : (
