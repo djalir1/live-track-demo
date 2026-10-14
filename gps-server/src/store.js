@@ -8,6 +8,12 @@
 // so this process has zero npm dependencies.
 
 const MOVING_KMH = 0.8; // same threshold as src/lib/parent-presence.ts
+// GT06 0x12 position packets carry no ignition flag; it only arrives with
+// heartbeats (every few minutes, or on change), and some trackers report
+// 0 km/h at walking pace. So real movement also counts as "engine on":
+// a GPS speed above this, or ≥25 m covered at an implied speed above it.
+const MOTION_KMH = 6;
+const MOTION_HOLD_MS = 3 * 60_000; // keep "on" this long after the last movement
 const BUS_CACHE_MS = 60_000;
 
 export function createStore({ url, serviceKey, dryRun = false, log = console.log }) {
@@ -190,7 +196,20 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (fix.valid) learnClock(fix.deviceTime);
     const s = await getState(uid);
     if (fix.acc != null) s.acc = fix.acc;
-    const ignitionOn = s.acc ?? true; // no ACC info → assume running
+    const now = nowMs();
+
+    // Movement since the previous fix (device clock; both from the same tracker).
+    let impliedKmh = 0;
+    if (s.last && fix.valid) {
+      const d = haversine(s.last, fix);
+      const dtH = (fix.deviceTime - s.last.deviceTime) / 3_600_000;
+      if (d >= 25 && dtH > 0) impliedKmh = d / 1000 / dtH;
+      if (impliedKmh > 160) impliedKmh = 0; // GPS jump, not driving
+    }
+    const speedKmh = fix.speedKmh > 0 ? fix.speedKmh : Math.round(impliedKmh);
+    if (speedKmh > MOTION_KMH) s.motionAt = now;
+    const recentlyMoving = s.motionAt != null && now - s.motionAt < MOTION_HOLD_MS;
+    const ignitionOn = (s.acc ?? true) || recentlyMoving; // no ACC info → assume running
 
     await ensureTrip(uid, ignitionOn);
     if (s.last && ignitionOn) {
@@ -200,9 +219,8 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     s.last = fix;
 
     // Device clock can be on local time or drift; trust it only if close to now.
-    const now = nowMs();
     const recordedAt = Math.abs(fix.deviceTime.getTime() - now) < 10 * 60_000 ? fix.deviceTime : new Date(now);
-    const status = !ignitionOn ? "idle" : fix.speedKmh > MOVING_KMH ? "moving" : "stopped";
+    const status = !ignitionOn ? "idle" : speedKmh > MOVING_KMH ? "moving" : "stopped";
 
     await call("device_status", {
       method: "POST",
@@ -212,7 +230,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         status,
         latitude: fix.latitude,
         longitude: fix.longitude,
-        speed_kmh: fix.speedKmh,
+        speed_kmh: speedKmh,
         heading: fix.heading,
         accuracy: null,
         is_tracking: ignitionOn,
@@ -234,7 +252,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
           user_id: uid,
           latitude: fix.latitude,
           longitude: fix.longitude,
-          speed_kmh: fix.speedKmh,
+          speed_kmh: speedKmh,
           ...(s.battery != null ? { battery_level: s.battery } : {}),
           recorded_at: recordedAt.toISOString(),
         }),
@@ -242,7 +260,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       s.lastSaved = fix;
       s.lastSavedAt = now;
     }
-    log(`📍 ${bus.label ?? bus.plate ?? bus.id} ${fix.latitude.toFixed(6)},${fix.longitude.toFixed(6)} ${fix.speedKmh} km/h acc=${ignitionOn ? "on" : "off"} → ${status}`);
+    log(`📍 ${bus.label ?? bus.plate ?? bus.id} ${fix.latitude.toFixed(6)},${fix.longitude.toFixed(6)} ${speedKmh} km/h acc=${ignitionOn ? "on" : "off"}${s.acc === false && ignitionOn ? " (moving)" : ""} → ${status}`);
   }
 
   /** Heartbeat with ACC info: keeps last_seen fresh and opens/closes trips. */
@@ -256,11 +274,13 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     const s = await getState(uid);
     s.acc = acc;
     if (voltageLevel != null && voltageLevel <= 6) s.battery = BATTERY_PCT[voltageLevel];
-    await ensureTrip(uid, acc);
+    // A late "off" heartbeat while the vehicle is still moving must not end the trip.
+    const on = acc || (s.motionAt != null && nowMs() - s.motionAt < MOTION_HOLD_MS);
+    await ensureTrip(uid, on);
     await call(`device_status?user_id=eq.${uid}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ last_seen: nowIso(), is_tracking: acc, ...(s.battery != null ? { battery_level: s.battery } : {}), ...(acc ? {} : { status: "idle", speed_kmh: 0 }) }),
+      body: JSON.stringify({ last_seen: nowIso(), is_tracking: on, ...(s.battery != null ? { battery_level: s.battery } : {}), ...(on ? {} : { status: "idle", speed_kmh: 0 }) }),
     });
   }
 
