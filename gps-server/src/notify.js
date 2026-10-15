@@ -108,7 +108,9 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
             log(`⚠️  push ${r.status} for subscription ${s.id}: ${r.text.slice(0, 200)}`);
           }
         } catch (err) {
-          log(`⚠️  push failed for subscription ${s.id}: ${err.message}`);
+          // fetch hides the network reason (DNS, IPv6, TLS) in err.cause.
+          const why = err.cause ? ` (${err.cause.code ?? ""} ${err.cause.message ?? err.cause})` : "";
+          log(`⚠️  push failed for subscription ${s.id} → ${new URL(s.endpoint).host}: ${err.message}${why}`);
         }
       }),
     );

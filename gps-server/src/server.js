@@ -6,6 +6,11 @@ import { splitFrames, decodeFrame } from "./gt06.js";
 import { createStore } from "./store.js";
 import { createNotifier } from "./notify.js";
 
+// Node tries each address of a host for only 250 ms ("happy eyeballs") before
+// moving on. From Kigali, Apple's push servers take longer than that, so every
+// attempt was cut off (ETIMEDOUT) and iPhones never got alerts. Connect normally.
+net.setDefaultAutoSelectFamily(false);
+
 const GPS_PORT = Number(process.env.GPS_TCP_PORT || 5023);
 const HTTP_PORT = Number(process.env.HTTP_PORT || 8080);
 const DRY_RUN = process.env.DRY_RUN === "1";
