@@ -200,6 +200,8 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         silentSince: row?.silent_since ?? null,
         powerOffReports: 0,
         powerOnReports: 0,
+        // Can this tracker's "on vehicle power" bit be believed? See notePower.
+        powerBit: "unknown",
         lastTamperAt: 0,
         last: null,
         totalM: row?.total_distance_m ?? 0,
@@ -440,7 +442,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     return withLock(uid, async () => {
       const s = state.get(uid);
       await markAlive(bus, uid);
-      if (charging != null) await notePower(bus, uid, charging);
+      if (charging != null) await notePower(bus, uid, charging, acc);
       s.acc = acc;
       if (voltageLevel != null && voltageLevel <= 6) s.battery = BATTERY_PCT[voltageLevel];
       if (acc) await engineEvidence(uid, "ignition flag");
@@ -459,8 +461,10 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   //
   //   • Alarm packet "power cut" / "removed" / "switched off" / "SIM changed":
   //     the tracker says so itself, on its backup battery → alert at once.
-  //   • Vehicle-power bit off in POWER_OFF_CONFIRM reports in a row (for units
-  //     that don't send the alarm) → alert. Back on in a row → "back" alert.
+  //   • Vehicle-power bit off in POWER_OFF_CONFIRM reports in a row → alert,
+  //     but only on a tracker that has proven the bit works (see notePower).
+  //     Many GT06 clones set it only while the backup battery is *charging*,
+  //     so a full battery reads "unplugged" (a false alarm on the Test Car).
   //   • No report for SILENT_AFTER_MS (backup battery dead, wrapped in foil,
   //     SIM pulled) → alert. Any report afterwards → "back" alert.
   // State lives in device_status.power_cut_at / silent_since, so a restart
@@ -518,21 +522,45 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     await fleetEvent(bus, "gps_tamper", detail);
   }
 
-  /** The "on vehicle power" bit from a heartbeat or alarm packet. */
-  async function notePower(bus, uid, onPower) {
+  async function powerBack(bus, uid, why) {
     const s = state.get(uid);
+    if (!s.powerCutAt) return;
+    s.powerCutAt = 0;
+    s.powerOnReports = 0;
+    s.lastTamperAt = 0;
+    await patchTamper(uid, { power_cut_at: null });
+    await fleetEvent(bus, "gps_back", why);
+  }
+
+  /**
+   * The "on vehicle power" bit from a heartbeat or alarm packet, with the ACC
+   * (ignition wire) flag of the same report.
+   *
+   * The bit is only acted on once the tracker has proven it means "plugged
+   * in": POWER_OFF_CONFIRM "vehicle" reports in a row. "Battery" while the
+   * ignition wire reads ON proves the opposite: the harness is connected, so
+   * the bit is lying (it means "charging") and is ignored from then on.
+   */
+  async function notePower(bus, uid, onPower, acc = null) {
+    const s = state.get(uid);
+    // Ignition wire live = the tracker's harness is plugged into the vehicle.
+    if (acc === true) await powerBack(bus, uid, "GPS tracker is connected to the vehicle again (ignition on)");
+    if (!onPower && acc === true && s.powerBit !== "unreliable") {
+      s.powerBit = "unreliable";
+      log(`ℹ️  ${bus.label ?? bus.id}: power bit says "battery" with ignition on, so it means "charging" on this tracker; ignoring it (alarms and the 30-min silence check still work)`);
+    }
     if (onPower) {
       s.powerOffReports = 0;
-      if (s.powerCutAt && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
-        s.powerCutAt = 0;
+      if (s.powerBit === "unknown" && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
+        s.powerBit = "trusted";
         s.powerOnReports = 0;
-        s.lastTamperAt = 0;
-        await patchTamper(uid, { power_cut_at: null });
-        await fleetEvent(bus, "gps_back", "GPS tracker is on the vehicle's power again");
+      } else if (s.powerBit === "trusted" && s.powerCutAt && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
+        await powerBack(bus, uid, "GPS tracker is on the vehicle's power again");
       }
       return;
     }
     s.powerOnReports = 0;
+    if (s.powerBit !== "trusted") return;
     if (++s.powerOffReports >= POWER_OFF_CONFIRM && !s.powerCutAt) {
       await raiseTamper(bus, uid, "GPS tracker unplugged: lost the vehicle's power");
     }
@@ -557,7 +585,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       const text = ALARM_TEXT[msg.alarm];
       log(`🔔 alarm 0x${(msg.alarm ?? 0).toString(16)} from ${bus.label ?? imei}${text ? ` (${text})` : ""}`);
       if (text) await raiseTamper(bus, uid, text);
-      else if (msg.charging != null) await notePower(bus, uid, msg.charging);
+      else if (msg.charging != null) await notePower(bus, uid, msg.charging, msg.acc);
     });
   }
 
