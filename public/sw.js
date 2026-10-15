@@ -1,8 +1,9 @@
 // Live Track service worker: makes the app installable and keeps the app
 // shell (hashed /assets, icons) on the device for fast starts. Live data
 // (Supabase, /api) is never cached; pages are network-first with an
-// offline fallback. Bump VERSION to drop old caches.
-const VERSION = "v1";
+// offline fallback. Also shows trip alerts pushed by gps-server (see
+// src/lib/push.ts). Bump VERSION to drop old caches.
+const VERSION = "v2";
 const STATIC = `lt-static-${VERSION}`;
 const PRECACHE = ["/offline.html", "/icons/icon-192.png", "/icons/icon.svg", "/manifest.webmanifest"];
 
@@ -44,4 +45,36 @@ self.addEventListener("fetch", (event) => {
       ),
     );
   }
+});
+
+// ── Trip alerts ────────────────────────────────────────────────────────────
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Live Track", {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag,
+      renotify: Boolean(data.tag),
+      data: { url: data.url || "/dashboard" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || "/dashboard", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      const open = wins.find((w) => w.url.startsWith(self.location.origin));
+      if (open) return open.focus().then((w) => (w && "navigate" in w ? w.navigate(url) : w));
+      return self.clients.openWindow(url);
+    }),
+  );
 });

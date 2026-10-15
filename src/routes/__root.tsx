@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme";
 import { Toaster } from "@/components/ui/sonner";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { NotificationPrompt } from "@/components/NotificationPrompt";
 
 function NotFoundComponent() {
   return (
@@ -88,6 +89,7 @@ function RootComponent() {
         <Outlet />
         <Toaster richColors position="top-center" />
         <InstallPrompt />
+        <NotificationPrompt />
       </AuthProvider>
     </ThemeProvider>
   );

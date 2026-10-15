@@ -8,6 +8,7 @@
     "start": "node --env-file=.env src/server.js",
     "dry": "DRY_RUN=1 node src/server.js",
     "fake": "node fake-tracker.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "vapid": "node -e \"import('./src/webpush.js').then(m => { const k = m.generateVapidKeys(); console.log('VAPID_PUBLIC_KEY=' + k.publicKey + '\\nVAPID_PRIVATE_KEY=' + k.privateKey) })\""
   }
 }

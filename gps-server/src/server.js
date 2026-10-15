@@ -4,6 +4,7 @@ import net from "node:net";
 import http from "node:http";
 import { splitFrames, decodeFrame } from "./gt06.js";
 import { createStore } from "./store.js";
+import { createNotifier } from "./notify.js";
 
 const GPS_PORT = Number(process.env.GPS_TCP_PORT || 5023);
 const HTTP_PORT = Number(process.env.HTTP_PORT || 8080);
@@ -24,6 +25,22 @@ const store = createStore({
   dryRun: DRY_RUN,
   log,
 });
+
+// Trip alerts to owners' phones (web push; keys from `npm run vapid`).
+if (!DRY_RUN && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  createNotifier({
+    url: process.env.SUPABASE_URL,
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    vapid: {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY,
+      subject: process.env.VAPID_SUBJECT || "mailto:admin@livetrack.app",
+    },
+    log,
+  }).start();
+} else if (!DRY_RUN) {
+  log("⚠️  trip alerts off: set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY in .env");
+}
 
 const devices = new Map(); // imei → { remote, connectedAt, lastPacket, packets }
 

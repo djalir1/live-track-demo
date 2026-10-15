@@ -9,6 +9,7 @@ import {
   Loader2,
   Ticket,
   IdCard,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth, canManageSchoolSetup } from "@/lib/auth-context";
@@ -55,6 +56,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           { to: "/admin/invites", label: "Invites", Icon: Ticket },
         ] as const)
       : []),
+    { to: "/admin/alerts", label: "Alerts", Icon: Bell },
   ] as const;
 
   return (

@@ -129,6 +129,28 @@ WantedBy=multi-user.target
 Then run `sudo systemctl enable --now gps && journalctl -u gps -f`. SMS every tracker
 `SERVER,0,<vps ip>,5023,0#` once. That's permanent.
 
+## Trip alerts (phone notifications to owners)
+
+When a vehicle starts a trip (engine on) or finishes one (parked, engine off for 90 s),
+every admin, plus the school_admins of that bus's school, gets a phone notification:
+"🚌 Bus A (RAB 123A) started the morning pickup · Route: Kimironko – Remera · Driver: Eloge".
+Owners turn it on per phone and choose which alerts they want in **Fleet setup → Alerts**.
+
+```
+device_status.is_tracking flips ─trigger─▶ fleet_events ─(this server polls every 4 s)─▶ web push ─▶ phones
+```
+
+Setup, once:
+
+1. Run `supabase/migrations/20261015120000_trip_notifications.sql` in the Supabase SQL editor.
+2. Put `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` in `.env` (new keys: `npm run vapid`;
+   the public key must equal `VAPID_PUBLIC_KEY` in `src/lib/push.ts` of the web app).
+3. Restart. The log shows `🔔 trip alerts on`, then one `🔔 trip_started #12 → 2/2 device(s)` line per alert.
+
+Phone apps need no tracker: their Start / Stop sends the same alerts. Alerts older than
+20 min (server was down) are skipped, not sent late. iPhone needs iOS 16.4+ and the app
+added to the Home Screen.
+
 ## Tracker SMS reference
 
 Send these to the SIM number inside the tracker. Some units need a password, e.g.

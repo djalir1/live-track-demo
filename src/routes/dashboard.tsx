@@ -10,6 +10,7 @@ import {
   Smartphone,
   Activity,
   History,
+  Bell,
   Loader2,
   List,
   Map as MapIcon,
@@ -448,6 +449,11 @@ function Dashboard() {
               <Link to="/admin/buses">
                 <Bus className="h-4 w-4 sm:mr-1.5" />
                 <span className="hidden sm:inline">Vehicles</span>
+              </Link>
+            </Button>
+            <Button asChild variant="ghost" size="icon" title="Trip alerts">
+              <Link to="/admin/alerts" aria-label="Trip alerts">
+                <Bell className="h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="Trip history">

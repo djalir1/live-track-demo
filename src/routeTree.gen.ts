@@ -16,6 +16,7 @@ import { Route as HistoryRouteImport } from './routes/history'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as MeRouteImport } from './routes/me'
 import { Route as TrackRouteImport } from './routes/track'
+import { Route as AdminAlertsRouteImport } from './routes/admin/alerts'
 import { Route as AdminBusesRouteImport } from './routes/admin/buses'
 import { Route as AdminDriversRouteImport } from './routes/admin/drivers'
 import { Route as AdminInvitesRouteImport } from './routes/admin/invites'
@@ -57,6 +58,11 @@ const TrackRoute = TrackRouteImport.update({
   path: '/track',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAlertsRoute = AdminAlertsRouteImport.update({
+  id: '/admin/alerts',
+  path: '/admin/alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminBusesRoute = AdminBusesRouteImport.update({
   id: '/admin/buses',
   path: '/admin/buses',
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/join': typeof JoinRoute
   '/me': typeof MeRoute
   '/track': typeof TrackRoute
+  '/admin/alerts': typeof AdminAlertsRoute
   '/admin/buses': typeof AdminBusesRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/invites': typeof AdminInvitesRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/join': typeof JoinRoute
   '/me': typeof MeRoute
   '/track': typeof TrackRoute
+  '/admin/alerts': typeof AdminAlertsRoute
   '/admin/buses': typeof AdminBusesRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/invites': typeof AdminInvitesRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/join': typeof JoinRoute
   '/me': typeof MeRoute
   '/track': typeof TrackRoute
+  '/admin/alerts': typeof AdminAlertsRoute
   '/admin/buses': typeof AdminBusesRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/invites': typeof AdminInvitesRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/join'
     | '/me'
     | '/track'
+    | '/admin/alerts'
     | '/admin/buses'
     | '/admin/drivers'
     | '/admin/invites'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/join'
     | '/me'
     | '/track'
+    | '/admin/alerts'
     | '/admin/buses'
     | '/admin/drivers'
     | '/admin/invites'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/join'
     | '/me'
     | '/track'
+    | '/admin/alerts'
     | '/admin/buses'
     | '/admin/drivers'
     | '/admin/invites'
@@ -179,6 +191,7 @@ export interface RootRouteChildren {
   JoinRoute: typeof JoinRoute
   MeRoute: typeof MeRoute
   TrackRoute: typeof TrackRoute
+  AdminAlertsRoute: typeof AdminAlertsRoute
   AdminBusesRoute: typeof AdminBusesRoute
   AdminDriversRoute: typeof AdminDriversRoute
   AdminInvitesRoute: typeof AdminInvitesRoute
@@ -237,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/alerts': {
+      id: '/admin/alerts'
+      path: '/admin/alerts'
+      fullPath: '/admin/alerts'
+      preLoaderRoute: typeof AdminAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/buses': {
       id: '/admin/buses'
       path: '/admin/buses'
@@ -283,6 +303,7 @@ const rootRouteChildren: RootRouteChildren = {
   JoinRoute: JoinRoute,
   MeRoute: MeRoute,
   TrackRoute: TrackRoute,
+  AdminAlertsRoute: AdminAlertsRoute,
   AdminBusesRoute: AdminBusesRoute,
   AdminDriversRoute: AdminDriversRoute,
   AdminInvitesRoute: AdminInvitesRoute,
