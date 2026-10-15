@@ -51,7 +51,7 @@ const KINDS: { key: keyof AlertPrefs; title: string; text: string; Icon: typeof 
   {
     key: "trip_started",
     title: "Trip started",
-    text: "The engine turns on (or a driver taps Start in the app). Buses on a route say which run: morning pickup or afternoon drop-off.",
+    text: "The engine turns on. Buses on a route say which run: morning pickup or afternoon drop-off.",
     Icon: KeyRound,
   },
   {
