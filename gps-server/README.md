@@ -151,6 +151,24 @@ Phone apps need no tracker: their Start / Stop sends the same alerts. Alerts old
 20 min (server was down) are skipped, not sent late. iPhone needs iOS 16.4+ and the app
 added to the Home Screen.
 
+## Tamper alerts (GPS unplugged or removed)
+
+Needs `supabase/migrations/20261016090000_gps_tamper_alerts.sql`. Same phones and settings as
+trip alerts (**Alerts → GPS tracker unplugged or removed**).
+
+| Signal from the tracker | Alert | Dashboard |
+|---|---|---|
+| Alarm packet: power cut (0x02), removed (0x13), switching off (0x11), SIM changed (0x10) | ⚠️ at once | red **Unplugged** |
+| "On vehicle power" bit off in 3 heartbeats in a row (units that send no alarm) | ⚠️ | red **Unplugged** |
+| No report for 30 min (backup battery dead, foil, SIM removed) | 📵 | red **Silent** |
+| Power back (3 heartbeats) or reporting again | ✅ | label cleared |
+
+The tracker's small backup battery keeps it talking for a while after it's unplugged, so it can
+report the cut. Test: pull the tracker's power plug for 2 minutes. The log shows
+`🔔 alarm 0x2 …` or `💓 heartbeat … power=battery`, then `🚨`. If neither appears, turn the
+alarm on by SMS (`POWERALM,ON,0#` on most GT06 units; some need the password, e.g.
+`POWERALM,666666,ON,0#`).
+
 ## Tracker SMS reference
 
 Send these to the SIM number inside the tracker. Some units need a password, e.g.

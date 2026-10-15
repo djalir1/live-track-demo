@@ -26,6 +26,18 @@ export const PROTO = {
 const LOCATION_TYPES = new Set([PROTO.GPS_LBS, PROTO.GPS_LBS_2, PROTO.GPS_LBS_4G]);
 const ALARM_TYPES = new Set([PROTO.ALARM, PROTO.ALARM_2, PROTO.ALARM_4G]);
 
+/** GT06 alarm codes that matter here (the alarm byte of 0x16 / 0x26 / 0xA4). */
+export const ALARM = {
+  SOS: 0x01,
+  POWER_CUT: 0x02, // external power cut: unplugged or wire cut
+  VIBRATION: 0x03,
+  POWER_OFF: 0x11, // tracker switched off
+  SIM_CHANGE: 0x10,
+  REMOVED: 0x13, // "disassembly": tracker taken off where it was mounted
+  LOW_EXTERNAL: 0x0e,
+};
+
+
 export function crc16x25(buf) {
   let crc = 0xffff;
   for (const byte of buf) {
@@ -145,6 +157,16 @@ export function decodeFrame(frame) {
     out.type = "alarm";
     const g = decodeGps(content, 0);
     Object.assign(out, g, { acc: null });
+    // The packet ends with: terminal info, voltage, GSM signal, alarm, language.
+    const n = content.length;
+    if (n >= g.next + 5) {
+      const info = content[n - 5];
+      out.charging = Boolean(info & 0x04); // bit 2: on the vehicle's power
+      out.voltageLevel = content[n - 4];
+      out.alarm = content[n - 2];
+      // Bits 3–5 = 010 also mean "power cut" on units that leave the alarm byte 0.
+      if (!out.alarm && ((info >> 3) & 0x07) === 0b010) out.alarm = ALARM.POWER_CUT;
+    }
     delete out.next;
     out.reply = buildReply(proto, serial);
   } else if (proto === PROTO.STATUS || proto === PROTO.STATUS_2) {
@@ -202,6 +224,15 @@ export function encodeLocation({ latitude, longitude, speedKmh = 0, heading = 0,
   return frame(PROTO.GPS_LBS_2, c, serial);
 }
 
-export function encodeHeartbeat({ acc = true } = {}, serial = 3) {
-  return frame(PROTO.STATUS, Buffer.from([acc ? 0x46 : 0x44, 0x06, 0x04, 0x00, 0x01]), serial);
+export function encodeHeartbeat({ acc = true, charging = true } = {}, serial = 3) {
+  const info = 0x40 | (charging ? 0x04 : 0) | (acc ? 0x02 : 0);
+  return frame(PROTO.STATUS, Buffer.from([info, 0x06, 0x04, 0x00, 0x01]), serial);
+}
+
+/** Alarm packet (0x16): GPS block, LBS, then terminal info / voltage / GSM / alarm / language. */
+export function encodeAlarm({ latitude, longitude, alarm, charging = false, time = new Date() }, serial = 4) {
+  const gps = encodeLocation({ latitude, longitude, time }).subarray(4, 4 + 18);
+  const lbs = Buffer.from([0x09, 0x02, 0x7b, 0x0a, 0x00, 0x01, 0x00, 0x00, 0x01]);
+  const info = 0x40 | (charging ? 0x04 : 0) | (alarm === ALARM.POWER_CUT ? 0b010 << 3 : 0);
+  return frame(PROTO.ALARM, Buffer.concat([gps, lbs, Buffer.from([info, 0x04, 0x03, alarm, 0x02])]), serial);
 }

@@ -181,7 +181,13 @@ function Dashboard() {
       const ageMs = now - new Date(s.last_seen).getTime();
       const fresh = ageMs < freshMs;
       // gps_fix / satellites come from migration 20261015090000 (not in the generated types).
-      const extra = s as DeviceRow & { gps_fix?: boolean | null; satellites?: number | null };
+      // power_cut_at / silent_since: tamper watch (migration 20261016090000).
+      const extra = s as DeviceRow & {
+        gps_fix?: boolean | null;
+        satellites?: number | null;
+        power_cut_at?: string | null;
+        silent_since?: string | null;
+      };
       users.push({
         user_id: s.user_id,
         display_name: p?.display_name ?? "Unknown",
@@ -208,6 +214,8 @@ function Dashboard() {
           engineOn: s.is_tracking,
           gpsFix: extra.gps_fix,
           satellites: extra.satellites,
+          powerCutAt: extra.power_cut_at,
+          silentSince: extra.silent_since,
         }),
       });
     }

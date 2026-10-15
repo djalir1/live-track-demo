@@ -1,5 +1,6 @@
 // Trip alerts: turns new fleet_events rows (written by a DB trigger when a
-// vehicle's engine goes on / off) into phone notifications for the owners —
+// vehicle's engine goes on / off, or by store.js when a tracker is unplugged
+// or goes silent) into phone notifications for the owners —
 // every admin, plus school_admins of the bus's school — on each device they
 // allowed notifications on, respecting their on/off settings.
 //
@@ -28,6 +29,31 @@ export function messageFor(e) {
   if (e.kind === "test") {
     return { title: "Live Track alerts are on", body: "This phone will get a notification when a vehicle starts a trip or parks.", url: "/admin/alerts" };
   }
+  // Tracker tampering: someone unplugged or removed the GPS, or it went silent.
+  const at = hhmm(e.occurred_at);
+  if (e.kind === "gps_tamper") {
+    // detail: "GPS tracker unplugged: lost the vehicle's power", "GPS tracker removed …"
+    const [what, why] = (e.detail || "GPS tracker unplugged").split(": ");
+    return {
+      title: `⚠️ ${vehicle}: ${what}`,
+      body: `${why ? `${why[0].toUpperCase()}${why.slice(1)} at ${at}` : `At ${at}`}. Check the vehicle. ${driver}`,
+      url: "/dashboard",
+    };
+  }
+  if (e.kind === "gps_offline") {
+    return {
+      title: `📵 ${vehicle}: GPS tracker silent`,
+      body: `No signal since ${e.detail || at}. It may have been unplugged or removed, or the SIM has no credit. ${driver}`,
+      url: "/dashboard",
+    };
+  }
+  if (e.kind === "gps_back") {
+    return {
+      title: `✅ ${vehicle}: GPS tracker back`,
+      body: `${e.detail || "Reporting normally again"} at ${at}. ${driver}`,
+      url: "/dashboard",
+    };
+  }
   // A bus on a route is doing the morning pickup or the afternoon drop-off,
   // told apart by when the trip started (Kigali time).
   const run = e.route_name?.trim()
@@ -52,6 +78,9 @@ export function messageFor(e) {
     url: "/history",
   };
 }
+
+/** notification_prefs column that turns this kind of alert on or off. */
+export const prefKey = (kind) => (kind.startsWith("gps_") ? "gps_tamper" : kind);
 
 export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
   const rest = `${url}/rest/v1`;
@@ -81,16 +110,25 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
     return [...new Set([...admins, ...mine])];
   }
 
+  // Saved on the subscription so the Alerts page (and we) can see why a phone
+  // gets nothing. Needs migration 20261016090000; skipped quietly before it.
+  async function noteError(s, text) {
+    await call(`push_subscriptions?id=eq.${s.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ last_error: text.slice(0, 300), last_error_at: new Date().toISOString() }),
+    }).catch(() => {});
+  }
+
   async function deliver(e) {
     const owners = await ownersOf(e);
     if (!owners.length) return 0;
     const list = owners.join(",");
     const [subs, prefs] = await Promise.all([
       call(`push_subscriptions?select=id,user_id,endpoint,p256dh,auth&user_id=in.(${list})`),
-      call(`notification_prefs?select=user_id,trip_started,trip_ended&user_id=in.(${list})`),
+      call(`notification_prefs?select=*&user_id=in.(${list})`),
     ]);
     const prefOf = new Map(prefs.map((p) => [p.user_id, p]));
-    const wanted = subs.filter((s) => e.kind === "test" || prefOf.get(s.user_id)?.[e.kind] !== false);
+    const wanted = subs.filter((s) => e.kind === "test" || prefOf.get(s.user_id)?.[prefKey(e.kind)] !== false);
     const msg = messageFor(e);
     const payload = { ...msg, tag: `${e.kind}-${e.driver_user_id ?? e.id}`, eventId: e.id };
     let sent = 0;
@@ -100,17 +138,20 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
           const r = await sendPush(s, payload, vapid);
           if (r.ok) {
             sent++;
-            await call(`push_subscriptions?id=eq.${s.id}`, { method: "PATCH", body: JSON.stringify({ last_ok_at: new Date().toISOString() }) });
+            await call(`push_subscriptions?id=eq.${s.id}`, { method: "PATCH", body: JSON.stringify({ last_ok_at: new Date().toISOString(), last_error: null }) })
+              .catch(() => call(`push_subscriptions?id=eq.${s.id}`, { method: "PATCH", body: JSON.stringify({ last_ok_at: new Date().toISOString() }) }));
           } else if (r.gone) {
             await call(`push_subscriptions?id=eq.${s.id}`, { method: "DELETE" });
             log(`🔕 removed expired push subscription ${s.id}`);
           } else {
             log(`⚠️  push ${r.status} for subscription ${s.id}: ${r.text.slice(0, 200)}`);
+            await noteError(s, `${r.status} ${r.text.slice(0, 200)}`);
           }
         } catch (err) {
           // fetch hides the network reason (DNS, IPv6, TLS) in err.cause.
           const why = err.cause ? ` (${err.cause.code ?? ""} ${err.cause.message ?? err.cause})` : "";
           log(`⚠️  push failed for subscription ${s.id} → ${new URL(s.endpoint).host}: ${err.message}${why}`);
+          await noteError(s, `${err.message}${why}`);
         }
       }),
     );

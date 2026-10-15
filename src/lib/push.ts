@@ -23,8 +23,10 @@ export type PushState =
 export interface AlertPrefs {
   trip_started: boolean;
   trip_ended: boolean;
+  /** GPS tracker unplugged / removed / silent, and back again. */
+  gps_tamper: boolean;
 }
-export const DEFAULT_PREFS: AlertPrefs = { trip_started: true, trip_ended: true };
+export const DEFAULT_PREFS: AlertPrefs = { trip_started: true, trip_ended: true, gps_tamper: true };
 
 export function isIos() {
   const ua = navigator.userAgent;
@@ -142,11 +144,11 @@ export async function resyncPush() {
 export async function loadPrefs(userId: string): Promise<AlertPrefs> {
   const { data, error } = await db
     .from("notification_prefs")
-    .select("trip_started, trip_ended")
+    .select("*")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  return (data as AlertPrefs | null) ?? DEFAULT_PREFS;
+  return { ...DEFAULT_PREFS, ...((data as Partial<AlertPrefs> | null) ?? {}) };
 }
 
 export async function savePrefs(userId: string, prefs: AlertPrefs) {
@@ -154,6 +156,31 @@ export async function savePrefs(userId: string, prefs: AlertPrefs) {
     .from("notification_prefs")
     .upsert({ user_id: userId, ...prefs, updated_at: new Date().toISOString() });
   if (error) throw error;
+}
+
+export interface Delivery {
+  last_ok_at: string | null;
+  last_error: string | null;
+  last_error_at: string | null;
+}
+
+/** How the last alerts to this device went (set by gps-server). */
+export async function getDelivery(): Promise<Delivery | null> {
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return null;
+  const { data } = await db
+    .from("push_subscriptions")
+    .select("*")
+    .eq("endpoint", sub.endpoint)
+    .maybeSingle();
+  if (!data) return null;
+  const d = data as Partial<Delivery>;
+  return {
+    last_ok_at: d.last_ok_at ?? null,
+    last_error: d.last_error ?? null,
+    last_error_at: d.last_error_at ?? null,
+  };
 }
 
 export async function sendTestAlert() {

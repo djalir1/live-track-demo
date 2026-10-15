@@ -16,6 +16,17 @@ const ENGINE_OFF_AFTER_MS = 90_000;
 // Two reports closer than this = the tracker's running rhythm (10 s, vs 5 min parked).
 const FAST_REPORT_MS = 40_000;
 const BUS_CACHE_MS = 60_000;
+// Tamper watch. A parked tracker still checks in every 5 min (heartbeat every 3),
+// so 30 min of silence means it lost power, was removed, or has no SIM credit.
+const SILENT_AFTER_MS = 30 * 60_000;
+// Trackers that were already dead long before are not news.
+const SILENT_IGNORE_AFTER_MS = 6 * 3_600_000;
+// After this server restarts, give trackers time to reconnect before judging.
+const STARTUP_GRACE_MS = 10 * 60_000;
+// One "unplugged" alert per incident, not one per repeated alarm packet.
+const TAMPER_REPEAT_MS = 15 * 60_000;
+// Reports in a row without vehicle power before calling it unplugged.
+const POWER_OFF_CONFIRM = 3;
 
 export function createStore({ url, serviceKey, dryRun = false, log = console.log }) {
   const rest = `${url}/rest/v1`;
@@ -181,10 +192,15 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (!state.has(uid)) {
       let row = null;
       if (!dryRun) {
-        const rows = await call(`device_status?select=total_distance_m,is_tracking&user_id=eq.${uid}`).catch(() => []);
+        const rows = await call(`device_status?select=*&user_id=eq.${uid}`).catch(() => []);
         row = rows?.[0] ?? null;
       }
       state.set(uid, {
+        powerCutAt: row?.power_cut_at ? Date.parse(row.power_cut_at) : 0,
+        silentSince: row?.silent_since ?? null,
+        powerOffReports: 0,
+        powerOnReports: 0,
+        lastTamperAt: 0,
         last: null,
         totalM: row?.total_distance_m ?? 0,
         tripOpen: null,
@@ -321,6 +337,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     const s = state.get(uid);
     const now = nowMs();
     if (fix.acc != null) s.acc = fix.acc;
+    await markAlive(bus, uid);
     const name = bus.label ?? bus.plate ?? bus.id;
 
     // Running signals.
@@ -415,13 +432,15 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   const BATTERY_PCT = [0, 5, 15, 30, 60, 80, 100];
 
   /** Heartbeat: keeps the tracker online; its ACC flag is one engine signal. */
-  async function saveHeartbeat(imei, acc, voltageLevel) {
+  async function saveHeartbeat(imei, acc, voltageLevel, charging = null) {
     const bus = await findBus(imei);
     if (!bus?.driver_user_id) return;
     const uid = bus.driver_user_id;
     await getState(uid);
     return withLock(uid, async () => {
       const s = state.get(uid);
+      await markAlive(bus, uid);
+      if (charging != null) await notePower(bus, uid, charging);
       s.acc = acc;
       if (voltageLevel != null && voltageLevel <= 6) s.battery = BATTERY_PCT[voltageLevel];
       if (acc) await engineEvidence(uid, "ignition flag");
@@ -436,5 +455,137 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     });
   }
 
-  return { savePosition, saveHeartbeat };
+  // ── Tamper watch: unplugged, removed, or silent trackers ─────────────────
+  //
+  //   • Alarm packet "power cut" / "removed" / "switched off" / "SIM changed":
+  //     the tracker says so itself, on its backup battery → alert at once.
+  //   • Vehicle-power bit off in POWER_OFF_CONFIRM reports in a row (for units
+  //     that don't send the alarm) → alert. Back on in a row → "back" alert.
+  //   • No report for SILENT_AFTER_MS (backup battery dead, wrapped in foil,
+  //     SIM pulled) → alert. Any report afterwards → "back" alert.
+  // State lives in device_status.power_cut_at / silent_since, so a restart
+  // doesn't repeat alerts and the dashboard shows the same thing.
+  let tamperColumns = true;
+  async function patchTamper(uid, body) {
+    if (!tamperColumns || dryRun) return;
+    try {
+      await patchStatus(uid, body);
+    } catch (e) {
+      if (!/power_cut_at|silent_since|PGRST204|column/i.test(e.message)) throw e;
+      tamperColumns = false;
+      log("⚠️  device_status has no power_cut_at/silent_since — run migration 20261016090000 for tamper alerts");
+    }
+  }
+
+  async function fleetEvent(bus, kind, detail, at = nowIso()) {
+    const row = {
+      kind,
+      school_id: bus.school_id,
+      bus_id: bus.id,
+      driver_user_id: bus.driver_user_id,
+      vehicle_label: bus.label,
+      plate: bus.plate,
+      driver_name: bus.gps_driver_name,
+      detail,
+      occurred_at: at,
+    };
+    log(`🚨 ${bus.label ?? bus.plate ?? bus.id}: ${kind} ${detail}`);
+    if (dryRun) return;
+    await call("fleet_events", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(row) })
+      .catch((e) => log(`⚠️  tamper alert not saved (run migration 20261016090000?): ${e.message}`));
+  }
+
+  /** Any report from the tracker: it's alive. Ends a "silent" incident. */
+  async function markAlive(bus, uid) {
+    const s = state.get(uid);
+    if (!s.silentSince) return;
+    const since = s.silentSince;
+    s.silentSince = null;
+    await patchTamper(uid, { silent_since: null });
+    const mins = Math.round((nowMs() - Date.parse(since)) / 60_000);
+    await fleetEvent(bus, "gps_back", `GPS tracker reporting again after ${mins} min of silence`);
+  }
+
+  async function raiseTamper(bus, uid, detail) {
+    const s = state.get(uid);
+    const now = nowMs();
+    if (now - s.lastTamperAt < TAMPER_REPEAT_MS) return;
+    s.lastTamperAt = now;
+    if (!s.powerCutAt) {
+      s.powerCutAt = now;
+      await patchTamper(uid, { power_cut_at: new Date(now).toISOString() });
+    }
+    await fleetEvent(bus, "gps_tamper", detail);
+  }
+
+  /** The "on vehicle power" bit from a heartbeat or alarm packet. */
+  async function notePower(bus, uid, onPower) {
+    const s = state.get(uid);
+    if (onPower) {
+      s.powerOffReports = 0;
+      if (s.powerCutAt && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
+        s.powerCutAt = 0;
+        s.powerOnReports = 0;
+        s.lastTamperAt = 0;
+        await patchTamper(uid, { power_cut_at: null });
+        await fleetEvent(bus, "gps_back", "GPS tracker is on the vehicle's power again");
+      }
+      return;
+    }
+    s.powerOnReports = 0;
+    if (++s.powerOffReports >= POWER_OFF_CONFIRM && !s.powerCutAt) {
+      await raiseTamper(bus, uid, "GPS tracker unplugged: lost the vehicle's power");
+    }
+  }
+
+  const ALARM_TEXT = {
+    0x02: "GPS tracker unplugged: lost the vehicle's power",
+    0x13: "GPS tracker removed from where it was mounted",
+    0x11: "GPS tracker is being switched off",
+    0x10: "GPS tracker's SIM card was changed",
+  };
+
+  /** Alarm packet: position (if any) plus tamper alarms. */
+  async function saveAlarm(imei, msg) {
+    const bus = await resolveBus(imei);
+    if (!bus) return;
+    const uid = bus.driver_user_id;
+    await getState(uid);
+    if (msg.valid) await withLock(uid, () => savePositionLocked(bus, uid, msg));
+    return withLock(uid, async () => {
+      await markAlive(bus, uid);
+      const text = ALARM_TEXT[msg.alarm];
+      log(`🔔 alarm 0x${(msg.alarm ?? 0).toString(16)} from ${bus.label ?? imei}${text ? ` (${text})` : ""}`);
+      if (text) await raiseTamper(bus, uid, text);
+      else if (msg.charging != null) await notePower(bus, uid, msg.charging);
+    });
+  }
+
+  const kigaliTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Kigali", hour: "2-digit", minute: "2-digit" });
+  const startedAt = Date.now();
+  async function checkSilent() {
+    if (dryRun || !tamperColumns || Date.now() - startedAt < STARTUP_GRACE_MS) return;
+    if (Date.now() - busCacheAt > BUS_CACHE_MS) await refreshBuses();
+    const buses = [...busCache.values()].filter((b) => b.driver_user_id);
+    if (!buses.length) return;
+    const rows = await call(`device_status?select=*&user_id=in.(${buses.map((b) => b.driver_user_id).join(",")})`);
+    const now = nowMs();
+    for (const row of rows) {
+      const bus = buses.find((b) => b.driver_user_id === row.user_id);
+      const age = now - Date.parse(row.last_seen);
+      if (!("silent_since" in row)) { tamperColumns = false; return; }
+      if (row.silent_since || age < SILENT_AFTER_MS || age > SILENT_IGNORE_AFTER_MS) continue;
+      await getState(row.user_id);
+      await withLock(row.user_id, async () => {
+        const s = state.get(row.user_id);
+        if (s.silentSince) return;
+        s.silentSince = row.last_seen;
+        await patchTamper(row.user_id, { silent_since: row.last_seen });
+        await fleetEvent(bus, "gps_offline", kigaliTime.format(new Date(row.last_seen)));
+      });
+    }
+  }
+  if (!dryRun) setInterval(() => checkSilent().catch((e) => log(`⚠️  silent check: ${e.message}`)), 60_000).unref();
+
+  return { savePosition, saveHeartbeat, saveAlarm };
 }

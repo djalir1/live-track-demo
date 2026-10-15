@@ -27,6 +27,9 @@ export interface DeviceHealth {
   detail: string;
 }
 
+const clock = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
 const mins = (ms: number) => {
   const m = Math.round(ms / 60_000);
   return m < 1 ? `${Math.round(ms / 1000)} s` : m < 120 ? `${m} min` : `${Math.round(m / 60)} h`;
@@ -43,7 +46,23 @@ export function deviceHealth(o: {
   engineOn: boolean;
   gpsFix: boolean | null | undefined;
   satellites: number | null | undefined;
+  /** Tracker reported losing vehicle power / being removed (gps-server). */
+  powerCutAt?: string | null;
+  /** Tracker silent for 30+ min: last report time (gps-server). */
+  silentSince?: string | null;
 }): DeviceHealth | null {
+  if (o.gpsTracker && o.powerCutAt)
+    return {
+      tone: "error",
+      short: "Unplugged",
+      detail: `The GPS tracker lost the vehicle's power or was removed at ${clock(o.powerCutAt)} and is on its small backup battery. Check the vehicle: someone may have unplugged it.${o.fresh ? "" : " Showing the last known position."}`,
+    };
+  if (o.gpsTracker && o.silentSince && !o.fresh)
+    return {
+      tone: "error",
+      short: "Silent",
+      detail: `No report since ${clock(o.silentSince)}. The tracker may have been unplugged or removed, or its SIM has no credit. Check the vehicle. Showing the last known position.`,
+    };
   if (!o.fresh) {
     // A phone whose driver simply isn't tracking is not a problem.
     if (!o.gpsTracker && !o.engineOn) return null;

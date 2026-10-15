@@ -95,12 +95,15 @@ const server = net.createServer((socket) => {
       if (d) { d.lastPacket = new Date(); d.packets++; }
 
       try {
-        if (msg.type === "location" || (msg.type === "alarm" && msg.valid)) {
+        if (msg.type === "alarm") {
+          // Tamper alarms (power cut, removed…) plus the position it carries.
+          await store.saveAlarm(imei, msg);
+        } else if (msg.type === "location") {
           // Without a GPS lock too: it proves the tracker is alive and running.
           await store.savePosition(imei, msg);
         } else if (msg.type === "status") {
-          log(`💓 heartbeat ${imei} acc=${msg.acc ? "on" : "off"}`);
-          await store.saveHeartbeat(imei, msg.acc, msg.voltageLevel);
+          log(`💓 heartbeat ${imei} acc=${msg.acc ? "on" : "off"} power=${msg.charging ? "vehicle" : "battery"} level=${msg.voltageLevel}`);
+          await store.saveHeartbeat(imei, msg.acc, msg.voltageLevel, msg.charging);
         } else {
           log(`ℹ️  ${imei} packet 0x${msg.proto.toString(16)}`);
         }

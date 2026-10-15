@@ -3,7 +3,7 @@
 // (Supabase, /api) is never cached; pages are network-first with an
 // offline fallback. Also shows trip alerts pushed by gps-server (see
 // src/lib/push.ts). Bump VERSION to drop old caches.
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC = `lt-static-${VERSION}`;
 const PRECACHE = ["/offline.html", "/icons/icon-192.png", "/icons/icon.svg", "/manifest.webmanifest"];
 
@@ -55,15 +55,20 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
+  const title = data.title || "Live Track";
+  // iPhone cancels push for an app that receives one without showing a
+  // notification, so if the rich one fails, still show a plain one.
   event.waitUntil(
-    self.registration.showNotification(data.title || "Live Track", {
-      body: data.body || "",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      tag: data.tag,
-      renotify: Boolean(data.tag),
-      data: { url: data.url || "/dashboard" },
-    }),
+    self.registration
+      .showNotification(title, {
+        body: data.body || "",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: data.tag,
+        renotify: Boolean(data.tag),
+        data: { url: data.url || "/dashboard" },
+      })
+      .catch(() => self.registration.showNotification(title, { body: data.body || "" })),
   );
 });
 

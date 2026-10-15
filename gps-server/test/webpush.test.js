@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { encryptPayload, vapidAuthorization, generateVapidKeys } from "../src/webpush.js";
-import { messageFor } from "../src/notify.js";
+import { messageFor, prefKey } from "../src/notify.js";
 
 /** What the phone does on receipt (user-agent side of RFC 8291). */
 function browserDecrypt(body, ua, authSecret) {
@@ -83,4 +83,18 @@ test("alert texts", () => {
     route_name: "Kimironko – Remera", occurred_at: "2026-10-15T14:30:00Z",
   });
   assert.equal(pm.title, "🚌 Bus A started the afternoon drop-off");
+});
+
+test("tamper alert texts", () => {
+  const base = { vehicle_label: "Bus A", plate: "RAB 123A", driver_name: "Eloge", occurred_at: "2026-10-15T18:05:00Z" };
+  const cut = messageFor({ ...base, kind: "gps_tamper", detail: "GPS tracker unplugged: lost the vehicle's power" });
+  assert.equal(cut.title, "⚠️ Bus A (RAB 123A): GPS tracker unplugged");
+  assert.equal(cut.body, "Lost the vehicle's power at 20:05. Check the vehicle. Driver: Eloge");
+  const removed = messageFor({ ...base, kind: "gps_tamper", detail: "GPS tracker removed from where it was mounted" });
+  assert.equal(removed.title, "⚠️ Bus A (RAB 123A): GPS tracker removed from where it was mounted");
+  const silent = messageFor({ ...base, kind: "gps_offline", detail: "19:30" });
+  assert.equal(silent.title, "📵 Bus A (RAB 123A): GPS tracker silent");
+  assert.match(silent.body, /^No signal since 19:30\./);
+  assert.equal(prefKey("gps_offline"), "gps_tamper");
+  assert.equal(prefKey("trip_started"), "trip_started");
 });

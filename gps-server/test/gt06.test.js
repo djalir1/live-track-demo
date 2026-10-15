@@ -43,3 +43,20 @@ test("rejects a corrupted CRC", () => {
   assert.equal(decodeFrame(f), null);
   assert.equal(typeof crc16x25(Buffer.from([1])), "number");
 });
+
+test("alarm packets: power cut, removal, and the vehicle-power bit", async () => {
+  const { encodeAlarm, ALARM } = await import("../src/gt06.js");
+  const cut = decodeFrame(encodeAlarm({ latitude: -1.95, longitude: 30.06, alarm: ALARM.POWER_CUT }));
+  assert.equal(cut.type, "alarm");
+  assert.equal(cut.alarm, ALARM.POWER_CUT);
+  assert.equal(cut.charging, false);
+  assert.ok(Math.abs(cut.latitude + 1.95) < 1e-5);
+  const removed = decodeFrame(encodeAlarm({ latitude: -1.95, longitude: 30.06, alarm: ALARM.REMOVED, charging: true }));
+  assert.equal(removed.alarm, ALARM.REMOVED);
+  assert.equal(removed.charging, true);
+  // Real 0x16 from the Concox spec layout: alarm byte 0, power-cut bits in terminal info.
+  const bitsOnly = decodeFrame(encodeAlarm({ latitude: -1.95, longitude: 30.06, alarm: 0 }));
+  assert.equal(bitsOnly.alarm, 0);
+  assert.equal(decodeFrame(encodeHeartbeat({ acc: true, charging: false })).charging, false);
+  assert.equal(decodeFrame(encodeHeartbeat({ acc: true })).charging, true);
+});

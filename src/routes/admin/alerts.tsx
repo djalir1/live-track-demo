@@ -10,6 +10,7 @@ import {
   KeyRound,
   ParkingSquare,
   Share,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -22,11 +23,13 @@ import {
   DEFAULT_PREFS,
   disablePush,
   enablePush,
+  getDelivery,
   getPushState,
   loadPrefs,
   savePrefs,
   sendTestAlert,
   type AlertPrefs,
+  type Delivery,
   type PushState,
 } from "@/lib/push";
 
@@ -37,7 +40,8 @@ export const Route = createFileRoute("/admin/alerts")({
 
 interface FleetEvent {
   id: number;
-  kind: "trip_started" | "trip_ended" | "test";
+  kind: "trip_started" | "trip_ended" | "test" | "gps_tamper" | "gps_offline" | "gps_back";
+  detail: string | null;
   vehicle_label: string | null;
   plate: string | null;
   driver_name: string | null;
@@ -60,7 +64,39 @@ const KINDS: { key: keyof AlertPrefs; title: string; text: string; Icon: typeof 
     text: "The run is over: ignition off for 90 seconds. Red lights and traffic jams don't count.",
     Icon: ParkingSquare,
   },
+  {
+    key: "gps_tamper",
+    title: "GPS tracker unplugged or removed",
+    text: "The tracker loses the vehicle's power, reports being taken off, or stops reporting for 30 minutes. Also tells you when it's back.",
+    Icon: ShieldAlert,
+  },
 ];
+
+const EVENT_ICON: Record<FleetEvent["kind"], string> = {
+  trip_started: "🚌",
+  trip_ended: "🅿️",
+  test: "🔔",
+  gps_tamper: "⚠️",
+  gps_offline: "📵",
+  gps_back: "✅",
+};
+
+function eventTitle(e: FleetEvent) {
+  if (e.kind === "test") return "Test alert";
+  const v = `${e.vehicle_label ?? e.plate ?? "Vehicle"}${e.plate && e.vehicle_label ? ` (${e.plate})` : ""}`;
+  switch (e.kind) {
+    case "trip_started":
+      return `${v} started a trip`;
+    case "trip_ended":
+      return `${v} parked`;
+    case "gps_tamper":
+      return `${v}: ${(e.detail ?? "GPS tracker unplugged").split(": ")[0]}`;
+    case "gps_offline":
+      return `${v}: GPS tracker silent since ${e.detail ?? "?"}`;
+    case "gps_back":
+      return `${v}: ${e.detail ?? "GPS tracker back"}`;
+  }
+}
 
 function AlertsPage() {
   const { user } = useAuth();
@@ -69,10 +105,15 @@ function AlertsPage() {
   const [busy, setBusy] = useState(false);
   const [events, setEvents] = useState<FleetEvent[]>([]);
   const [setupMissing, setSetupMissing] = useState(false);
+  const [delivery, setDelivery] = useState<Delivery | null>(null);
 
   useEffect(() => {
     void getPushState().then(setState);
   }, []);
+
+  useEffect(() => {
+    if (state === "on") void getDelivery().then(setDelivery);
+  }, [state]);
 
   useEffect(() => {
     if (!user) return;
@@ -86,9 +127,7 @@ function AlertsPage() {
     const load = () =>
       db
         .from("fleet_events")
-        .select(
-          "id, kind, vehicle_label, plate, driver_name, route_name, distance_m, occurred_at, pushed_at",
-        )
+        .select("*")
         .order("occurred_at", { ascending: false })
         .limit(20)
         .then(({ data, error }) => {
@@ -139,6 +178,8 @@ function AlertsPage() {
     try {
       await sendTestAlert();
       toast.success("Test sent — it should arrive within a few seconds.");
+      // The server tries within ~5 s; then show whether this phone accepted it.
+      window.setTimeout(() => void getDelivery().then(setDelivery), 9000);
     } catch (e) {
       toast.error(friendlyError(e, "Couldn't send a test right now."));
     }
@@ -165,6 +206,7 @@ function AlertsPage() {
             <div className="flex-1 min-w-0 space-y-1">
               <div className="text-sm font-semibold">This phone</div>
               <DeviceStatus state={state} />
+              {state === "on" && <DeliveryNote d={delivery} />}
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -232,15 +274,9 @@ function AlertsPage() {
                   key={e.id}
                   className="flex items-center gap-2 text-sm rounded-lg border border-border/50 bg-background/40 px-3 py-2"
                 >
-                  <span className="shrink-0">
-                    {e.kind === "trip_started" ? "🚌" : e.kind === "trip_ended" ? "🅿️" : "🔔"}
-                  </span>
+                  <span className="shrink-0">{EVENT_ICON[e.kind] ?? "🔔"}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="truncate font-medium">
-                      {e.kind === "test"
-                        ? "Test alert"
-                        : `${e.vehicle_label ?? e.plate ?? "Vehicle"}${e.plate && e.vehicle_label ? ` (${e.plate})` : ""} ${e.kind === "trip_started" ? "started a trip" : "parked"}`}
-                    </div>
+                    <div className="truncate font-medium">{eventTitle(e)}</div>
                     <div className="text-[11px] text-muted-foreground truncate">
                       {fmtDateTime(e.occurred_at)}
                       {e.route_name ? ` · ${e.route_name}` : ""}
@@ -267,6 +303,27 @@ function Card({ children }: { children: ReactNode }) {
       {children}
     </div>
   );
+}
+
+/** Did the server's last alert reach this phone? (written by gps-server) */
+function DeliveryNote({ d }: { d: Delivery | null }) {
+  if (!d) return null;
+  const failedLast =
+    d.last_error && d.last_error_at && (!d.last_ok_at || d.last_error_at > d.last_ok_at);
+  if (failedLast)
+    return (
+      <p className="text-xs text-destructive">
+        The last alert couldn't be delivered to this phone ({fmtDateTime(d.last_error_at!)}):{" "}
+        {d.last_error}. Turn alerts off and on again here; if it keeps failing, tell support.
+      </p>
+    );
+  if (d.last_ok_at)
+    return (
+      <p className="text-xs text-muted-foreground">
+        Last alert delivered {fmtDateTime(d.last_ok_at)}.
+      </p>
+    );
+  return null;
 }
 
 function DeviceStatus({ state }: { state: PushState | null }) {

@@ -1,6 +1,7 @@
 // Minimal Web Push sender (RFC 8030 + RFC 8291 aes128gcm + RFC 8292 VAPID)
 // on node:crypto, so the server keeps zero npm dependencies.
 import crypto from "node:crypto";
+import https from "node:https";
 
 const b64u = (buf) => Buffer.from(buf).toString("base64url");
 const unb64u = (s) => Buffer.from(s, "base64url");
@@ -60,22 +61,45 @@ export function encryptPayload(payload, { p256dh, auth }, { asKeys, salt } = {})
 }
 
 /**
- * Send one notification. Resolves to { ok, status, gone } — gone means the
- * subscription no longer exists (uninstalled, permission revoked) and should
- * be deleted.
+ * POST over plain node:https, IPv4, with a generous timeout. Node's fetch
+ * (undici) kept timing out to Apple's push servers from Kigali while curl got
+ * through, so iPhones never received anything.
+ */
+function post(endpoint, headers, body, timeoutMs = 30_000) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      endpoint,
+      { method: "POST", family: 4, timeout: timeoutMs, headers: { ...headers, "Content-Length": body.length } },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => resolve({ status: res.statusCode, text: Buffer.concat(chunks).toString() }));
+        res.on("error", reject);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error(`no answer in ${timeoutMs / 1000} s`)));
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+/**
+ * Send one notification. Resolves to { ok, status, gone, text }. gone means
+ * the subscription no longer exists (uninstalled, permission revoked) and
+ * should be deleted.
  */
 export async function sendPush(subscription, payload, vapid, { ttl = 3600, urgency = "high" } = {}) {
-  const res = await fetch(subscription.endpoint, {
-    method: "POST",
-    headers: {
+  const { status, text } = await post(
+    subscription.endpoint,
+    {
       Authorization: vapidAuthorization(subscription.endpoint, vapid),
       "Content-Encoding": "aes128gcm",
       "Content-Type": "application/octet-stream",
       TTL: String(ttl),
       Urgency: urgency,
     },
-    body: encryptPayload(JSON.stringify(payload), subscription),
-  });
-  const text = res.ok ? "" : await res.text().catch(() => "");
-  return { ok: res.ok, status: res.status, gone: res.status === 404 || res.status === 410, text };
+    encryptPayload(JSON.stringify(payload), subscription),
+  );
+  const ok = status >= 200 && status < 300;
+  return { ok, status, gone: status === 404 || status === 410, text: ok ? "" : text };
 }
