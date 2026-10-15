@@ -150,7 +150,12 @@ function VehicleMarker({ u, selected }: { u: LiveUser; selected: boolean }) {
     const name = el.querySelector(".veh-name");
     const sp = el.querySelector(".veh-speed");
     if (name) name.textContent = u.plate_number ?? u.vehicle_name ?? u.display_name;
-    if (sp) sp.textContent = u.status === "moving" ? `${speed} km/h` : STATUS_LABEL[u.status];
+    if (sp)
+      sp.textContent = u.health
+        ? u.health.short
+        : u.status === "moving"
+          ? `${speed} km/h`
+          : STATUS_LABEL[u.status];
   });
 
   const v = getVehicle(u.vehicle_type);
@@ -186,12 +191,23 @@ function VehicleMarker({ u, selected }: { u: LiveUser; selected: boolean }) {
               Speed: <b>{speed} km/h</b>
             </div>
             <div>
-              {u.gps_tracker ? "Ignition" : "Phone"}: <b>{u.is_tracking ? "on" : "off"}</b>
+              {u.gps_tracker ? "Engine" : "Phone"}: <b>{u.is_tracking ? "on" : "off"}</b>
             </div>
             <div>
               Battery: <b>{u.battery_level ?? "—"}%</b>
             </div>
           </div>
+          {u.health && (
+            <div
+              className={`rounded-md px-2 py-1 text-[11px] leading-snug ${
+                u.health.tone === "error"
+                  ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                  : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+              }`}
+            >
+              ⚠️ {u.health.detail}
+            </div>
+          )}
           {u.address && <div className="text-muted-foreground">📍 {u.address}</div>}
           <div className="text-muted-foreground pt-1 border-t border-black/5 dark:border-white/10">
             Last update {ago(u.last_seen)}

@@ -8,12 +8,13 @@
 // so this process has zero npm dependencies.
 
 const MOVING_KMH = 0.8; // same threshold as src/lib/parent-presence.ts
-// GT06 0x12 position packets carry no ignition flag; it only arrives with
-// heartbeats (every few minutes, or on change), and some trackers report
-// 0 km/h at walking pace. So real movement also counts as "engine on":
-// a GPS speed above this, or ≥25 m covered at an implied speed above it.
+// Movement counts as "engine on": a GPS speed above this, or ≥25 m covered at
+// an implied speed above it (some trackers report 0 km/h at walking pace).
 const MOTION_KMH = 6;
-const MOTION_HOLD_MS = 3 * 60_000; // keep "on" this long after the last movement
+// Engine counts as off after this long with no running signal (see below).
+const ENGINE_OFF_AFTER_MS = 90_000;
+// Two reports closer than this = the tracker's running rhythm (10 s, vs 5 min parked).
+const FAST_REPORT_MS = 40_000;
 const BUS_CACHE_MS = 60_000;
 
 export function createStore({ url, serviceKey, dryRun = false, log = console.log }) {
@@ -144,8 +145,20 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     return uid;
   }
 
-  // ── Per-bus running state (distance, trip session) ────────────────────────
-  const state = new Map(); // driver_user_id → { last, totalM, tripOpen }
+  // ── Per-bus running state (distance, trip session, engine) ───────────────
+  //
+  // Engine on/off is decided from several signals, because none is reliable
+  // alone on cheap GT06 trackers:
+  //   • ACC flag in heartbeats: arrives only every few minutes, flickers while
+  //     the engine cranks, and on badly wired trackers reads "off" all drive.
+  //   • Reporting rhythm: with TIMER,10,300 the tracker sends every 10 s while
+  //     it considers the vehicle running and every 5 min parked. Two quick
+  //     reports in a row = running, whatever the ACC flag says.
+  //   • Movement: GPS speed, or distance covered between fixes.
+  // "On" is immediate. "Off" needs ENGINE_OFF_AFTER_MS without any on-signal,
+  // so cranking flicker, short stops in traffic and late heartbeats never end
+  // a trip, and the trip's end time is the last moment it was seen running.
+  const state = new Map(); // driver_user_id → running state
 
   function haversine(a, b) {
     const R = 6371000, r = (x) => (x * Math.PI) / 180;
@@ -154,65 +167,199 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
+  // One tracker's messages are handled strictly in order (server.js), but the
+  // off-timer runs on its own; this lock keeps both from racing on one bus.
+  const locks = new Map();
+  function withLock(uid, fn) {
+    const prev = locks.get(uid) ?? Promise.resolve();
+    const next = prev.then(fn, fn);
+    locks.set(uid, next.catch(() => {}));
+    return next;
+  }
+
   async function getState(uid) {
     if (!state.has(uid)) {
-      let totalM = 0;
+      let row = null;
       if (!dryRun) {
-        const rows = await call(`device_status?select=total_distance_m&user_id=eq.${uid}`).catch(() => []);
-        totalM = rows?.[0]?.total_distance_m ?? 0;
+        const rows = await call(`device_status?select=total_distance_m,is_tracking&user_id=eq.${uid}`).catch(() => []);
+        row = rows?.[0] ?? null;
       }
-      state.set(uid, { last: null, totalM, tripOpen: null, acc: null, lastSaved: null, lastSavedAt: 0 });
+      state.set(uid, {
+        last: null,
+        totalM: row?.total_distance_m ?? 0,
+        tripOpen: null,
+        acc: null,
+        engine: row?.is_tracking ?? false,
+        onAt: row?.is_tracking ? nowMs() : 0, // last moment we had evidence it runs
+        arrivals: [], // receive times of the last position reports
+        offTimer: null,
+        lastSaved: null,
+        lastSavedAt: 0,
+      });
+      // Restarted while a bus was running: let the off-timer settle it.
+      if (row?.is_tracking) scheduleOffCheck(uid);
     }
     return state.get(uid);
   }
 
-  async function ensureTrip(uid, open) {
+  async function ensureTrip(uid, open, atMs = nowMs()) {
     const s = state.get(uid);
     if (s.tripOpen === open) return;
+    const at = new Date(atMs).toISOString();
     if (open) {
       const existing = await call(`trip_sessions?select=started_at&user_id=eq.${uid}&ended_at=is.null&limit=1`).catch(() => []);
       if (!existing?.length) {
-        await call("trip_sessions", { method: "POST", body: JSON.stringify({ user_id: uid, started_at: nowIso() }) });
+        await call("trip_sessions", { method: "POST", body: JSON.stringify({ user_id: uid, started_at: at }) });
         s.totalM = 0; // km counter is per trip, like the phone tracker
         log(`🟢 trip started for ${uid}`);
       }
     } else {
-      await call(`trip_sessions?user_id=eq.${uid}&ended_at=is.null`, {
+      const closed = await call(`trip_sessions?user_id=eq.${uid}&ended_at=is.null`, {
         method: "PATCH",
-        body: JSON.stringify({ ended_at: nowIso() }),
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ ended_at: at }),
       });
-      log(`🔴 trip ended for ${uid}`);
+      if (closed?.length) log(`🔴 trip ended for ${uid}`);
     }
     s.tripOpen = open;
   }
 
-  /** Save one position fix. `acc` = ignition, null when the packet has none. */
-  async function savePosition(imei, fix) {
-    const bus = await findBus(imei);
-    if (!bus) { log(`⚠️  unknown IMEI ${imei} — set buses.gps_imei in Dashboard → Vehicles`); return; }
-    const uid = bus.driver_user_id;
-    if (!uid) { log(`⚠️  bus ${bus.label ?? bus.id} has no driver assigned — position dropped`); return; }
+  /** Some on-signal arrived: engine is running as of now. */
+  async function engineEvidence(uid, why) {
+    const s = state.get(uid);
+    s.onAt = nowMs();
+    scheduleOffCheck(uid);
+    if (!s.engine) {
+      s.engine = true;
+      log(`🔑 engine on (${why})`);
+    }
+    await ensureTrip(uid, true);
+  }
 
-    if (fix.valid) learnClock(fix.deviceTime);
-    const s = await getState(uid);
-    if (fix.acc != null) s.acc = fix.acc;
+  function scheduleOffCheck(uid) {
+    const s = state.get(uid);
+    if (!s) return;
+    clearTimeout(s.offTimer);
+    s.offTimer = setTimeout(() => {
+      withLock(uid, () => checkEngineOff(uid)).catch((e) => log(`💥 engine-off check: ${e.message}`));
+    }, ENGINE_OFF_AFTER_MS + 1000);
+    s.offTimer.unref?.();
+  }
+
+  async function checkEngineOff(uid) {
+    const s = state.get(uid);
+    if (!s?.engine) return;
+    const quietMs = nowMs() - s.onAt;
+    if (s.acc === true || quietMs < ENGINE_OFF_AFTER_MS) {
+      scheduleOffCheck(uid); // still running (or not quiet long enough yet)
+      return;
+    }
+    s.engine = false;
+    log(`🅿️  engine off (no running signal for ${Math.round(quietMs / 1000)} s)`);
+    await ensureTrip(uid, false, s.onAt);
+    await patchStatus(uid, { status: "idle", speed_kmh: 0, is_tracking: false });
+  }
+
+  // device_status gained gps_fix / satellites (migration 20261015090000).
+  // If that SQL hasn't been run yet, keep working without them.
+  let extraColumns = true;
+  async function writeStatus(uid, body, extra) {
+    const send = (b) =>
+      call("device_status", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(b),
+      });
+    if (!extraColumns) return send(body);
+    try {
+      return await send({ ...body, ...extra });
+    } catch (e) {
+      if (!/gps_fix|satellites|PGRST204|column/i.test(e.message)) throw e;
+      extraColumns = false;
+      log("⚠️  device_status has no gps_fix/satellites columns — run the 20261015090000 migration; continuing without them");
+      return send(body);
+    }
+  }
+  async function patchStatus(uid, body) {
+    await call(`device_status?user_id=eq.${uid}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * Note a position report; true when the tracker is in its fast (running)
+   * rhythm. Uses the GPS timestamp when there is one, so a burst of buffered
+   * old reports after a reconnect doesn't look like 10-second reporting.
+   */
+  function fastRhythm(s, t) {
+    s.arrivals.push(t);
+    if (s.arrivals.length > 3) s.arrivals.shift();
+    if (s.arrivals.length < 3) return false;
+    const [a, b, c] = s.arrivals;
+    return b - a < FAST_REPORT_MS && c - b < FAST_REPORT_MS;
+  }
+
+  async function resolveBus(imei) {
+    const bus = await findBus(imei);
+    if (!bus) { log(`⚠️  unknown IMEI ${imei} — set buses.gps_imei in Dashboard → Vehicles`); return null; }
+    if (!bus.driver_user_id) { log(`⚠️  bus ${bus.label ?? bus.id} has no driver assigned — position dropped`); return null; }
+    return bus;
+  }
+
+  /** Save one position report. `fix.valid` false = tracker has no GPS lock yet. */
+  async function savePosition(imei, fix) {
+    const bus = await resolveBus(imei);
+    if (!bus) return;
+    const uid = bus.driver_user_id;
+    await getState(uid);
+    return withLock(uid, () => savePositionLocked(bus, uid, fix));
+  }
+
+  async function savePositionLocked(bus, uid, fix) {
+    const s = state.get(uid);
     const now = nowMs();
+    if (fix.acc != null) s.acc = fix.acc;
+    const name = bus.label ?? bus.plate ?? bus.id;
+
+    // Running signals.
+    if (fix.acc === true) await engineEvidence(uid, "ignition flag");
+    if (fastRhythm(s, fix.valid ? fix.deviceTime.getTime() : now)) await engineEvidence(uid, "reporting every 10 s");
+
+    // No GPS lock yet (just powered up, garage, tunnel): the tracker is alive,
+    // so keep it online and say so, but don't move the vehicle or log history.
+    if (!fix.valid) {
+      await writeStatus(
+        uid,
+        {
+          user_id: uid,
+          status: s.engine ? "stopped" : "idle",
+          speed_kmh: 0,
+          is_tracking: s.engine,
+          ...(s.battery != null ? { battery_level: s.battery } : {}),
+          last_seen: new Date(now).toISOString(),
+        },
+        { gps_fix: false, satellites: fix.satellites ?? null },
+      );
+      log(`🛰️  ${name} searching for GPS (${fix.satellites} satellites) engine=${s.engine ? "on" : "off"}`);
+      return;
+    }
+    learnClock(fix.deviceTime);
 
     // Movement since the previous fix (device clock; both from the same tracker).
     let impliedKmh = 0;
-    if (s.last && fix.valid) {
+    if (s.last) {
       const d = haversine(s.last, fix);
       const dtH = (fix.deviceTime - s.last.deviceTime) / 3_600_000;
       if (d >= 25 && dtH > 0) impliedKmh = d / 1000 / dtH;
       if (impliedKmh > 160) impliedKmh = 0; // GPS jump, not driving
     }
     const speedKmh = fix.speedKmh > 0 ? fix.speedKmh : Math.round(impliedKmh);
-    if (speedKmh > MOTION_KMH) s.motionAt = now;
-    const recentlyMoving = s.motionAt != null && now - s.motionAt < MOTION_HOLD_MS;
-    const ignitionOn = (s.acc ?? true) || recentlyMoving; // no ACC info → assume running
+    if (speedKmh > MOTION_KMH) await engineEvidence(uid, "moving");
 
-    await ensureTrip(uid, ignitionOn);
-    if (s.last && ignitionOn) {
+    const engineOn = s.engine;
+    if (s.last && engineOn) {
       const d = haversine(s.last, fix);
       if (d > 3 && d < 5000) s.totalM += d; // ignore parked jitter and GPS jumps
     }
@@ -220,12 +367,11 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
 
     // Device clock can be on local time or drift; trust it only if close to now.
     const recordedAt = Math.abs(fix.deviceTime.getTime() - now) < 10 * 60_000 ? fix.deviceTime : new Date(now);
-    const status = !ignitionOn ? "idle" : speedKmh > MOVING_KMH ? "moving" : "stopped";
+    const status = !engineOn ? "idle" : speedKmh > MOVING_KMH ? "moving" : "stopped";
 
-    await call("device_status", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({
+    await writeStatus(
+      uid,
+      {
         user_id: uid,
         status,
         latitude: fix.latitude,
@@ -233,17 +379,18 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         speed_kmh: speedKmh,
         heading: fix.heading,
         accuracy: null,
-        is_tracking: ignitionOn,
+        is_tracking: engineOn,
         ...(s.battery != null ? { battery_level: s.battery } : {}),
         total_distance_m: Math.round(s.totalM),
         last_seen: new Date(now).toISOString(),
-      }),
-    });
-    // Parked (ignition off) and not moved: one history row per 30 min is
+      },
+      { gps_fix: true, satellites: fix.satellites ?? null },
+    );
+    // Parked (engine off) and not moved: one history row per 30 min is
     // plenty — device_status above already says it's alive. Saves ~250
     // identical rows per vehicle per night.
     const parkedRepeat =
-      !ignitionOn && s.lastSaved && haversine(s.lastSaved, fix) < 30 && now - s.lastSavedAt < 30 * 60_000;
+      !engineOn && s.lastSaved && haversine(s.lastSaved, fix) < 30 && now - s.lastSavedAt < 30 * 60_000;
     if (!parkedRepeat) {
       await call("location_history", {
         method: "POST",
@@ -260,27 +407,32 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       s.lastSaved = fix;
       s.lastSavedAt = now;
     }
-    log(`📍 ${bus.label ?? bus.plate ?? bus.id} ${fix.latitude.toFixed(6)},${fix.longitude.toFixed(6)} ${speedKmh} km/h acc=${ignitionOn ? "on" : "off"}${s.acc === false && ignitionOn ? " (moving)" : ""} → ${status}`);
+    const accNote = s.acc === false && engineOn ? " (ACC wire says off)" : "";
+    log(`📍 ${name} ${fix.latitude.toFixed(6)},${fix.longitude.toFixed(6)} ${speedKmh} km/h engine=${engineOn ? "on" : "off"}${accNote} → ${status}`);
   }
 
-  /** Heartbeat with ACC info: keeps last_seen fresh and opens/closes trips. */
   // GT06 voltage level 0–6 → rough percent of the tracker's backup battery.
   const BATTERY_PCT = [0, 5, 15, 30, 60, 80, 100];
 
+  /** Heartbeat: keeps the tracker online; its ACC flag is one engine signal. */
   async function saveHeartbeat(imei, acc, voltageLevel) {
     const bus = await findBus(imei);
     if (!bus?.driver_user_id) return;
     const uid = bus.driver_user_id;
-    const s = await getState(uid);
-    s.acc = acc;
-    if (voltageLevel != null && voltageLevel <= 6) s.battery = BATTERY_PCT[voltageLevel];
-    // A late "off" heartbeat while the vehicle is still moving must not end the trip.
-    const on = acc || (s.motionAt != null && nowMs() - s.motionAt < MOTION_HOLD_MS);
-    await ensureTrip(uid, on);
-    await call(`device_status?user_id=eq.${uid}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ last_seen: nowIso(), is_tracking: on, ...(s.battery != null ? { battery_level: s.battery } : {}), ...(on ? {} : { status: "idle", speed_kmh: 0 }) }),
+    await getState(uid);
+    return withLock(uid, async () => {
+      const s = state.get(uid);
+      s.acc = acc;
+      if (voltageLevel != null && voltageLevel <= 6) s.battery = BATTERY_PCT[voltageLevel];
+      if (acc) await engineEvidence(uid, "ignition flag");
+      // "off" is never acted on directly: the off-timer decides (see above).
+      else if (s.engine) scheduleOffCheck(uid);
+      await patchStatus(uid, {
+        last_seen: nowIso(),
+        is_tracking: s.engine,
+        ...(s.battery != null ? { battery_level: s.battery } : {}),
+        ...(s.engine ? {} : { status: "idle", speed_kmh: 0 }),
+      });
     });
   }
 

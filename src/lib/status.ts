@@ -17,3 +17,61 @@ export const STATUS_LABEL: Record<TrackingStatus, string> = {
   idle: "Parked",
   offline: "Offline",
 };
+
+/** A problem worth showing next to a vehicle, in plain words. */
+export interface DeviceHealth {
+  tone: "warn" | "error";
+  /** 1–2 words for chips and map labels */
+  short: string;
+  /** one sentence: what is happening and what is shown */
+  detail: string;
+}
+
+const mins = (ms: number) => {
+  const m = Math.round(ms / 60_000);
+  return m < 1 ? `${Math.round(ms / 1000)} s` : m < 120 ? `${m} min` : `${Math.round(m / 60)} h`;
+};
+
+/**
+ * Why a vehicle may look wrong, so the dashboard explains it instead of
+ * looking frozen. `ageMs` = time since the last report (server clock).
+ */
+export function deviceHealth(o: {
+  gpsTracker: boolean;
+  fresh: boolean;
+  ageMs: number;
+  engineOn: boolean;
+  gpsFix: boolean | null | undefined;
+  satellites: number | null | undefined;
+}): DeviceHealth | null {
+  if (!o.fresh) {
+    // A phone whose driver simply isn't tracking is not a problem.
+    if (!o.gpsTracker && !o.engineOn) return null;
+    if (!o.gpsTracker)
+      return {
+        tone: "error",
+        short: "No signal",
+        detail: `No report for ${mins(o.ageMs)}: the app may be closed, the phone offline or switched off. Showing the last known position.`,
+      };
+    return {
+      tone: "error",
+      short: "No signal",
+      detail: o.engineOn
+        ? `No report for ${mins(o.ageMs)} while the engine was on: the tracker is probably out of mobile coverage and will catch up when it reconnects. Showing the last known position.`
+        : `Parked and silent for ${mins(o.ageMs)} (it normally checks in every 5 min): check the tracker's power and SIM credit. Showing the last known position.`,
+    };
+  }
+  if (o.gpsTracker && o.gpsFix === false)
+    return {
+      tone: "warn",
+      short: "Finding GPS",
+      detail: `Tracker online, waiting for satellites${o.satellites != null ? ` (${o.satellites} in view)` : ""}. This takes 1–2 min after the engine starts, longer in a garage or under a roof. Showing the last known position.`,
+    };
+  if (o.gpsTracker && o.engineOn && o.ageMs > 30_000)
+    return {
+      tone: "warn",
+      short: "Delayed",
+      detail: `Last report ${mins(o.ageMs)} ago (expected every 10 s): weak mobile signal where the vehicle is.`,
+    };
+  return null;
+}

@@ -1,4 +1,5 @@
 import type { Database } from "@/integrations/supabase/types";
+import type { DeviceHealth } from "@/lib/status";
 
 export type TrackingStatus = Database["public"]["Enums"]["tracking_status"];
 export type VehicleType = Database["public"]["Enums"]["vehicle_type"];
@@ -21,4 +22,6 @@ export interface LiveUser {
   address?: string | null;
   /** Position comes from a hardware GPS tracker (buses.gps_imei), not a phone. */
   gps_tracker?: boolean;
+  /** Something the viewer should know (no GPS lock, delayed, no signal). */
+  health?: DeviceHealth | null;
 }

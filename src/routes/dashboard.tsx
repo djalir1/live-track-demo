@@ -17,6 +17,7 @@ import {
   BatteryWarning,
   PowerOff,
   Bus,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { LiveUser, TrackingStatus } from "@/types/tracking";
 import { getVehicle } from "@/lib/vehicles";
 import { reverseGeocode, cachedReverseGeocode } from "@/lib/geocode";
-import { STATUS_COLOR, STATUS_LABEL } from "@/lib/status";
+import { STATUS_COLOR, STATUS_LABEL, deviceHealth } from "@/lib/status";
 import { db } from "@/lib/fleet";
 import { ago, serverNow, syncServerClock } from "@/lib/time";
 import type { Database } from "@/integrations/supabase/types";
@@ -176,7 +177,10 @@ function Dashboard() {
       // heartbeat, so they get a wider window.
       const gpsTracker = meta.trackerDrivers.has(s.user_id);
       const freshMs = gpsTracker ? (s.is_tracking ? 60_000 : 7 * 60_000) : 45_000;
-      const fresh = now - new Date(s.last_seen).getTime() < freshMs;
+      const ageMs = now - new Date(s.last_seen).getTime();
+      const fresh = ageMs < freshMs;
+      // gps_fix / satellites come from migration 20261015090000 (not in the generated types).
+      const extra = s as DeviceRow & { gps_fix?: boolean | null; satellites?: number | null };
       users.push({
         user_id: s.user_id,
         display_name: p?.display_name ?? "Unknown",
@@ -196,6 +200,14 @@ function Dashboard() {
           addresses[addrKey(s.latitude, s.longitude)] ??
           cachedReverseGeocode(s.latitude, s.longitude),
         gps_tracker: gpsTracker,
+        health: deviceHealth({
+          gpsTracker,
+          fresh,
+          ageMs,
+          engineOn: s.is_tracking,
+          gpsFix: extra.gps_fix,
+          satellites: extra.satellites,
+        }),
       });
     }
   }
@@ -339,7 +351,19 @@ function Dashboard() {
                   {phoneOff && (
                     <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground inline-flex items-center gap-1">
                       <PowerOff className="h-2.5 w-2.5" />{" "}
-                      {u.gps_tracker ? "Ignition off" : "Phone off"}
+                      {u.gps_tracker ? "Engine off" : "Phone off"}
+                    </span>
+                  )}
+                  {u.health && (
+                    <span
+                      title={u.health.detail}
+                      className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${
+                        u.health.tone === "error"
+                          ? "bg-destructive/15 text-destructive"
+                          : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      }`}
+                    >
+                      <AlertTriangle className="h-2.5 w-2.5" /> {u.health.short}
                     </span>
                   )}
                 </div>

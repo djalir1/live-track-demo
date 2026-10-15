@@ -25,17 +25,27 @@ const store = createStore({
   log,
 });
 
-const devices = new Map(); // imei → { remote, lastPacket, packets }
+const devices = new Map(); // imei → { remote, connectedAt, lastPacket, packets }
+
+const sockets = new Map(); // imei → its current socket
 
 const server = net.createServer((socket) => {
   const remote = `${socket.remoteAddress}:${socket.remotePort}`;
   let imei = null;
   let buf = Buffer.alloc(0);
+  // Every message from one tracker is handled strictly in order, even when
+  // TCP delivers several at once; otherwise a late "ignition off" could be
+  // saved after a newer "on", or two handlers could end the same trip.
+  let queue = Promise.resolve();
   log(`🔌 connect ${remote}`);
   socket.setTimeout(IDLE_TIMEOUT_MS);
   socket.setKeepAlive(true, 60_000);
 
-  socket.on("data", async (chunk) => {
+  socket.on("data", (chunk) => {
+    queue = queue.then(() => handle(chunk)).catch((e) => log(`💥 ${imei ?? remote}: ${e.message}`));
+  });
+
+  async function handle(chunk) {
     if (process.env.LOG_RAW === "1") log(`raw ${remote} ${chunk.toString("hex")}`);
     buf = Buffer.concat([buf, chunk]);
     const { frames, rest } = splitFrames(buf);
@@ -45,24 +55,27 @@ const server = net.createServer((socket) => {
     for (const f of frames) {
       const msg = decodeFrame(f);
       if (!msg) { log(`❌ bad CRC from ${remote}: ${f.toString("hex")}`); continue; }
-      if (msg.reply) socket.write(msg.reply);
+      if (msg.reply && !socket.destroyed) socket.write(msg.reply);
 
       if (msg.type === "login") {
         imei = msg.imei;
-        devices.set(imei, { remote, lastPacket: new Date(), packets: 0 });
+        // A tracker that changed cell/IP reconnects before the old connection
+        // has timed out; drop the old one so only one is ever live.
+        const old = sockets.get(imei);
+        if (old && old !== socket) old.destroy();
+        sockets.set(imei, socket);
+        devices.set(imei, { remote, connectedAt: new Date(), lastPacket: new Date(), packets: 0 });
         log(`✅ login IMEI ${imei} from ${remote}`);
         continue;
       }
       if (!imei) { log(`⚠️  packet 0x${msg.proto.toString(16)} before login from ${remote}`); continue; }
       const d = devices.get(imei);
-      d.lastPacket = new Date();
-      d.packets++;
+      if (d) { d.lastPacket = new Date(); d.packets++; }
 
       try {
-        if ((msg.type === "location" || msg.type === "alarm") && msg.valid) {
+        if (msg.type === "location" || (msg.type === "alarm" && msg.valid)) {
+          // Without a GPS lock too: it proves the tracker is alive and running.
           await store.savePosition(imei, msg);
-        } else if (msg.type === "location") {
-          log(`… ${imei} no GPS fix yet (satellites=${msg.satellites})`);
         } else if (msg.type === "status") {
           log(`💓 heartbeat ${imei} acc=${msg.acc ? "on" : "off"}`);
           await store.saveHeartbeat(imei, msg.acc, msg.voltageLevel);
@@ -73,10 +86,13 @@ const server = net.createServer((socket) => {
         log(`💥 save failed for ${imei}: ${e.message}`);
       }
     }
-  });
+  }
 
   socket.on("timeout", () => { log(`⏱️  idle timeout ${imei ?? remote}`); socket.destroy(); });
-  socket.on("close", () => log(`📴 disconnect ${imei ?? remote}`));
+  socket.on("close", () => {
+    if (imei && sockets.get(imei) === socket) sockets.delete(imei);
+    log(`📴 disconnect ${imei ?? remote}`);
+  });
   socket.on("error", (e) => log(`socket error ${imei ?? remote}: ${e.message}`));
 });
 
@@ -87,6 +103,6 @@ http.createServer((req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify({
     ok: true,
-    devices: Object.fromEntries([...devices].map(([k, v]) => [k, { ...v, lastPacket: v.lastPacket.toISOString() }])),
+    devices: Object.fromEntries([...devices].map(([k, v]) => [k, { ...v, connected: sockets.has(k), connectedAt: v.connectedAt.toISOString(), lastPacket: v.lastPacket.toISOString() }])),
   }, null, 2));
 }).listen(HTTP_PORT, "127.0.0.1", () => log(`🩺 health on http://127.0.0.1:${HTTP_PORT} (local only)`));
