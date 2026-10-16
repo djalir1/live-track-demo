@@ -101,7 +101,7 @@ async function run(fn) {
       ),
     );
   try {
-    await fn({ at, fix, hb, alarm, db, lines });
+    await fn({ at, fix, hb, alarm, db, lines, login: () => store.noteLogin(IMEI) });
   } finally {
     mock.timers.reset();
   }
@@ -302,5 +302,37 @@ test("real start with a dead ACC wire: trip starts once it drives off", async ()
       0,
       "traffic stop keeps the trip",
     );
+  });
+});
+
+// 16 Oct 22:38–22:51, the Test Car as wired: engine start cuts the tracker's
+// power and ACC; engine off gives power back, the tracker reconnects and
+// reports every 10 s for ~4 min. "Parked" took 4.5 min; it should take ~1.5.
+test("engine off on the Test Car's wiring: parked within 2 min, not after the boot burst", async () => {
+  await run(async ({ at, fix, hb, alarm, login, db }) => {
+    await at(0, () => hb(true, 6, true)); // key on
+    await at(9, () => hb(false, 6, false)); // engine starts: power + ACC gone
+    await at(13, () => alarm(13, ALARM.POWER_CUT));
+    let lon = 30.131;
+    for (let s = 20; s <= 400; s += 10) {
+      if (s < 200) lon += 0.0003;
+      await at(s, () => fix(s, -1.906, lon, s < 200 ? 20 : 0));
+    }
+    // Engine off at ~405: power back, reconnect, 10-s burst while parked.
+    await at(418, login);
+    await at(420, () => hb(false, 6, true));
+    for (let s = 430; s <= 520; s += 10) await at(s, () => fix(s, -1.906, lon, 0));
+    assert.equal(db.status.is_tracking, false, "parked within 2 min of engine off");
+    for (let s = 530; s <= 660; s += 10) await at(s, () => fix(s, -1.906, lon, 0));
+    await at(662, () => hb(false, 6, true));
+    await at(800);
+    const end = db.trips().find((c) => c.method === "PATCH");
+    assert.ok(end, "trip ended");
+    const endedAt = (Date.parse(end.body.ended_at) - T0) / 1000;
+    assert.ok(endedAt <= 410, `trip ends at engine off, not after the burst (got ${endedAt} s)`);
+    const offCall = db.calls.find((c) => c.u.includes("/trip_sessions") && c.method === "PATCH");
+    assert.ok(offCall, "closed");
+    assert.equal(db.status.is_tracking, false);
+    assert.equal(db.status.power_cut_at, null, "power back clears the warning");
   });
 });

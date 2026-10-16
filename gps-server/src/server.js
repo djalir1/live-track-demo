@@ -91,6 +91,7 @@ const server = net.createServer((socket) => {
         sockets.set(imei, socket);
         devices.set(imei, { remote, connectedAt: new Date(), lastPacket: new Date(), packets: 0 });
         log(`✅ login IMEI ${imei} from ${remote}`);
+        await store.noteLogin(imei).catch((e) => log(`💥 login note for ${imei}: ${e.message}`));
         continue;
       }
       if (!imei) {

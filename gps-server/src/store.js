@@ -20,6 +20,10 @@ const FAST_REPORT_MS = 40_000;
 // on 16 Oct started a false trip. It only keeps a trip going, for this long
 // after the last ignition-on or movement (a stop in traffic, ACC wire dead).
 const RHYTHM_HOLD_MS = 15 * 60_000;
+// After it (re)connects with car power and ACC off, a tracker also reports
+// every 10 s for ~4 min (seen after RESET# and when power came back at engine
+// off, 16 Oct), so the rhythm says nothing then and must not hold a trip open.
+const BOOT_BURST_MS = 5 * 60_000;
 const BUS_CACHE_MS = 60_000;
 // Tamper watch. A parked tracker still checks in every 5 min (heartbeat every 3),
 // so 30 min of silence means it lost power, was removed, or has no SIM credit.
@@ -264,6 +268,8 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         // Last ignition-on or movement (see RHYTHM_HOLD_MS). Restarted
         // mid-trip: count from now so a stop in traffic doesn't end it.
         strongAt: row?.is_tracking ? nowMs() : 0,
+        loginAt: 0,
+        onPower: null, // last power bit: true = on the vehicle's power
         last: null,
         totalM: row?.total_distance_m ?? 0,
         tripOpen: null,
@@ -405,6 +411,14 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     return bus;
   }
 
+  /** Tracker logged in (boot, or reconnect from a new cell/IP). */
+  async function noteLogin(imei) {
+    const bus = await findBus(imei);
+    if (!bus?.driver_user_id) return;
+    await getState(bus.driver_user_id);
+    state.get(bus.driver_user_id).loginAt = nowMs();
+  }
+
   /** Save one position report. `fix.valid` false = tracker has no GPS lock yet. */
   async function savePosition(imei, fix) {
     const bus = await resolveBus(imei);
@@ -423,9 +437,13 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
 
     // Running signals.
     if (fix.acc === true) await engineEvidence(uid, "ignition flag");
+    // Harness connected (car power) and ACC off right after a (re)connect:
+    // the 10-s rhythm is the tracker's boot burst, not a running engine.
+    const bootBurst = now - s.loginAt < BOOT_BURST_MS && s.acc === false && s.onPower === true;
     if (
       fastRhythm(s, fix.valid ? fix.deviceTime.getTime() : now) &&
       s.engine &&
+      !bootBurst &&
       now - s.strongAt < RHYTHM_HOLD_MS
     )
       await engineEvidence(uid, "reporting every 10 s");
@@ -652,6 +670,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
    */
   async function notePower(bus, uid, onPower, acc = null) {
     const s = state.get(uid);
+    s.onPower = onPower;
     // Ignition wire live = the tracker's harness is plugged into the vehicle.
     if (acc === true) await powerBack(bus, uid, "ignition wire live");
     if (!onPower && acc === true && s.powerBit !== "unreliable") {
@@ -765,5 +784,5 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       60_000,
     ).unref();
 
-  return { savePosition, saveHeartbeat, saveAlarm };
+  return { savePosition, saveHeartbeat, saveAlarm, noteLogin };
 }

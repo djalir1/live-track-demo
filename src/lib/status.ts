@@ -102,7 +102,7 @@ export function deviceHealth(o: {
       short: "Finding GPS",
       detail: `Tracker online, waiting for satellites${o.satellites != null ? ` (${o.satellites} in view)` : ""}. This takes 1–2 min after the engine starts, longer in a garage or under a roof. Showing the last known position.`,
     };
-  if (o.gpsTracker && o.engineOn && o.ageMs > 30_000)
+  if (o.gpsTracker && o.engineOn && o.ageMs > 45_000)
     return {
       tone: "warn",
       short: "Delayed",

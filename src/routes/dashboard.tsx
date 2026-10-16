@@ -177,7 +177,9 @@ function Dashboard() {
       // ignition on but only every 5 min parked (TIMER,10,300#) plus a 3-min
       // heartbeat, so they get a wider window.
       const gpsTracker = meta.trackerDrivers.has(s.user_id);
-      const freshMs = gpsTracker ? (s.is_tracking ? 60_000 : 7 * 60_000) : 45_000;
+      // A tracker reconnecting (new cell, power back) goes quiet for 40–60 s, so
+      // allow 2 min with the engine on before calling it "No signal".
+      const freshMs = gpsTracker ? (s.is_tracking ? 120_000 : 7 * 60_000) : 45_000;
       const ageMs = now - new Date(s.last_seen).getTime();
       const fresh = ageMs < freshMs;
       // gps_fix / satellites come from migration 20261015090000 (not in the generated types).
