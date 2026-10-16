@@ -28,7 +28,13 @@ export interface DeviceHealth {
 }
 
 const clock = (iso: string) =>
-  new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  // Kigali time, like the push alerts: without it the dashboard showed UTC
+  // ("lost power at 19:09" for a 21:09 event).
+  new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Kigali",
+  });
 
 const mins = (ms: number) => {
   const m = Math.round(ms / 60_000);
