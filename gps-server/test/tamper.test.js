@@ -74,6 +74,13 @@ test("losing the vehicle's power: dashboard warning, no alert", async () => {
   assert.equal(r.powerBack, 1);
 });
 
+test("power back: two 'vehicle' reports clear it, trusted bit or not", async () => {
+  const r = await run([{ alarm: ALARM.POWER_CUT }, ...hb(false, false, 4), ...hb(false, true, 2)]);
+  assert.deepEqual(r.alerts, []);
+  assert.equal(r.onBattery, 1);
+  assert.equal(r.powerBack, 1);
+});
+
 test("tracker tamper alarms alert at once, once per incident", async () => {
   assert.deepEqual(await alerts([{ alarm: ALARM.REMOVED }]), ["gps_tamper"]);
   assert.deepEqual(await alerts([{ alarm: ALARM.REMOVED }, { alarm: ALARM.REMOVED }]), [

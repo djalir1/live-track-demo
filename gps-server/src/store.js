@@ -15,6 +15,11 @@ const MOTION_KMH = 6;
 const ENGINE_OFF_AFTER_MS = 90_000;
 // Two reports closer than this = the tracker's running rhythm (10 s, vs 5 min parked).
 const FAST_REPORT_MS = 40_000;
+// The 10-s rhythm alone never starts a trip: after a restart (RESET#, power
+// back) the tracker also reports every 10 s for minutes while parked, which
+// on 16 Oct started a false trip. It only keeps a trip going, for this long
+// after the last ignition-on or movement (a stop in traffic, ACC wire dead).
+const RHYTHM_HOLD_MS = 15 * 60_000;
 const BUS_CACHE_MS = 60_000;
 // Tamper watch. A parked tracker still checks in every 5 min (heartbeat every 3),
 // so 30 min of silence means it lost power, was removed, or has no SIM credit.
@@ -256,6 +261,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         lastTamperAt: 0,
         voltageLevel: null,
         lastReportAt: 0, // any packet at all (heartbeat, position, alarm)
+        // Last ignition-on or movement (see RHYTHM_HOLD_MS). Restarted
+        // mid-trip: count from now so a stop in traffic doesn't end it.
+        strongAt: row?.is_tracking ? nowMs() : 0,
         last: null,
         totalM: row?.total_distance_m ?? 0,
         tripOpen: null,
@@ -304,6 +312,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   async function engineEvidence(uid, why) {
     const s = state.get(uid);
     s.onAt = nowMs();
+    if (why !== "reporting every 10 s") s.strongAt = s.onAt;
     scheduleOffCheck(uid);
     if (!s.engine) {
       s.engine = true;
@@ -414,7 +423,11 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
 
     // Running signals.
     if (fix.acc === true) await engineEvidence(uid, "ignition flag");
-    if (fastRhythm(s, fix.valid ? fix.deviceTime.getTime() : now))
+    if (
+      fastRhythm(s, fix.valid ? fix.deviceTime.getTime() : now) &&
+      s.engine &&
+      now - s.strongAt < RHYTHM_HOLD_MS
+    )
       await engineEvidence(uid, "reporting every 10 s");
 
     // No GPS lock yet (just powered up, garage, tunnel): the tracker is alive,
@@ -649,13 +662,12 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     }
     if (onPower) {
       s.powerOffReports = 0;
-      if (s.powerBit === "unknown" && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
-        s.powerBit = "trusted";
-        s.powerOnReports = 0;
-      } else if (s.powerCutAt && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
-        // Back on power after an alarm 0x02 or a trusted "battery" bit.
-        await powerBack(bus, uid, "power bit");
-      }
+      ++s.powerOnReports;
+      // "Vehicle" is never a lie (even where the bit means "charging", that
+      // needs outside power), so two in a row end an "on battery" incident
+      // whether or not the bit is trusted yet.
+      if (s.powerCutAt && s.powerOnReports >= 2) await powerBack(bus, uid, "power bit");
+      if (s.powerBit === "unknown" && s.powerOnReports >= POWER_OFF_CONFIRM) s.powerBit = "trusted";
       return;
     }
     s.powerOnReports = 0;

@@ -269,3 +269,38 @@ test("plugged in and parked: silent 30 min → one 'silent' alert", async () => 
     );
   });
 });
+
+// 16 Oct, after RESET#: parked, ACC off, on vehicle power, but reporting every
+// 10 s for ~4 min. That started a false trip and "parked" pushes.
+test("tracker restarted while parked: 10-s reports alone never start a trip", async () => {
+  await run(async ({ at, fix, hb, db }) => {
+    await at(0, () => hb(false, 6, true));
+    for (let s = 10; s <= 250; s += 10) await at(s, () => fix(s, -1.905953, 30.131327, 0));
+    await at(260, () => hb(false, 6, true));
+    for (let s = 550; s <= 1450; s += 300) await at(s, () => fix(s, -1.905953, 30.131327, 0));
+    assert.equal(db.trips().length, 0, "no trip");
+    assert.equal(db.status.is_tracking, false);
+  });
+});
+
+test("real start with a dead ACC wire: trip starts once it drives off", async () => {
+  await run(async ({ at, fix, hb, db }) => {
+    await at(0, () => hb(false));
+    for (let s = 10; s <= 60; s += 10) await at(s, () => fix(s, -1.906, 30.131, 0));
+    assert.equal(db.trips().length, 0, "idling in place with ACC dead: not yet");
+    let lon = 30.131;
+    for (let s = 70; s <= 200; s += 10) {
+      lon += 0.0003;
+      await at(s, () => fix(s, -1.906, lon, 20));
+    }
+    // Stuck in traffic 8 min: the 10-s rhythm keeps the trip going.
+    for (let s = 210; s <= 690; s += 10) await at(s, () => fix(s, -1.906, lon, 0));
+    const trips = db.trips();
+    assert.equal(trips.filter((c) => c.method === "POST").length, 1);
+    assert.equal(
+      trips.filter((c) => c.method === "PATCH").length,
+      0,
+      "traffic stop keeps the trip",
+    );
+  });
+});
