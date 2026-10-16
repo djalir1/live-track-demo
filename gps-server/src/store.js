@@ -18,15 +18,22 @@ const FAST_REPORT_MS = 40_000;
 const BUS_CACHE_MS = 60_000;
 // Tamper watch. A parked tracker still checks in every 5 min (heartbeat every 3),
 // so 30 min of silence means it lost power, was removed, or has no SIM credit.
+// Mobile data drops of 20+ min happen (16 Oct), so don't go lower.
 const SILENT_AFTER_MS = 30 * 60_000;
+// Already without the vehicle's power and now silent too: sooner, because
+// that is what a tracker being ripped out looks like.
+const SILENT_ON_BATTERY_AFTER_MS = 15 * 60_000;
 // Trackers that were already dead long before are not news.
 const SILENT_IGNORE_AFTER_MS = 6 * 3_600_000;
 // After this server restarts, give trackers time to reconnect before judging.
 const STARTUP_GRACE_MS = 10 * 60_000;
-// One "unplugged" alert per incident, not one per repeated alarm packet.
+// One alert per incident, not one per repeated alarm packet.
 const TAMPER_REPEAT_MS = 15 * 60_000;
 // Reports in a row without vehicle power before calling it unplugged.
 const POWER_OFF_CONFIRM = 3;
+// GT06 voltage level at or below which a "switching off" alarm is just the
+// backup battery running out, not someone switching the tracker off.
+const BATTERY_DYING_LEVEL = 1;
 
 export function createStore({ url, serviceKey, dryRun = false, log = console.log }) {
   const rest = `${url}/rest/v1`;
@@ -41,8 +48,12 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       log(`[dry-run] ${init.method} ${path} ${init.body ?? ""}`);
       return null;
     }
-    const res = await fetch(`${rest}/${path}`, { ...init, headers: { ...headers, ...init.headers } });
-    if (!res.ok) throw new Error(`${init.method ?? "GET"} ${path} → ${res.status} ${await res.text()}`);
+    const res = await fetch(`${rest}/${path}`, {
+      ...init,
+      headers: { ...headers, ...init.headers },
+    });
+    if (!res.ok)
+      throw new Error(`${init.method ?? "GET"} ${path} → ${res.status} ${await res.text()}`);
     const text = await res.text();
     return text ? JSON.parse(text) : null;
   }
@@ -69,10 +80,13 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   let busCache = new Map();
   let busCacheAt = 0;
   async function refreshBuses() {
-    const rows = await call("buses?select=id,school_id,label,plate,gps_imei,gps_driver_name,driver_user_id&gps_imei=not.is.null");
+    const rows = await call(
+      "buses?select=id,school_id,label,plate,gps_imei,gps_driver_name,driver_user_id&gps_imei=not.is.null",
+    );
     busCache = new Map(rows.map((r) => [r.gps_imei, r]));
     busCacheAt = Date.now();
-    if (!dryRun) await syncTrackerProfiles(rows).catch((e) => log(`⚠️  driver profile sync: ${e.message}`));
+    if (!dryRun)
+      await syncTrackerProfiles(rows).catch((e) => log(`⚠️  driver profile sync: ${e.message}`));
   }
 
   // Admins edit the driver name / vehicle name / plate on the bus row, but the
@@ -91,7 +105,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   async function syncTrackerProfiles(rows) {
     const linked = rows.filter((b) => b.driver_user_id);
     if (!linked.length) return;
-    const profiles = await call(`profiles?select=id,display_name,vehicle_name,plate_number&id=in.(${linked.map((b) => b.driver_user_id).join(",")})`);
+    const profiles = await call(
+      `profiles?select=id,display_name,vehicle_name,plate_number&id=in.(${linked.map((b) => b.driver_user_id).join(",")})`,
+    );
     const byId = new Map(profiles.map((p) => [p.id, p]));
     for (const b of linked) {
       const p = byId.get(b.driver_user_id);
@@ -101,17 +117,30 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         vehicle_name: b.label ?? p.vehicle_name,
         plate_number: b.plate ?? p.plate_number,
       };
-      if (want.display_name === p.display_name && want.vehicle_name === p.vehicle_name && want.plate_number === p.plate_number) continue;
+      if (
+        want.display_name === p.display_name &&
+        want.vehicle_name === p.vehicle_name &&
+        want.plate_number === p.plate_number
+      )
+        continue;
       if (!(await isTrackerAccount(b.driver_user_id))) continue;
-      await call(`profiles?id=eq.${b.driver_user_id}`, { method: "PATCH", body: JSON.stringify(want) });
+      await call(`profiles?id=eq.${b.driver_user_id}`, {
+        method: "PATCH",
+        body: JSON.stringify(want),
+      });
       log(`✏️  synced tracker driver "${want.display_name}" for ${b.label ?? b.plate ?? b.id}`);
     }
   }
   // Keep names in sync even while the tracker is offline.
-  if (!dryRun) setInterval(() => refreshBuses().catch((e) => log(`⚠️  bus refresh: ${e.message}`)), BUS_CACHE_MS).unref();
+  if (!dryRun)
+    setInterval(
+      () => refreshBuses().catch((e) => log(`⚠️  bus refresh: ${e.message}`)),
+      BUS_CACHE_MS,
+    ).unref();
   async function findBus(imei) {
     if (Date.now() - busCacheAt > BUS_CACHE_MS || !busCache.has(imei)) {
-      if (dryRun && !url) return { id: "dry-run-bus", label: "Dry-run bus", driver_user_id: "dry-run-driver" };
+      if (dryRun && !url)
+        return { id: "dry-run-bus", label: "Dry-run bus", driver_user_id: "dry-run-driver" };
       await refreshBuses();
     }
     const bus = busCache.get(imei) ?? null;
@@ -140,17 +169,28 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       uid = (await authRes.json()).id;
     } else {
       // Already created on an earlier run (e.g. driver later unassigned): reuse it.
-      const list = await fetch(`${url}/auth/v1/admin/users?per_page=1000`, { headers }).then((r) => r.json());
+      const list = await fetch(`${url}/auth/v1/admin/users?per_page=1000`, { headers }).then((r) =>
+        r.json(),
+      );
       uid = list.users?.find((u) => u.email === email)?.id;
       if (!uid) throw new Error(`could not create tracker driver: ${await authRes.text()}`);
     }
     await call(`profiles?id=eq.${uid}`, {
       method: "PATCH",
-      body: JSON.stringify({ display_name: name, school_id: bus.school_id, plate_number: bus.plate, vehicle_name: bus.label, vehicle_type: "bus" }),
+      body: JSON.stringify({
+        display_name: name,
+        school_id: bus.school_id,
+        plate_number: bus.plate,
+        vehicle_name: bus.label,
+        vehicle_type: "bus",
+      }),
     });
     // Record the name on the bus too: the Vehicles page edits it there, and a
     // bus with gps_driver_name set marks its driver as a tracker account.
-    await call(`buses?id=eq.${bus.id}`, { method: "PATCH", body: JSON.stringify({ driver_user_id: uid, gps_driver_name: name }) });
+    await call(`buses?id=eq.${bus.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ driver_user_id: uid, gps_driver_name: name }),
+    });
     bus.gps_driver_name = name;
     log(`👤 created tracker driver "${name}" for ${bus.label ?? bus.id}`);
     return uid;
@@ -169,12 +209,20 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   // "On" is immediate. "Off" needs ENGINE_OFF_AFTER_MS without any on-signal,
   // so cranking flicker, short stops in traffic and late heartbeats never end
   // a trip, and the trip's end time is the last moment it was seen running.
+  // "Off" also needs a report since then without a running signal: a tracker
+  // that just went quiet (no mobile signal) says nothing about the engine. On
+  // 16 Oct a connection dropped mid-drive ended the trip and told owners the
+  // car was parked while it was still driving.
   const state = new Map(); // driver_user_id → running state
 
   function haversine(a, b) {
-    const R = 6371000, r = (x) => (x * Math.PI) / 180;
-    const dLat = r(b.latitude - a.latitude), dLon = r(b.longitude - a.longitude);
-    const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.latitude)) * Math.cos(r(b.latitude)) * Math.sin(dLon / 2) ** 2;
+    const R = 6371000,
+      r = (x) => (x * Math.PI) / 180;
+    const dLat = r(b.latitude - a.latitude),
+      dLon = r(b.longitude - a.longitude);
+    const h =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(r(a.latitude)) * Math.cos(r(b.latitude)) * Math.sin(dLon / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
@@ -184,7 +232,10 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   function withLock(uid, fn) {
     const prev = locks.get(uid) ?? Promise.resolve();
     const next = prev.then(fn, fn);
-    locks.set(uid, next.catch(() => {}));
+    locks.set(
+      uid,
+      next.catch(() => {}),
+    );
     return next;
   }
 
@@ -203,6 +254,8 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         // Can this tracker's "on vehicle power" bit be believed? See notePower.
         powerBit: "unknown",
         lastTamperAt: 0,
+        voltageLevel: null,
+        lastReportAt: 0, // any packet at all (heartbeat, position, alarm)
         last: null,
         totalM: row?.total_distance_m ?? 0,
         tripOpen: null,
@@ -225,9 +278,14 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (s.tripOpen === open) return;
     const at = new Date(atMs).toISOString();
     if (open) {
-      const existing = await call(`trip_sessions?select=started_at&user_id=eq.${uid}&ended_at=is.null&limit=1`).catch(() => []);
+      const existing = await call(
+        `trip_sessions?select=started_at&user_id=eq.${uid}&ended_at=is.null&limit=1`,
+      ).catch(() => []);
       if (!existing?.length) {
-        await call("trip_sessions", { method: "POST", body: JSON.stringify({ user_id: uid, started_at: at }) });
+        await call("trip_sessions", {
+          method: "POST",
+          body: JSON.stringify({ user_id: uid, started_at: at }),
+        });
         s.totalM = 0; // km counter is per trip, like the phone tracker
         log(`🟢 trip started for ${uid}`);
       }
@@ -259,7 +317,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (!s) return;
     clearTimeout(s.offTimer);
     s.offTimer = setTimeout(() => {
-      withLock(uid, () => checkEngineOff(uid)).catch((e) => log(`💥 engine-off check: ${e.message}`));
+      withLock(uid, () => checkEngineOff(uid)).catch((e) =>
+        log(`💥 engine-off check: ${e.message}`),
+      );
     }, ENGINE_OFF_AFTER_MS + 1000);
     s.offTimer.unref?.();
   }
@@ -268,8 +328,10 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     const s = state.get(uid);
     if (!s?.engine) return;
     const quietMs = nowMs() - s.onAt;
-    if (s.acc === true || quietMs < ENGINE_OFF_AFTER_MS) {
-      scheduleOffCheck(uid); // still running (or not quiet long enough yet)
+    // Still running, not quiet long enough yet, or the tracker has said
+    // nothing since its last running signal (out of coverage, not parked).
+    if (s.acc === true || quietMs < ENGINE_OFF_AFTER_MS || s.lastReportAt <= s.onAt) {
+      scheduleOffCheck(uid);
       return;
     }
     s.engine = false;
@@ -294,7 +356,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     } catch (e) {
       if (!/gps_fix|satellites|PGRST204|column/i.test(e.message)) throw e;
       extraColumns = false;
-      log("⚠️  device_status has no gps_fix/satellites columns — run the 20261015090000 migration; continuing without them");
+      log(
+        "⚠️  device_status has no gps_fix/satellites columns — run the 20261015090000 migration; continuing without them",
+      );
       return send(body);
     }
   }
@@ -321,8 +385,14 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
 
   async function resolveBus(imei) {
     const bus = await findBus(imei);
-    if (!bus) { log(`⚠️  unknown IMEI ${imei} — set buses.gps_imei in Dashboard → Vehicles`); return null; }
-    if (!bus.driver_user_id) { log(`⚠️  bus ${bus.label ?? bus.id} has no driver assigned — position dropped`); return null; }
+    if (!bus) {
+      log(`⚠️  unknown IMEI ${imei} — set buses.gps_imei in Dashboard → Vehicles`);
+      return null;
+    }
+    if (!bus.driver_user_id) {
+      log(`⚠️  bus ${bus.label ?? bus.id} has no driver assigned — position dropped`);
+      return null;
+    }
     return bus;
   }
 
@@ -344,7 +414,8 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
 
     // Running signals.
     if (fix.acc === true) await engineEvidence(uid, "ignition flag");
-    if (fastRhythm(s, fix.valid ? fix.deviceTime.getTime() : now)) await engineEvidence(uid, "reporting every 10 s");
+    if (fastRhythm(s, fix.valid ? fix.deviceTime.getTime() : now))
+      await engineEvidence(uid, "reporting every 10 s");
 
     // No GPS lock yet (just powered up, garage, tunnel): the tracker is alive,
     // so keep it online and say so, but don't move the vehicle or log history.
@@ -361,7 +432,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         },
         { gps_fix: false, satellites: fix.satellites ?? null },
       );
-      log(`🛰️  ${name} searching for GPS (${fix.satellites} satellites) engine=${s.engine ? "on" : "off"}`);
+      log(
+        `🛰️  ${name} searching for GPS (${fix.satellites} satellites) engine=${s.engine ? "on" : "off"}`,
+      );
       return;
     }
     learnClock(fix.deviceTime);
@@ -385,7 +458,8 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     s.last = fix;
 
     // Device clock can be on local time or drift; trust it only if close to now.
-    const recordedAt = Math.abs(fix.deviceTime.getTime() - now) < 10 * 60_000 ? fix.deviceTime : new Date(now);
+    const recordedAt =
+      Math.abs(fix.deviceTime.getTime() - now) < 10 * 60_000 ? fix.deviceTime : new Date(now);
     const status = !engineOn ? "idle" : speedKmh > MOVING_KMH ? "moving" : "stopped";
 
     await writeStatus(
@@ -409,7 +483,10 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     // plenty — device_status above already says it's alive. Saves ~250
     // identical rows per vehicle per night.
     const parkedRepeat =
-      !engineOn && s.lastSaved && haversine(s.lastSaved, fix) < 30 && now - s.lastSavedAt < 30 * 60_000;
+      !engineOn &&
+      s.lastSaved &&
+      haversine(s.lastSaved, fix) < 30 &&
+      now - s.lastSavedAt < 30 * 60_000;
     if (!parkedRepeat) {
       await call("location_history", {
         method: "POST",
@@ -427,7 +504,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       s.lastSavedAt = now;
     }
     const accNote = s.acc === false && engineOn ? " (ACC wire says off)" : "";
-    log(`📍 ${name} ${fix.latitude.toFixed(6)},${fix.longitude.toFixed(6)} ${speedKmh} km/h engine=${engineOn ? "on" : "off"}${accNote} → ${status}`);
+    log(
+      `📍 ${name} ${fix.latitude.toFixed(6)},${fix.longitude.toFixed(6)} ${speedKmh} km/h engine=${engineOn ? "on" : "off"}${accNote} → ${status}`,
+    );
   }
 
   // GT06 voltage level 0–6 → rough percent of the tracker's backup battery.
@@ -444,7 +523,10 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       await markAlive(bus, uid);
       if (charging != null) await notePower(bus, uid, charging, acc);
       s.acc = acc;
-      if (voltageLevel != null && voltageLevel <= 6) s.battery = BATTERY_PCT[voltageLevel];
+      if (voltageLevel != null && voltageLevel <= 6) {
+        s.voltageLevel = voltageLevel;
+        s.battery = BATTERY_PCT[voltageLevel];
+      }
       if (acc) await engineEvidence(uid, "ignition flag");
       // "off" is never acted on directly: the off-timer decides (see above).
       else if (s.engine) scheduleOffCheck(uid);
@@ -457,16 +539,24 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     });
   }
 
-  // ── Tamper watch: unplugged, removed, or silent trackers ─────────────────
+  // ── Tamper watch: removed, switched off, or silent trackers ──────────────
   //
-  //   • Alarm packet "power cut" / "removed" / "switched off" / "SIM changed":
-  //     the tracker says so itself, on its backup battery → alert at once.
-  //   • Vehicle-power bit off in POWER_OFF_CONFIRM reports in a row → alert,
-  //     but only on a tracker that has proven the bit works (see notePower).
-  //     Many GT06 clones set it only while the backup battery is *charging*,
-  //     so a full battery reads "unplugged" (a false alarm on the Test Car).
-  //   • No report for SILENT_AFTER_MS (backup battery dead, wrapped in foil,
-  //     SIM pulled) → alert. Any report afterwards → "back" alert.
+  // Alerts (push to owners) only for what means "the tracker is gone":
+  //   • Alarm packet "removed" / "switched off" / "SIM changed": the tracker
+  //     says so itself → alert at once. "Switched off" with an almost empty
+  //     backup battery is just the battery running out: the silence check
+  //     covers that.
+  //   • No report for SILENT_AFTER_MS (SILENT_ON_BATTERY_AFTER_MS when it had
+  //     already lost the vehicle's power) → alert. Any report afterwards →
+  //     "back" alert.
+  //
+  // Losing the vehicle's power alone (alarm 0x02, or the power bit) is NOT an
+  // alert: on 16 Oct a loose wire put the Test Car's tracker on its backup
+  // battery at engine start while the car drove on, and owners got a scary
+  // "unplugged" push. It only marks the vehicle "on backup battery" on the
+  // dashboard (device_status.power_cut_at), so someone checks the wiring, and
+  // makes the silence alert come sooner and say what it means.
+  //
   // State lives in device_status.power_cut_at / silent_since, so a restart
   // doesn't repeat alerts and the dashboard shows the same thing.
   let tamperColumns = true;
@@ -477,7 +567,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     } catch (e) {
       if (!/power_cut_at|silent_since|PGRST204|column/i.test(e.message)) throw e;
       tamperColumns = false;
-      log("⚠️  device_status has no power_cut_at/silent_since — run migration 20261016090000 for tamper alerts");
+      log(
+        "⚠️  device_status has no power_cut_at/silent_since — run migration 20261016090000 for tamper alerts",
+      );
     }
   }
 
@@ -495,13 +587,19 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     };
     log(`🚨 ${bus.label ?? bus.plate ?? bus.id}: ${kind} ${detail}`);
     if (dryRun) return;
-    await call("fleet_events", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(row) })
-      .catch((e) => log(`⚠️  tamper alert not saved (run migration 20261016090000?): ${e.message}`));
+    await call("fleet_events", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(row),
+    }).catch((e) =>
+      log(`⚠️  tamper alert not saved (run migration 20261016090000?): ${e.message}`),
+    );
   }
 
   /** Any report from the tracker: it's alive. Ends a "silent" incident. */
   async function markAlive(bus, uid) {
     const s = state.get(uid);
+    s.lastReportAt = nowMs();
     if (!s.silentSince) return;
     const since = s.silentSince;
     s.silentSince = null;
@@ -510,16 +608,14 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     await fleetEvent(bus, "gps_back", `GPS tracker reporting again after ${mins} min of silence`);
   }
 
-  async function raiseTamper(bus, uid, detail) {
+  /** Tracker on its backup battery: dashboard warning only, no alert. */
+  async function powerCut(bus, uid, why) {
     const s = state.get(uid);
-    const now = nowMs();
-    if (now - s.lastTamperAt < TAMPER_REPEAT_MS) return;
-    s.lastTamperAt = now;
-    if (!s.powerCutAt) {
-      s.powerCutAt = now;
-      await patchTamper(uid, { power_cut_at: new Date(now).toISOString() });
-    }
-    await fleetEvent(bus, "gps_tamper", detail);
+    if (s.powerCutAt) return;
+    s.powerCutAt = nowMs();
+    s.powerOnReports = 0;
+    log(`🔋 ${bus.label ?? bus.id}: on backup battery (${why}) — dashboard warning, no alert`);
+    await patchTamper(uid, { power_cut_at: new Date(s.powerCutAt).toISOString() });
   }
 
   async function powerBack(bus, uid, why) {
@@ -527,47 +623,48 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (!s.powerCutAt) return;
     s.powerCutAt = 0;
     s.powerOnReports = 0;
-    s.lastTamperAt = 0;
+    s.powerOffReports = 0;
+    log(`🔌 ${bus.label ?? bus.id}: on the vehicle's power again (${why})`);
     await patchTamper(uid, { power_cut_at: null });
-    await fleetEvent(bus, "gps_back", why);
   }
 
   /**
    * The "on vehicle power" bit from a heartbeat or alarm packet, with the ACC
    * (ignition wire) flag of the same report.
    *
-   * The bit is only acted on once the tracker has proven it means "plugged
+   * The bit is only believed once the tracker has proven it means "plugged
    * in": POWER_OFF_CONFIRM "vehicle" reports in a row. "Battery" while the
-   * ignition wire reads ON proves the opposite: the harness is connected, so
-   * the bit is lying (it means "charging") and is ignored from then on.
+   * ignition wire reads ON proves the opposite (it means "charging" on some
+   * clones), so it is ignored from then on.
    */
   async function notePower(bus, uid, onPower, acc = null) {
     const s = state.get(uid);
     // Ignition wire live = the tracker's harness is plugged into the vehicle.
-    if (acc === true) await powerBack(bus, uid, "GPS tracker is connected to the vehicle again (ignition on)");
+    if (acc === true) await powerBack(bus, uid, "ignition wire live");
     if (!onPower && acc === true && s.powerBit !== "unreliable") {
       s.powerBit = "unreliable";
-      log(`ℹ️  ${bus.label ?? bus.id}: power bit says "battery" with ignition on, so it means "charging" on this tracker; ignoring it (alarms and the 30-min silence check still work)`);
+      log(
+        `ℹ️  ${bus.label ?? bus.id}: power bit says "battery" with ignition on, so it means "charging" on this tracker; ignoring it`,
+      );
     }
     if (onPower) {
       s.powerOffReports = 0;
       if (s.powerBit === "unknown" && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
         s.powerBit = "trusted";
         s.powerOnReports = 0;
-      } else if (s.powerBit === "trusted" && s.powerCutAt && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
-        await powerBack(bus, uid, "GPS tracker is on the vehicle's power again");
+      } else if (s.powerCutAt && ++s.powerOnReports >= POWER_OFF_CONFIRM) {
+        // Back on power after an alarm 0x02 or a trusted "battery" bit.
+        await powerBack(bus, uid, "power bit");
       }
       return;
     }
     s.powerOnReports = 0;
     if (s.powerBit !== "trusted") return;
-    if (++s.powerOffReports >= POWER_OFF_CONFIRM && !s.powerCutAt) {
-      await raiseTamper(bus, uid, "GPS tracker unplugged: lost the vehicle's power");
-    }
+    if (++s.powerOffReports >= POWER_OFF_CONFIRM) await powerCut(bus, uid, "power bit");
   }
 
-  const ALARM_TEXT = {
-    0x02: "GPS tracker unplugged: lost the vehicle's power",
+  // Alarms that mean the tracker itself is being tampered with → alert.
+  const TAMPER_TEXT = {
     0x13: "GPS tracker removed from where it was mounted",
     0x11: "GPS tracker is being switched off",
     0x10: "GPS tracker's SIM card was changed",
@@ -581,39 +678,80 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     await getState(uid);
     if (msg.valid) await withLock(uid, () => savePositionLocked(bus, uid, msg));
     return withLock(uid, async () => {
-      await markAlive(bus, uid);
-      const text = ALARM_TEXT[msg.alarm];
-      log(`🔔 alarm 0x${(msg.alarm ?? 0).toString(16)} from ${bus.label ?? imei}${text ? ` (${text})` : ""}`);
-      if (text) await raiseTamper(bus, uid, text);
-      else if (msg.charging != null) await notePower(bus, uid, msg.charging, msg.acc);
+      const s = state.get(uid);
+      // (A position in it already counted, possibly as a running signal.)
+      if (!msg.valid) await markAlive(bus, uid);
+      if (msg.voltageLevel != null && msg.voltageLevel <= 6) {
+        s.voltageLevel = msg.voltageLevel;
+        s.battery = BATTERY_PCT[msg.voltageLevel];
+      }
+      let text = TAMPER_TEXT[msg.alarm];
+      // A tracker on its backup battery switches itself off when it runs out.
+      if (msg.alarm === 0x11 && s.powerCutAt && (s.voltageLevel ?? 6) <= BATTERY_DYING_LEVEL)
+        text = null;
+      log(
+        `🔔 alarm 0x${(msg.alarm ?? 0).toString(16)} from ${bus.label ?? imei}${text ? ` (${text})` : ""}`,
+      );
+      if (msg.alarm === 0x02) {
+        await powerCut(bus, uid, "tracker alarm");
+        return;
+      }
+      if (text) {
+        const now = nowMs();
+        if (now - s.lastTamperAt < TAMPER_REPEAT_MS) return;
+        s.lastTamperAt = now;
+        await fleetEvent(bus, "gps_tamper", text);
+      } else if (msg.charging != null) await notePower(bus, uid, msg.charging, msg.acc);
     });
   }
 
-  const kigaliTime = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Kigali", hour: "2-digit", minute: "2-digit" });
+  const kigaliTime = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Kigali",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const startedAt = Date.now();
   async function checkSilent() {
     if (dryRun || !tamperColumns || Date.now() - startedAt < STARTUP_GRACE_MS) return;
     if (Date.now() - busCacheAt > BUS_CACHE_MS) await refreshBuses();
     const buses = [...busCache.values()].filter((b) => b.driver_user_id);
     if (!buses.length) return;
-    const rows = await call(`device_status?select=*&user_id=in.(${buses.map((b) => b.driver_user_id).join(",")})`);
+    const rows = await call(
+      `device_status?select=*&user_id=in.(${buses.map((b) => b.driver_user_id).join(",")})`,
+    );
     const now = nowMs();
     for (const row of rows) {
       const bus = buses.find((b) => b.driver_user_id === row.user_id);
       const age = now - Date.parse(row.last_seen);
-      if (!("silent_since" in row)) { tamperColumns = false; return; }
-      if (row.silent_since || age < SILENT_AFTER_MS || age > SILENT_IGNORE_AFTER_MS) continue;
+      if (!("silent_since" in row)) {
+        tamperColumns = false;
+        return;
+      }
+      const after = row.power_cut_at ? SILENT_ON_BATTERY_AFTER_MS : SILENT_AFTER_MS;
+      if (row.silent_since || age < after || age > SILENT_IGNORE_AFTER_MS) continue;
       await getState(row.user_id);
       await withLock(row.user_id, async () => {
         const s = state.get(row.user_id);
         if (s.silentSince) return;
         s.silentSince = row.last_seen;
         await patchTamper(row.user_id, { silent_since: row.last_seen });
-        await fleetEvent(bus, "gps_offline", kigaliTime.format(new Date(row.last_seen)));
+        const last = kigaliTime.format(new Date(row.last_seen));
+        // detail: "HH:MM" (plain silence), or a sentence notify.js shows as is.
+        await fleetEvent(
+          bus,
+          "gps_offline",
+          row.power_cut_at
+            ? `Lost the vehicle's power at ${kigaliTime.format(new Date(row.power_cut_at))} and stopped reporting at ${last}. It may have been removed, or its backup battery is empty.`
+            : last,
+        );
       });
     }
   }
-  if (!dryRun) setInterval(() => checkSilent().catch((e) => log(`⚠️  silent check: ${e.message}`)), 60_000).unref();
+  if (!dryRun)
+    setInterval(
+      () => checkSilent().catch((e) => log(`⚠️  silent check: ${e.message}`)),
+      60_000,
+    ).unref();
 
   return { savePosition, saveHeartbeat, saveAlarm };
 }

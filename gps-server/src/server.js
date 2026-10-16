@@ -76,7 +76,10 @@ const server = net.createServer((socket) => {
 
     for (const f of frames) {
       const msg = decodeFrame(f);
-      if (!msg) { log(`❌ bad CRC from ${remote}: ${f.toString("hex")}`); continue; }
+      if (!msg) {
+        log(`❌ bad CRC from ${remote}: ${f.toString("hex")}`);
+        continue;
+      }
       if (msg.reply && !socket.destroyed) socket.write(msg.reply);
 
       if (msg.type === "login") {
@@ -90,9 +93,15 @@ const server = net.createServer((socket) => {
         log(`✅ login IMEI ${imei} from ${remote}`);
         continue;
       }
-      if (!imei) { log(`⚠️  packet 0x${msg.proto.toString(16)} before login from ${remote}`); continue; }
+      if (!imei) {
+        log(`⚠️  packet 0x${msg.proto.toString(16)} before login from ${remote}`);
+        continue;
+      }
       const d = devices.get(imei);
-      if (d) { d.lastPacket = new Date(); d.packets++; }
+      if (d) {
+        d.lastPacket = new Date();
+        d.packets++;
+      }
 
       try {
         if (msg.type === "alarm") {
@@ -102,7 +111,9 @@ const server = net.createServer((socket) => {
           // Without a GPS lock too: it proves the tracker is alive and running.
           await store.savePosition(imei, msg);
         } else if (msg.type === "status") {
-          log(`💓 heartbeat ${imei} acc=${msg.acc ? "on" : "off"} power=${msg.charging ? "vehicle" : "battery"} level=${msg.voltageLevel}`);
+          log(
+            `💓 heartbeat ${imei} acc=${msg.acc ? "on" : "off"} power=${msg.charging ? "vehicle" : "battery"} level=${msg.voltageLevel}`,
+          );
           await store.saveHeartbeat(imei, msg.acc, msg.voltageLevel, msg.charging);
         } else {
           log(`ℹ️  ${imei} packet 0x${msg.proto.toString(16)}`);
@@ -113,7 +124,10 @@ const server = net.createServer((socket) => {
     }
   }
 
-  socket.on("timeout", () => { log(`⏱️  idle timeout ${imei ?? remote}`); socket.destroy(); });
+  socket.on("timeout", () => {
+    log(`⏱️  idle timeout ${imei ?? remote}`);
+    socket.destroy();
+  });
   socket.on("close", () => {
     if (imei && sockets.get(imei) === socket) sockets.delete(imei);
     log(`📴 disconnect ${imei ?? remote}`);
@@ -121,13 +135,35 @@ const server = net.createServer((socket) => {
   socket.on("error", (e) => log(`socket error ${imei ?? remote}: ${e.message}`));
 });
 
-server.listen(GPS_PORT, () => log(`🚌 GT06 listener on TCP ${GPS_PORT}${DRY_RUN ? " (DRY RUN — no DB writes)" : ""}`));
+server.listen(GPS_PORT, () =>
+  log(`🚌 GT06 listener on TCP ${GPS_PORT}${DRY_RUN ? " (DRY RUN — no DB writes)" : ""}`),
+);
 
 // Tiny health endpoint so you can check the server from a browser.
-http.createServer((req, res) => {
-  res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify({
-    ok: true,
-    devices: Object.fromEntries([...devices].map(([k, v]) => [k, { ...v, connected: sockets.has(k), connectedAt: v.connectedAt.toISOString(), lastPacket: v.lastPacket.toISOString() }])),
-  }, null, 2));
-}).listen(HTTP_PORT, "127.0.0.1", () => log(`🩺 health on http://127.0.0.1:${HTTP_PORT} (local only)`));
+http
+  .createServer((req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify(
+        {
+          ok: true,
+          devices: Object.fromEntries(
+            [...devices].map(([k, v]) => [
+              k,
+              {
+                ...v,
+                connected: sockets.has(k),
+                connectedAt: v.connectedAt.toISOString(),
+                lastPacket: v.lastPacket.toISOString(),
+              },
+            ]),
+          ),
+        },
+        null,
+        2,
+      ),
+    );
+  })
+  .listen(HTTP_PORT, "127.0.0.1", () =>
+    log(`🩺 health on http://127.0.0.1:${HTTP_PORT} (local only)`),
+  );

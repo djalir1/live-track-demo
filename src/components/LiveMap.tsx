@@ -194,7 +194,7 @@ function VehicleMarker({ u, selected }: { u: LiveUser; selected: boolean }) {
               {u.gps_tracker ? "Engine" : "Phone"}: <b>{u.is_tracking ? "on" : "off"}</b>
             </div>
             <div>
-              Battery: <b>{u.battery_level ?? "—"}%</b>
+              {u.gps_tracker ? "GPS battery" : "Battery"}: <b>{u.battery_level ?? "—"}%</b>
             </div>
           </div>
           {u.health && (

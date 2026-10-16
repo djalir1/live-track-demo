@@ -66,8 +66,8 @@ const KINDS: { key: keyof AlertPrefs; title: string; text: string; Icon: typeof 
   },
   {
     key: "gps_tamper",
-    title: "GPS tracker unplugged or removed",
-    text: "The tracker loses the vehicle's power, reports being taken off, or stops reporting for 30 minutes. Also tells you when it's back.",
+    title: "GPS tracker removed or offline",
+    text: "The tracker reports being taken off, switched off or its SIM changed, or stops reporting (30 min, or 15 min if it had lost the vehicle's power). Also tells you when it's back. A loose power wire alone only shows on the dashboard.",
     Icon: ShieldAlert,
   },
 ];
@@ -92,7 +92,10 @@ function eventTitle(e: FleetEvent) {
     case "gps_tamper":
       return `${v}: ${(e.detail ?? "GPS tracker unplugged").split(": ")[0]}`;
     case "gps_offline":
-      return `${v}: GPS tracker silent since ${e.detail ?? "?"}`;
+      // detail: last report time, or a sentence (tracker was on backup battery).
+      return /^\d\d:\d\d$/.test(e.detail ?? "")
+        ? `${v}: GPS tracker silent since ${e.detail}`
+        : `${v}: GPS tracker offline. ${e.detail ?? ""}`;
     case "gps_back":
       return `${v}: ${e.detail ?? "GPS tracker back"}`;
   }

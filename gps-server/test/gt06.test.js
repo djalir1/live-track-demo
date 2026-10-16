@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crc16x25, splitFrames, decodeFrame, encodeLogin, encodeLocation, encodeHeartbeat } from "../src/gt06.js";
+import {
+  crc16x25,
+  splitFrames,
+  decodeFrame,
+  encodeLogin,
+  encodeLocation,
+  encodeHeartbeat,
+} from "../src/gt06.js";
 
 const hex = (s) => Buffer.from(s.replace(/\s+/g, ""), "hex");
 
@@ -16,7 +23,15 @@ test("decodes the reference login packet from the Concox spec", () => {
 test("round-trips our own encoder (southern / eastern hemisphere, ACC)", () => {
   const login = decodeFrame(encodeLogin("865893082910557"));
   assert.equal(login.imei, "865893082910557");
-  const loc = decodeFrame(encodeLocation({ latitude: -1.90611, longitude: 30.13144, speedKmh: 42, heading: 90, acc: true }));
+  const loc = decodeFrame(
+    encodeLocation({
+      latitude: -1.90611,
+      longitude: 30.13144,
+      speedKmh: 42,
+      heading: 90,
+      acc: true,
+    }),
+  );
   assert.ok(Math.abs(loc.latitude + 1.90611) < 1e-5);
   assert.ok(Math.abs(loc.longitude - 30.13144) < 1e-5);
   assert.equal(loc.speedKmh, 42);
@@ -28,7 +43,8 @@ test("round-trips our own encoder (southern / eastern hemisphere, ACC)", () => {
 });
 
 test("splits concatenated and partial frames", () => {
-  const a = encodeLogin("865893082910557"), b = encodeLocation({ latitude: -1.9, longitude: 30.1 });
+  const a = encodeLogin("865893082910557"),
+    b = encodeLocation({ latitude: -1.9, longitude: 30.1 });
   const all = Buffer.concat([a, b]);
   const r1 = splitFrames(all.subarray(0, a.length + 5));
   assert.equal(r1.frames.length, 1);
@@ -46,12 +62,16 @@ test("rejects a corrupted CRC", () => {
 
 test("alarm packets: power cut, removal, and the vehicle-power bit", async () => {
   const { encodeAlarm, ALARM } = await import("../src/gt06.js");
-  const cut = decodeFrame(encodeAlarm({ latitude: -1.95, longitude: 30.06, alarm: ALARM.POWER_CUT }));
+  const cut = decodeFrame(
+    encodeAlarm({ latitude: -1.95, longitude: 30.06, alarm: ALARM.POWER_CUT }),
+  );
   assert.equal(cut.type, "alarm");
   assert.equal(cut.alarm, ALARM.POWER_CUT);
   assert.equal(cut.charging, false);
   assert.ok(Math.abs(cut.latitude + 1.95) < 1e-5);
-  const removed = decodeFrame(encodeAlarm({ latitude: -1.95, longitude: 30.06, alarm: ALARM.REMOVED, charging: true }));
+  const removed = decodeFrame(
+    encodeAlarm({ latitude: -1.95, longitude: 30.06, alarm: ALARM.REMOVED, charging: true }),
+  );
   assert.equal(removed.alarm, ALARM.REMOVED);
   assert.equal(removed.charging, true);
   // Real 0x16 from the Concox spec layout: alarm byte 0, power-cut bits in terminal info.

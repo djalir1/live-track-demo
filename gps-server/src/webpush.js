@@ -15,17 +15,30 @@ export function generateVapidKeys() {
 
 function vapidKeyObject(publicKey, privateKey) {
   const pub = unb64u(publicKey);
-  if (pub.length !== 65 || pub[0] !== 4) throw new Error("VAPID public key must be a 65-byte uncompressed P-256 point");
+  if (pub.length !== 65 || pub[0] !== 4)
+    throw new Error("VAPID public key must be a 65-byte uncompressed P-256 point");
   return crypto.createPrivateKey({
-    key: { kty: "EC", crv: "P-256", x: b64u(pub.subarray(1, 33)), y: b64u(pub.subarray(33)), d: privateKey },
+    key: {
+      kty: "EC",
+      crv: "P-256",
+      x: b64u(pub.subarray(1, 33)),
+      y: b64u(pub.subarray(33)),
+      d: privateKey,
+    },
     format: "jwk",
   });
 }
 
 /** Authorization header value for one push endpoint (RFC 8292). */
-export function vapidAuthorization(endpoint, { publicKey, privateKey, subject }, nowSec = Math.floor(Date.now() / 1000)) {
+export function vapidAuthorization(
+  endpoint,
+  { publicKey, privateKey, subject },
+  nowSec = Math.floor(Date.now() / 1000),
+) {
   const header = b64u(JSON.stringify({ typ: "JWT", alg: "ES256" }));
-  const claims = b64u(JSON.stringify({ aud: new URL(endpoint).origin, exp: nowSec + 12 * 3600, sub: subject }));
+  const claims = b64u(
+    JSON.stringify({ aud: new URL(endpoint).origin, exp: nowSec + 12 * 3600, sub: subject }),
+  );
   const sig = crypto.sign("sha256", Buffer.from(`${header}.${claims}`), {
     key: vapidKeyObject(publicKey, privateKey),
     dsaEncoding: "ieee-p1363",
@@ -49,11 +62,20 @@ export function encryptPayload(payload, { p256dh, auth }, { asKeys, salt } = {})
 
   const keyInfo = Buffer.concat([Buffer.from("WebPush: info\0"), uaPublic, asPublic]);
   const ikm = Buffer.from(crypto.hkdfSync("sha256", shared, authSecret, keyInfo, 32));
-  const cek = Buffer.from(crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: aes128gcm\0"), 16));
-  const nonce = Buffer.from(crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: nonce\0"), 12));
+  const cek = Buffer.from(
+    crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: aes128gcm\0"), 16),
+  );
+  const nonce = Buffer.from(
+    crypto.hkdfSync("sha256", ikm, salt, Buffer.from("Content-Encoding: nonce\0"), 12),
+  );
 
   const cipher = crypto.createCipheriv("aes-128-gcm", cek, nonce);
-  const body = Buffer.concat([cipher.update(Buffer.from(payload)), cipher.update(Buffer.from([2])), cipher.final(), cipher.getAuthTag()]);
+  const body = Buffer.concat([
+    cipher.update(Buffer.from(payload)),
+    cipher.update(Buffer.from([2])),
+    cipher.final(),
+    cipher.getAuthTag(),
+  ]);
 
   const rs = Buffer.alloc(4);
   rs.writeUInt32BE(4096);
@@ -69,11 +91,18 @@ function post(endpoint, headers, body, timeoutMs = 30_000) {
   return new Promise((resolve, reject) => {
     const req = https.request(
       endpoint,
-      { method: "POST", family: 4, timeout: timeoutMs, headers: { ...headers, "Content-Length": body.length } },
+      {
+        method: "POST",
+        family: 4,
+        timeout: timeoutMs,
+        headers: { ...headers, "Content-Length": body.length },
+      },
       (res) => {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
-        res.on("end", () => resolve({ status: res.statusCode, text: Buffer.concat(chunks).toString() }));
+        res.on("end", () =>
+          resolve({ status: res.statusCode, text: Buffer.concat(chunks).toString() }),
+        );
         res.on("error", reject);
       },
     );
@@ -88,7 +117,12 @@ function post(endpoint, headers, body, timeoutMs = 30_000) {
  * the subscription no longer exists (uninstalled, permission revoked) and
  * should be deleted.
  */
-export async function sendPush(subscription, payload, vapid, { ttl = 3600, urgency = "high" } = {}) {
+export async function sendPush(
+  subscription,
+  payload,
+  vapid,
+  { ttl = 3600, urgency = "high" } = {},
+) {
   const { status, text } = await post(
     subscription.endpoint,
     {

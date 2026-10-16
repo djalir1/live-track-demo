@@ -37,7 +37,6 @@ export const ALARM = {
   LOW_EXTERNAL: 0x0e,
 };
 
-
 export function crc16x25(buf) {
   let crc = 0xffff;
   for (const byte of buf) {
@@ -55,10 +54,14 @@ export function splitFrames(buf) {
   const frames = [];
   let i = 0;
   while (i + 5 <= buf.length) {
-    const h0 = buf[i], h1 = buf[i + 1];
+    const h0 = buf[i],
+      h1 = buf[i + 1];
     const short = h0 === 0x78 && h1 === 0x78;
     const long = h0 === 0x79 && h1 === 0x79;
-    if (!short && !long) { i++; continue; } // resync on garbage
+    if (!short && !long) {
+      i++;
+      continue;
+    } // resync on garbage
     const len = short ? buf[i + 2] : buf.readUInt16BE(i + 2);
     const headLen = short ? 3 : 4;
     const total = headLen + len + 2; // + 0D 0A
@@ -87,14 +90,16 @@ function decodeImei(content) {
 }
 
 function decodeGps(c, off) {
-  const t = new Date(Date.UTC(2000 + c[off], c[off + 1] - 1, c[off + 2], c[off + 3], c[off + 4], c[off + 5]));
+  const t = new Date(
+    Date.UTC(2000 + c[off], c[off + 1] - 1, c[off + 2], c[off + 3], c[off + 4], c[off + 5]),
+  );
   const satellites = c[off + 6] & 0x0f;
   let lat = c.readUInt32BE(off + 7) / 1800000;
   let lon = c.readUInt32BE(off + 11) / 1800000;
   const speed = c[off + 15]; // km/h
   const flags = c.readUInt16BE(off + 16);
   if (!(flags & 0x0400)) lat = -lat; // bit10: 1 = north
-  if (flags & 0x0800) lon = -lon;    // bit11: 1 = west
+  if (flags & 0x0800) lon = -lon; // bit11: 1 = west
   return {
     deviceTime: t,
     satellites,
@@ -178,10 +183,18 @@ export function decodeFrame(frame) {
     out.reply = buildReply(proto, serial);
   } else if (proto === PROTO.TIME_REQUEST) {
     const now = new Date();
-    out.reply = buildReply(proto, serial, Buffer.from([
-      now.getUTCFullYear() - 2000, now.getUTCMonth() + 1, now.getUTCDate(),
-      now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds(),
-    ]));
+    out.reply = buildReply(
+      proto,
+      serial,
+      Buffer.from([
+        now.getUTCFullYear() - 2000,
+        now.getUTCMonth() + 1,
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds(),
+      ]),
+    );
   }
   return out;
 }
@@ -203,10 +216,17 @@ export function encodeLogin(imei, serial = 1) {
   return frame(PROTO.LOGIN, Buffer.from(imei.padStart(16, "0"), "hex"), serial);
 }
 
-export function encodeLocation({ latitude, longitude, speedKmh = 0, heading = 0, acc = true, time = new Date() }, serial = 2) {
+export function encodeLocation(
+  { latitude, longitude, speedKmh = 0, heading = 0, acc = true, time = new Date() },
+  serial = 2,
+) {
   const c = Buffer.alloc(18 + 9 + 3);
-  c[0] = time.getUTCFullYear() - 2000; c[1] = time.getUTCMonth() + 1; c[2] = time.getUTCDate();
-  c[3] = time.getUTCHours(); c[4] = time.getUTCMinutes(); c[5] = time.getUTCSeconds();
+  c[0] = time.getUTCFullYear() - 2000;
+  c[1] = time.getUTCMonth() + 1;
+  c[2] = time.getUTCDate();
+  c[3] = time.getUTCHours();
+  c[4] = time.getUTCMinutes();
+  c[5] = time.getUTCSeconds();
   c[6] = 0xc9; // 12-byte GPS info, 9 satellites
   c.writeUInt32BE(Math.round(Math.abs(latitude) * 1800000), 7);
   c.writeUInt32BE(Math.round(Math.abs(longitude) * 1800000), 11);
@@ -216,11 +236,13 @@ export function encodeLocation({ latitude, longitude, speedKmh = 0, heading = 0,
   if (longitude < 0) flags |= 0x0800;
   c.writeUInt16BE(flags, 16);
   c.writeUInt16BE(635, 18); // MCC Rwanda
-  c[20] = 10;               // MNC MTN
-  c.writeUInt16BE(1, 21);   // LAC
-  c.writeUIntBE(1, 23, 3);  // Cell ID
-  c[26] = acc ? 1 : 0;      // ACC
-  c[27] = 0; c[28] = 0; c[29] = 0; // upload mode, realtime, padding
+  c[20] = 10; // MNC MTN
+  c.writeUInt16BE(1, 21); // LAC
+  c.writeUIntBE(1, 23, 3); // Cell ID
+  c[26] = acc ? 1 : 0; // ACC
+  c[27] = 0;
+  c[28] = 0;
+  c[29] = 0; // upload mode, realtime, padding
   return frame(PROTO.GPS_LBS_2, c, serial);
 }
 
@@ -230,9 +252,16 @@ export function encodeHeartbeat({ acc = true, charging = true } = {}, serial = 3
 }
 
 /** Alarm packet (0x16): GPS block, LBS, then terminal info / voltage / GSM / alarm / language. */
-export function encodeAlarm({ latitude, longitude, alarm, charging = false, time = new Date() }, serial = 4) {
+export function encodeAlarm(
+  { latitude, longitude, alarm, charging = false, voltage = 4, time = new Date() },
+  serial = 4,
+) {
   const gps = encodeLocation({ latitude, longitude, time }).subarray(4, 4 + 18);
   const lbs = Buffer.from([0x09, 0x02, 0x7b, 0x0a, 0x00, 0x01, 0x00, 0x00, 0x01]);
   const info = 0x40 | (charging ? 0x04 : 0) | (alarm === ALARM.POWER_CUT ? 0b010 << 3 : 0);
-  return frame(PROTO.ALARM, Buffer.concat([gps, lbs, Buffer.from([info, 0x04, 0x03, alarm, 0x02])]), serial);
+  return frame(
+    PROTO.ALARM,
+    Buffer.concat([gps, lbs, Buffer.from([info, voltage, 0x03, alarm, 0x02])]),
+    serial,
+  );
 }

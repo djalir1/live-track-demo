@@ -51,18 +51,20 @@ export function deviceHealth(o: {
   /** Tracker silent for 30+ min: last report time (gps-server). */
   silentSince?: string | null;
 }): DeviceHealth | null {
-  if (o.gpsTracker && o.powerCutAt)
-    return {
-      tone: "error",
-      short: "Unplugged",
-      detail: `The GPS tracker lost the vehicle's power or was removed at ${clock(o.powerCutAt)} and is on its small backup battery. Check the vehicle: someone may have unplugged it.${o.fresh ? "" : " Showing the last known position."}`,
-    };
   if (o.gpsTracker && o.silentSince && !o.fresh)
     return {
       tone: "error",
       short: "Silent",
-      detail: `No report since ${clock(o.silentSince)}. The tracker may have been unplugged or removed, or its SIM has no credit. Check the vehicle. Showing the last known position.`,
+      detail: o.powerCutAt
+        ? `Lost the vehicle's power at ${clock(o.powerCutAt)} and no report since ${clock(o.silentSince)}. The tracker may have been removed, or its backup battery is empty. Check the vehicle. Showing the last known position.`
+        : `No report since ${clock(o.silentSince)}. The tracker may have been unplugged or removed, or its SIM has no credit. Check the vehicle. Showing the last known position.`,
     };
+  // Still reporting, just not powered by the vehicle (loose wire, fuse,
+  // unplugged): tracking works until the backup battery runs out. Not an alarm.
+  const onBattery =
+    o.gpsTracker && o.powerCutAt
+      ? ` The tracker has been on its backup battery since ${clock(o.powerCutAt)}: have its power wire checked.`
+      : "";
   if (!o.fresh) {
     // A phone whose driver simply isn't tracking is not a problem.
     if (!o.gpsTracker && !o.engineOn) return null;
@@ -75,11 +77,19 @@ export function deviceHealth(o: {
     return {
       tone: "error",
       short: "No signal",
-      detail: o.engineOn
-        ? `No report for ${mins(o.ageMs)} while the engine was on: the tracker is probably out of mobile coverage and will catch up when it reconnects. Showing the last known position.`
-        : `Parked and silent for ${mins(o.ageMs)} (it normally checks in every 5 min): check the tracker's power and SIM credit. Showing the last known position.`,
+      detail: `${
+        o.engineOn
+          ? `No report for ${mins(o.ageMs)} while the engine was on: the tracker is probably out of mobile coverage and will catch up when it reconnects. Showing the last known position.`
+          : `Parked and silent for ${mins(o.ageMs)} (it normally checks in every 5 min): check the tracker's power and SIM credit. Showing the last known position.`
+      }${onBattery}`,
     };
   }
+  if (onBattery)
+    return {
+      tone: "warn",
+      short: "On battery",
+      detail: `Tracking normally, but not powered by the vehicle (a loose wire, a blown fuse, or unplugged).${onBattery}`,
+    };
   if (o.gpsTracker && o.gpsFix === false)
     return {
       tone: "warn",

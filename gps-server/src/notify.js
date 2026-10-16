@@ -1,6 +1,6 @@
 // Trip alerts: turns new fleet_events rows (written by a DB trigger when a
-// vehicle's engine goes on / off, or by store.js when a tracker is unplugged
-// or goes silent) into phone notifications for the owners —
+// vehicle's engine goes on / off, or by store.js when a tracker is removed,
+// switched off or goes silent) into phone notifications for the owners —
 // every admin, plus school_admins of the bus's school — on each device they
 // allowed notifications on, respecting their on/off settings.
 //
@@ -12,22 +12,33 @@ const MISSING_TABLE_RETRY_MS = 5 * 60_000;
 // After downtime, don't wake owners up with alerts about old trips.
 const STALE_MS = 20 * 60_000;
 
-const kigali = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Kigali", hour: "2-digit", minute: "2-digit" });
+const kigali = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Kigali",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 const hhmm = (iso) => kigali.format(new Date(iso));
 const kigaliHour = (iso) => Number(hhmm(iso).slice(0, 2));
 
 function fmtDuration(ms) {
   const min = Math.max(1, Math.round(ms / 60_000));
-  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
+  return min < 60
+    ? `${min} min`
+    : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
 }
 
 /** Title / body / link for one event, as the phone shows it. */
 export function messageFor(e) {
   const name = e.vehicle_label?.trim() || e.plate?.trim() || "Vehicle";
-  const vehicle = e.plate && e.vehicle_label && e.plate !== e.vehicle_label ? `${name} (${e.plate})` : name;
+  const vehicle =
+    e.plate && e.vehicle_label && e.plate !== e.vehicle_label ? `${name} (${e.plate})` : name;
   const driver = e.driver_name?.trim() ? `Driver: ${e.driver_name.trim()}` : "No driver set";
   if (e.kind === "test") {
-    return { title: "Live Track alerts are on", body: "This phone will get a notification when a vehicle starts a trip or parks.", url: "/admin/alerts" };
+    return {
+      title: "Live Track alerts are on",
+      body: "This phone will get a notification when a vehicle starts a trip or parks.",
+      url: "/admin/alerts",
+    };
   }
   // Tracker tampering: someone unplugged or removed the GPS, or it went silent.
   const at = hhmm(e.occurred_at);
@@ -41,6 +52,14 @@ export function messageFor(e) {
     };
   }
   if (e.kind === "gps_offline") {
+    // detail is the last report time, or a sentence when it was already on its
+    // backup battery (store.js checkSilent).
+    if (e.detail && !/^\d\d:\d\d$/.test(e.detail))
+      return {
+        title: `📵 ${vehicle}: GPS tracker offline`,
+        body: `${e.detail} Check the vehicle. ${driver}`,
+        url: "/dashboard",
+      };
     return {
       title: `📵 ${vehicle}: GPS tracker silent`,
       body: `No signal since ${e.detail || at}. It may have been unplugged or removed, or the SIM has no credit. ${driver}`,
@@ -57,7 +76,9 @@ export function messageFor(e) {
   // A bus on a route is doing the morning pickup or the afternoon drop-off,
   // told apart by when the trip started (Kigali time).
   const run = e.route_name?.trim()
-    ? kigaliHour(e.trip_started_at ?? e.occurred_at) < 12 ? "morning pickup" : "afternoon drop-off"
+    ? kigaliHour(e.trip_started_at ?? e.occurred_at) < 12
+      ? "morning pickup"
+      : "afternoon drop-off"
     : null;
   const route = run ? `Route: ${e.route_name.trim()} · ` : "";
   if (e.kind === "trip_started") {
@@ -69,7 +90,8 @@ export function messageFor(e) {
   }
   const parts = [`${route}${driver} · parked, engine off at ${hhmm(e.occurred_at)}`];
   const facts = [];
-  if (e.trip_started_at) facts.push(`trip ${fmtDuration(new Date(e.occurred_at) - new Date(e.trip_started_at))}`);
+  if (e.trip_started_at)
+    facts.push(`trip ${fmtDuration(new Date(e.occurred_at) - new Date(e.trip_started_at))}`);
   if (e.distance_m > 0) facts.push(`${(e.distance_m / 1000).toFixed(1)} km`);
   if (facts.length) parts.push(facts.join(", "));
   return {
@@ -84,9 +106,16 @@ export const prefKey = (kind) => (kind.startsWith("gps_") ? "gps_tamper" : kind)
 
 export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
   const rest = `${url}/rest/v1`;
-  const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
+  const headers = {
+    apikey: serviceKey,
+    Authorization: `Bearer ${serviceKey}`,
+    "Content-Type": "application/json",
+  };
   async function call(path, init = {}) {
-    const res = await fetch(`${rest}/${path}`, { ...init, headers: { ...headers, ...init.headers } });
+    const res = await fetch(`${rest}/${path}`, {
+      ...init,
+      headers: { ...headers, ...init.headers },
+    });
     if (!res.ok) {
       const err = new Error(`${init.method ?? "GET"} ${path} → ${res.status} ${await res.text()}`);
       err.status = res.status;
@@ -104,7 +133,9 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
     const schoolAdmins = roles.filter((r) => r.role === "school_admin").map((r) => r.user_id);
     let mine = [];
     if (e.school_id && schoolAdmins.length) {
-      const profiles = await call(`profiles?select=id&school_id=eq.${e.school_id}&id=in.(${schoolAdmins.join(",")})`);
+      const profiles = await call(
+        `profiles?select=id&school_id=eq.${e.school_id}&id=in.(${schoolAdmins.join(",")})`,
+      );
       mine = profiles.map((p) => p.id);
     }
     return [...new Set([...admins, ...mine])];
@@ -115,7 +146,10 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
   async function noteError(s, text) {
     await call(`push_subscriptions?id=eq.${s.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ last_error: text.slice(0, 300), last_error_at: new Date().toISOString() }),
+      body: JSON.stringify({
+        last_error: text.slice(0, 300),
+        last_error_at: new Date().toISOString(),
+      }),
     }).catch(() => {});
   }
 
@@ -128,7 +162,9 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
       call(`notification_prefs?select=*&user_id=in.(${list})`),
     ]);
     const prefOf = new Map(prefs.map((p) => [p.user_id, p]));
-    const wanted = subs.filter((s) => e.kind === "test" || prefOf.get(s.user_id)?.[prefKey(e.kind)] !== false);
+    const wanted = subs.filter(
+      (s) => e.kind === "test" || prefOf.get(s.user_id)?.[prefKey(e.kind)] !== false,
+    );
     const msg = messageFor(e);
     const payload = { ...msg, tag: `${e.kind}-${e.driver_user_id ?? e.id}`, eventId: e.id };
     let sent = 0;
@@ -138,8 +174,15 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
           const r = await sendPush(s, payload, vapid);
           if (r.ok) {
             sent++;
-            await call(`push_subscriptions?id=eq.${s.id}`, { method: "PATCH", body: JSON.stringify({ last_ok_at: new Date().toISOString(), last_error: null }) })
-              .catch(() => call(`push_subscriptions?id=eq.${s.id}`, { method: "PATCH", body: JSON.stringify({ last_ok_at: new Date().toISOString() }) }));
+            await call(`push_subscriptions?id=eq.${s.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ last_ok_at: new Date().toISOString(), last_error: null }),
+            }).catch(() =>
+              call(`push_subscriptions?id=eq.${s.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ last_ok_at: new Date().toISOString() }),
+              }),
+            );
           } else if (r.gone) {
             await call(`push_subscriptions?id=eq.${s.id}`, { method: "DELETE" });
             log(`🔕 removed expired push subscription ${s.id}`);
@@ -149,8 +192,12 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
           }
         } catch (err) {
           // fetch hides the network reason (DNS, IPv6, TLS) in err.cause.
-          const why = err.cause ? ` (${err.cause.code ?? ""} ${err.cause.message ?? err.cause})` : "";
-          log(`⚠️  push failed for subscription ${s.id} → ${new URL(s.endpoint).host}: ${err.message}${why}`);
+          const why = err.cause
+            ? ` (${err.cause.code ?? ""} ${err.cause.message ?? err.cause})`
+            : "";
+          log(
+            `⚠️  push failed for subscription ${s.id} → ${new URL(s.endpoint).host}: ${err.message}${why}`,
+          );
           await noteError(s, `${err.message}${why}`);
         }
       }),
@@ -173,12 +220,17 @@ export function createNotifier({ url, serviceKey, vapid, log = console.log }) {
           const r = await deliver(e);
           note = r ? `→ ${r.sent}/${r.devices} device(s): ${r.msg.title}` : "→ no owners";
         }
-        await call(`fleet_events?id=eq.${e.id}`, { method: "PATCH", body: JSON.stringify({ pushed_at: new Date().toISOString() }) });
+        await call(`fleet_events?id=eq.${e.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ pushed_at: new Date().toISOString() }),
+        });
         log(`🔔 ${e.kind} #${e.id} ${note}`);
       }
     } catch (err) {
       if (err.status === 404 || /PGRST205|fleet_events/.test(err.message)) {
-        log("⚠️  trip alerts off: run supabase/migrations/20261015120000_trip_notifications.sql — retrying in 5 min");
+        log(
+          "⚠️  trip alerts off: run supabase/migrations/20261015120000_trip_notifications.sql — retrying in 5 min",
+        );
         wait = MISSING_TABLE_RETRY_MS;
       } else {
         log(`⚠️  trip alerts: ${err.message}`);
