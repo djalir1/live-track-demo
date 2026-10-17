@@ -336,3 +336,24 @@ test("engine off on the Test Car's wiring: parked within 2 min, not after the bo
     assert.equal(db.status.power_cut_at, null, "power back clears the warning");
   });
 });
+
+// 17 Oct 11:45–11:57: properly powered drive, ACC on all the way, key off at
+// 11:53:31, but the tracker kept reporting every 10 s. "Parked" never came.
+test("working ACC wire: key off → parked in ~1.5 min despite 10-s reports", async () => {
+  await run(async ({ at, fix, hb, db }) => {
+    await at(0, () => hb(true, 6, true));
+    let lon = 30.131;
+    for (let s = 10; s <= 300; s += 10) {
+      if (s % 60 === 0) await at(s - 1, () => hb(true, 6, true));
+      lon += 0.0002;
+      await at(s, () => fix(s, -1.906, lon, 15));
+    }
+    for (let s = 310; s <= 470; s += 10) await at(s, () => fix(s, -1.906, lon, 0)); // stopped, engine on
+    await at(475, () => hb(false, 6, true)); // key off
+    for (let s = 480; s <= 600; s += 10) await at(s, () => fix(s, -1.906, lon, 0));
+    assert.equal(db.status.is_tracking, false, "parked within ~2 min of key off");
+    const end = db.trips().find((c) => c.method === "PATCH");
+    const endedAt = (Date.parse(end.body.ended_at) - T0) / 1000;
+    assert.ok(endedAt <= 480, `ends at key off (got ${endedAt} s)`);
+  });
+});

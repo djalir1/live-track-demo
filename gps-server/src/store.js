@@ -270,6 +270,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         strongAt: row?.is_tracking ? nowMs() : 0,
         loginAt: 0,
         onPower: null, // last power bit: true = on the vehicle's power
+        accWorks: false, // ACC wire seen ON while on car power: its "off" is real
         last: null,
         totalM: row?.total_distance_m ?? 0,
         tripOpen: null,
@@ -437,13 +438,17 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
 
     // Running signals.
     if (fix.acc === true) await engineEvidence(uid, "ignition flag");
-    // Harness connected (car power) and ACC off right after a (re)connect:
-    // the 10-s rhythm is the tracker's boot burst, not a running engine.
-    const bootBurst = now - s.loginAt < BOOT_BURST_MS && s.acc === false && s.onPower === true;
+    // ACC "off" with the harness connected (car power) is believed when this
+    // tracker's ACC wire has been seen working (ON on car power), or right
+    // after a (re)connect (boot burst). Then the 10-s rhythm is just the
+    // tracker winding down, not a running engine: on 17 Oct it kept
+    // reporting every 10 s after the key was off and "parked" never came.
+    const accOff =
+      s.acc === false && s.onPower === true && (s.accWorks || now - s.loginAt < BOOT_BURST_MS);
     if (
       fastRhythm(s, fix.valid ? fix.deviceTime.getTime() : now) &&
       s.engine &&
-      !bootBurst &&
+      !accOff &&
       now - s.strongAt < RHYTHM_HOLD_MS
     )
       await engineEvidence(uid, "reporting every 10 s");
@@ -671,6 +676,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   async function notePower(bus, uid, onPower, acc = null) {
     const s = state.get(uid);
     s.onPower = onPower;
+    if (acc === true && onPower) s.accWorks = true;
     // Ignition wire live = the tracker's harness is plugged into the vehicle.
     if (acc === true) await powerBack(bus, uid, "ignition wire live");
     if (!onPower && acc === true && s.powerBit !== "unreliable") {
