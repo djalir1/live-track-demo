@@ -15,6 +15,9 @@ import {
   Smartphone,
   History,
   UserPlus,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,16 +26,14 @@ import { AdminShell } from "@/components/AdminShell";
 import { AssignmentHistory } from "@/components/AssignmentHistory";
 import { IconBtn } from "@/components/IconButton";
 import { friendlyError } from "@/lib/friendly-errors";
-import { fmtDate } from "@/lib/time";
-import { TRACKER_SETUP_SMS } from "@/lib/gps";
+import { ago, fmtDate, fmtTime, serverNow, syncServerClock } from "@/lib/time";
+import { TRACKER_SETUP_SMS, isValidImei } from "@/lib/gps";
 import { assignDriver, busName, db, loadFleet, type Bus, type Fleet } from "@/lib/fleet";
 
 export const Route = createFileRoute("/admin/buses")({
   head: () => ({ meta: [{ title: "Vehicles — Live Track" }] }),
   component: BusesPage,
 });
-
-const IMEI_RE = /^[0-9]{15}$/;
 
 interface VehicleForm {
   label: string;
@@ -61,8 +62,82 @@ const EMPTY_FLEET: Fleet = {
 
 function validate(f: VehicleForm): string | null {
   if (!f.label.trim() && !f.plate.trim()) return "Give the vehicle a name or plate";
-  if (f.imei.trim() && !IMEI_RE.test(f.imei.trim())) return "Tracker IMEI must be 15 digits";
+  const imei = f.imei.trim();
+  if (imei && imei.length !== 15) return "The tracker IMEI is 15 digits (on its label)";
+  if (imei && !isValidImei(imei))
+    return "That IMEI isn't valid: check the 15 digits on the tracker label again";
   return null;
+}
+
+/** Save errors in words an admin can act on. */
+function saveError(e: unknown): string {
+  const raw = `${(e as { message?: string })?.message ?? e}`;
+  if (/buses_gps_imei_key/.test(raw))
+    return "This GPS tracker (IMEI) is already on another vehicle. Remove it there first.";
+  if (/buses_gps_imei_format/.test(raw)) return "The tracker IMEI is 15 digits (on its label)";
+  return friendlyError(e);
+}
+
+/** Live state of a vehicle's tracker, from device_status. */
+interface TrackerStatus {
+  user_id: string;
+  last_seen: string;
+  is_tracking: boolean;
+  power_cut_at?: string | null;
+  silent_since?: string | null;
+}
+
+function TrackerState({ bus, st }: { bus: Bus; st: TrackerStatus | undefined }) {
+  if (!bus.gps_imei)
+    return (
+      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+        <Satellite className="h-3.5 w-3.5 shrink-0" />
+        <span className="italic">No GPS tracker</span>
+      </span>
+    );
+  const imei = <span className="font-mono text-muted-foreground">{bus.gps_imei}</span>;
+  // No report yet: gps-server links the tracker on its first message.
+  if (!st)
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 px-2 py-0.5 font-medium">
+          <Clock className="h-3 w-3" /> Waiting for the tracker
+        </span>
+        {imei}
+        <span className="text-muted-foreground w-full">
+          Not heard from it yet: send it the setup SMS (left), then turn the ignition on.
+        </span>
+      </span>
+    );
+  const age = serverNow() - new Date(st.last_seen).getTime();
+  const fresh = age < (st.is_tracking ? 120_000 : 7 * 60_000);
+  let chip: { tone: "ok" | "warn" | "err"; text: string };
+  if (!fresh) chip = { tone: "err", text: `No signal since ${fmtTime(st.last_seen)}` };
+  else if (st.power_cut_at && !st.is_tracking)
+    chip = { tone: "err", text: `Unplugged since ${fmtTime(st.power_cut_at)}` };
+  else if (st.power_cut_at) chip = { tone: "warn", text: "Connected · on its backup battery" };
+  else chip = { tone: "ok", text: st.is_tracking ? "Connected · engine on" : "Connected · parked" };
+  const cls = {
+    ok: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+    warn: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    err: "bg-red-500/15 text-red-600 dark:text-red-400",
+  }[chip.tone];
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${cls}`}
+      >
+        {chip.tone === "ok" ? (
+          <CheckCircle2 className="h-3 w-3" />
+        ) : (
+          <AlertTriangle className="h-3 w-3" />
+        )}
+        {chip.text}
+      </span>
+      {imei}
+      <span className="text-muted-foreground">· last report {ago(st.last_seen)}</span>
+    </span>
+  );
 }
 
 const columns = (f: VehicleForm) => ({
@@ -81,10 +156,46 @@ function BusesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<VehicleForm>(EMPTY_FORM);
   const [historyId, setHistoryId] = useState<string | null>(null);
+  const [trackers, setTrackers] = useState<Map<string, TrackerStatus>>(new Map());
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     void refresh();
+    void syncServerClock();
   }, []);
+
+  // Tracker connection state, refreshed every 10 s so "Waiting for the
+  // tracker" turns into "Connected" on its own once the SMS are sent.
+  const trackerUserIds = fleet.buses
+    .filter((b) => b.gps_imei && b.driver_user_id)
+    .map((b) => b.driver_user_id!)
+    .join(",");
+  const waitingForLink = fleet.buses.some((b) => b.gps_imei && !b.driver_user_id);
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      // A new tracker's first message links it to its vehicle: reload to see it.
+      if (waitingForLink) {
+        const next = await loadFleet().catch(() => null);
+        if (!cancelled && next) setFleet(next);
+      }
+      if (trackerUserIds) {
+        const { data } = await db
+          .from("device_status")
+          .select("*")
+          .in("user_id", trackerUserIds.split(","));
+        if (!cancelled && data)
+          setTrackers(new Map((data as TrackerStatus[]).map((r) => [r.user_id, r])));
+      } else if (!cancelled) setTrackers(new Map());
+      if (!cancelled) setTick((n) => n + 1);
+    }
+    void poll();
+    const t = window.setInterval(poll, 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [trackerUserIds, waitingForLink]);
 
   async function refresh() {
     setBusy(true);
@@ -124,12 +235,14 @@ function BusesPage() {
       // Also run with no driver: a tracker bus then shows "No driver".
       await assignDriver(data.id, form.driverId || null);
       toast.success(
-        form.imei.trim() ? "Vehicle added — now send the tracker its 3 SMS" : "Vehicle added",
+        form.imei.trim()
+          ? "Vehicle added. Now send the tracker the setup SMS: it shows Connected once it reports."
+          : "Vehicle added",
       );
       setForm(EMPTY_FORM);
       await refresh();
     } catch (e) {
-      toast.error(friendlyError(e));
+      toast.error(saveError(e));
     } finally {
       setSaving(false);
     }
@@ -160,11 +273,15 @@ function BusesPage() {
       if (editForm.driverId !== (currentAssignment(b.id)?.driver_id ?? ""))
         await assignDriver(b.id, editForm.driverId || null);
       const newTracker = editForm.imei.trim() && editForm.imei.trim() !== (b.gps_imei ?? "");
-      toast.success(newTracker ? "Saved — send the new tracker its 3 SMS" : "Vehicle saved");
+      toast.success(
+        newTracker
+          ? "Saved. Send the new tracker the setup SMS: it shows Connected once it reports."
+          : "Vehicle saved",
+      );
       setEditingId(null);
       await refresh();
     } catch (e) {
-      toast.error(friendlyError(e));
+      toast.error(saveError(e));
     } finally {
       setSaving(false);
     }
@@ -173,7 +290,7 @@ function BusesPage() {
   async function deleteBus(b: Bus) {
     if (
       !window.confirm(
-        `Delete ${busName(b)}? Its GPS trip history stays, but its driver history is removed.`,
+        `Delete ${busName(b)}? It disappears from the live map and its driver history is removed. Past trips stay in History.`,
       )
     )
       return;
@@ -187,6 +304,21 @@ function BusesPage() {
     <AdminShell>
       <div className="grid lg:grid-cols-[380px_1fr] gap-4">
         <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3 h-fit">
+          <ol className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1 text-[11px] text-muted-foreground list-decimal list-inside">
+            <li>
+              <Link to="/admin/drivers" className="text-primary font-medium hover:underline">
+                Add the driver
+              </Link>{" "}
+              first (Drivers tab).
+            </li>
+            <li>Add the vehicle below: name, plate, its driver and the tracker's IMEI.</li>
+            <li>Send the tracker's SIM number the SMS below, one at a time.</li>
+            <li>
+              Turn the ignition on. The vehicle shows <b>Connected</b> in the list within 1–2 min
+              and appears on the dashboard.
+            </li>
+            <li>Optional: put it on a route (Routes tab).</li>
+          </ol>
           <div className="text-sm font-semibold">Add a vehicle</div>
           <VehicleFields idPrefix="new" form={form} setForm={setForm} fleet={fleet} />
           <Button
@@ -203,8 +335,8 @@ function BusesPage() {
           </Button>
           <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
             <div className="text-xs font-semibold flex items-center gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5 text-primary shrink-0" /> New GPS tracker? Send
-              these 3 SMS to its SIM number
+              <MessageSquare className="h-3.5 w-3.5 text-primary shrink-0" /> GPS tracker setup:
+              send these SMS to its SIM number
             </div>
             <ol className="space-y-1.5">
               {TRACKER_SETUP_SMS.map((c, i) => (
@@ -226,7 +358,10 @@ function BusesPage() {
               ))}
             </ol>
             <p className="text-[11px] text-muted-foreground">
-              Then turn the ignition on. The vehicle appears on the dashboard within 1–2 minutes.
+              Tap an SMS to copy it. The tracker answers each one by SMS. Then turn the ignition on:
+              the vehicle switches from <b>Waiting for the tracker</b> to <b>Connected</b> by
+              itself. Still waiting after 5 min? Send <span className="font-mono">SERVER#</span>:
+              the reply must show <span className="font-mono">102.202.208.186,5023</span>.
             </p>
           </div>
         </aside>
@@ -320,13 +455,11 @@ function BusesPage() {
                           <span className="text-muted-foreground italic">No driver assigned</span>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <Satellite className="h-3.5 w-3.5 shrink-0" />
-                        {b.gps_imei ? (
-                          <span className="font-mono truncate">{b.gps_imei}</span>
-                        ) : (
-                          <span className="italic">No GPS tracker</span>
-                        )}
+                      <div className="text-xs">
+                        <TrackerState
+                          bus={b}
+                          st={b.driver_user_id ? trackers.get(b.driver_user_id) : undefined}
+                        />
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
                         Route: {routeName(b.route_id)} · Capacity: {b.capacity ?? "—"}

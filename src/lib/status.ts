@@ -90,11 +90,20 @@ export function deviceHealth(o: {
       }${onBattery}`,
     };
   }
+  // Parked and without the vehicle's power: unplugged or removed (gps-server
+  // alerts owners for the same thing). While the engine runs it is a wiring
+  // fault instead: the tracker loses power at engine start.
+  if (onBattery && !o.engineOn)
+    return {
+      tone: "error",
+      short: "Unplugged",
+      detail: `The GPS tracker has had no power from the vehicle since ${clock(o.powerCutAt!)} while parked: it was unplugged or removed. It still reports from its own backup battery until that runs out. Check the vehicle.`,
+    };
   if (onBattery)
     return {
       tone: "warn",
       short: "On battery",
-      detail: `Tracking normally, but not powered by the vehicle (a loose wire, a blown fuse, or unplugged).${onBattery}`,
+      detail: `Tracking normally, but the tracker lost the vehicle's power while driving (a loose wire or blown fuse).${onBattery}`,
     };
   if (o.gpsTracker && o.gpsFix === false)
     return {
