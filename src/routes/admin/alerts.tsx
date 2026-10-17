@@ -66,8 +66,8 @@ const KINDS: { key: keyof AlertPrefs; title: string; text: string; Icon: typeof 
   },
   {
     key: "gps_tamper",
-    title: "GPS tracker removed or offline",
-    text: "The tracker reports being taken off, switched off or its SIM changed, or stops reporting (30 min, or 15 min if it had lost the vehicle's power). Also tells you when it's back. A loose power wire alone only shows on the dashboard.",
+    title: "GPS tracker unplugged, removed or offline",
+    text: "The tracker loses the vehicle's power while parked (3 min), reports being taken off, switched off or its SIM changed, or stops reporting (30 min, or 15 min without the vehicle's power). Also tells you when it's back. Power lost while the engine runs (a wiring fault) only shows on the dashboard.",
     Icon: ShieldAlert,
   },
 ];

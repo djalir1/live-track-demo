@@ -1,6 +1,7 @@
-// Tamper watch: owners are alerted when the tracker is removed, switched off or
-// goes silent, never just because it lost the vehicle's power (16 Oct: a loose
-// wire at engine start sent a false "unplugged" while the car drove on).
+// Tamper watch: owners are alerted when the tracker is removed, switched off,
+// unplugged while parked, or goes silent; never because it lost power while
+// the engine runs (16 Oct: the Test Car's wiring did that at every start).
+// Timed rules (3 min parked, silence) are in engine.test.js.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createStore } from "../src/store.js";
@@ -38,24 +39,10 @@ async function run(steps) {
 const alerts = async (steps) => (await run(steps)).alerts;
 const hb = (acc, charging, n) => Array(n).fill({ acc, charging });
 
-test("power bit that means 'charging': never a false alarm", async () => {
-  assert.deepEqual(await alerts(hb(true, false, 6)), []); // plugged in, engine on
-  assert.deepEqual(await alerts(hb(false, false, 20)), []); // parked overnight
-  const r = await run([...hb(true, false, 1), ...hb(false, true, 3), ...hb(false, false, 5)]);
-  assert.deepEqual(r.alerts, []);
-  assert.equal(r.onBattery, 0);
-});
-
-test("losing the vehicle's power: dashboard warning, no alert", async () => {
-  // The power bit alone says "battery" (17 Oct: parked, key off, after a
-  // reconnect): not trusted to mark it on battery, only the 0x02 alarm is.
-  let r = await run([...hb(false, true, 3), ...hb(false, false, 6), ...hb(false, true, 3)]);
-  assert.deepEqual(r.alerts, []);
-  assert.equal(r.onBattery, 0);
-
-  // 16 Oct replay: plugged in, engine start, ACC flickers, power-cut alarm,
-  // then on battery with ACC "off" for half an hour while driving.
-  r = await run([
+test("power lost while the engine runs: badge only, no alert", async () => {
+  // 16 Oct replay (Test Car wiring): plugged in, engine start, ACC flickers,
+  // power-cut alarm, then on battery with ACC "off" while driving.
+  let r = await run([
     ...hb(false, true, 2),
     ...hb(true, true, 2),
     { acc: false, charging: true },
@@ -65,13 +52,18 @@ test("losing the vehicle's power: dashboard warning, no alert", async () => {
     { alarm: ALARM.POWER_CUT },
     ...hb(false, false, 10),
   ]);
-  assert.deepEqual(r.alerts, [], "no push for a loose wire");
+  assert.deepEqual(r.alerts, [], "no push for the wiring fault");
   assert.equal(r.onBattery, 1, "marked on battery once");
 
   // Ignition wire live again = harness back.
-  r = await run([{ alarm: ALARM.POWER_CUT }, ...hb(false, false, 3), ...hb(true, false, 1)]);
+  r = await run([...hb(true, true, 1), { alarm: ALARM.POWER_CUT }, ...hb(true, false, 1)]);
   assert.deepEqual(r.alerts, []);
   assert.equal(r.powerBack, 1);
+});
+
+test("power bit: two 'battery' reports mark it, one is noise", async () => {
+  assert.equal((await run([...hb(false, true, 3), ...hb(false, false, 1)])).onBattery, 0);
+  assert.equal((await run([...hb(false, true, 3), ...hb(false, false, 2)])).onBattery, 1);
 });
 
 test("power back: two 'vehicle' reports clear it, trusted bit or not", async () => {

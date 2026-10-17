@@ -38,6 +38,13 @@ const SILENT_IGNORE_AFTER_MS = 6 * 3_600_000;
 const STARTUP_GRACE_MS = 10 * 60_000;
 // One alert per incident, not one per repeated alarm packet.
 const TAMPER_REPEAT_MS = 15 * 60_000;
+// Without the vehicle's power while parked (engine off) this long = unplugged
+// or removed → alert. Power lost while the engine runs is a wiring fault (the
+// Test Car loses it at every engine start, 16 Oct) and only shows a badge,
+// unless it is still missing this long after the engine stops.
+const UNPLUGGED_PARKED_MS = 3 * 60_000;
+// "Battery" reports in a row before believing the power bit.
+const POWER_OFF_CONFIRM = 2;
 // GT06 voltage level at or below which a "switching off" alarm is just the
 // backup battery running out, not someone switching the tracker off.
 const BATTERY_DYING_LEVEL = 1;
@@ -257,6 +264,9 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         powerCutAt: row?.power_cut_at ? Date.parse(row.power_cut_at) : 0,
         silentSince: row?.silent_since ?? null,
         powerOnReports: 0,
+        powerOffReports: 0,
+        // Owners already told about this "unplugged" incident (see getState).
+        unpluggedAlerted: false,
         lastTamperAt: 0,
         voltageLevel: null,
         lastReportAt: 0, // any packet at all (heartbeat, position, alarm)
@@ -277,6 +287,13 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
         lastSaved: null,
         lastSavedAt: 0,
       });
+      // Restarted during an "unplugged" incident: don't alert twice.
+      if (row?.power_cut_at && !dryRun) {
+        const sent = await call(
+          `fleet_events?select=id&driver_user_id=eq.${uid}&kind=eq.gps_tamper&occurred_at=gte.${encodeURIComponent(row.power_cut_at)}&limit=1`,
+        ).catch(() => []);
+        state.get(uid).unpluggedAlerted = Boolean(sent?.length);
+      }
       // Restarted while a bus was running: let the off-timer settle it.
       if (row?.is_tracking) scheduleOffCheck(uid);
     }
@@ -645,8 +662,27 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (s.powerCutAt) return;
     s.powerCutAt = nowMs();
     s.powerOnReports = 0;
-    log(`🔋 ${bus.label ?? bus.id}: on backup battery (${why}) — dashboard warning, no alert`);
+    log(`🔋 ${bus.label ?? bus.id}: lost the vehicle's power (${why})`);
     await patchTamper(uid, { power_cut_at: new Date(s.powerCutAt).toISOString() });
+  }
+
+  /**
+   * Alert once when the tracker has been without the vehicle's power while
+   * parked for UNPLUGGED_PARKED_MS: nobody's engine start shakes a wire loose
+   * in a parked car, so that is someone unplugging or removing it (17 Oct).
+   * Checked on every report (parked: heartbeat every 3 min).
+   */
+  async function checkUnplugged(bus, uid) {
+    const s = state.get(uid);
+    if (!s.powerCutAt || s.engine || s.unpluggedAlerted) return;
+    const since = Math.max(s.powerCutAt, s.onAt);
+    if (nowMs() - since < UNPLUGGED_PARKED_MS) return;
+    s.unpluggedAlerted = true;
+    await fleetEvent(
+      bus,
+      "gps_tamper",
+      `GPS tracker unplugged: lost the vehicle's power at ${kigaliTime.format(new Date(s.powerCutAt))} while parked`,
+    );
   }
 
   async function powerBack(bus, uid, why) {
@@ -654,16 +690,21 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (!s.powerCutAt) return;
     s.powerCutAt = 0;
     s.powerOnReports = 0;
+    s.powerOffReports = 0;
     log(`🔌 ${bus.label ?? bus.id}: on the vehicle's power again (${why})`);
     await patchTamper(uid, { power_cut_at: null });
+    if (s.unpluggedAlerted) {
+      s.unpluggedAlerted = false;
+      await fleetEvent(bus, "gps_back", "GPS tracker is on the vehicle's power again");
+    }
   }
 
   /**
    * The "on vehicle power" bit from a heartbeat or alarm packet, with the ACC
-   * (ignition wire) flag of the same report. It only ever *clears* an "on
-   * battery" incident: "vehicle" needs outside power on every GT06 (where the
-   * bit means "charging" too), but "battery" also shows on car power once the
-   * backup battery is full, so only the power-cut alarm (0x02) starts one.
+   * (ignition wire) flag of the same report. POWER_OFF_CONFIRM "battery"
+   * reports in a row = lost the vehicle's power (on 17 Oct the tracker was
+   * removed and said so only through this bit, no 0x02 alarm); two
+   * "vehicle" in a row, or the ignition wire live, = power back.
    */
   async function notePower(bus, uid, onPower, acc = null) {
     const s = state.get(uid);
@@ -671,11 +712,14 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (acc === true && onPower) s.accWorks = true;
     // Ignition wire live = the tracker's harness is plugged into the vehicle.
     if (acc === true) await powerBack(bus, uid, "ignition wire live");
-    if (!onPower) {
-      s.powerOnReports = 0;
+    if (onPower) {
+      s.powerOffReports = 0;
+      if (s.powerCutAt && ++s.powerOnReports >= 2) await powerBack(bus, uid, "power bit");
       return;
     }
-    if (s.powerCutAt && ++s.powerOnReports >= 2) await powerBack(bus, uid, "power bit");
+    s.powerOnReports = 0;
+    if (++s.powerOffReports >= POWER_OFF_CONFIRM) await powerCut(bus, uid, "power bit");
+    await checkUnplugged(bus, uid);
   }
 
   // Alarms that mean the tracker itself is being tampered with → alert.
@@ -709,6 +753,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       );
       if (msg.alarm === 0x02) {
         await powerCut(bus, uid, "tracker alarm");
+        await checkUnplugged(bus, uid);
         return;
       }
       if (text) {

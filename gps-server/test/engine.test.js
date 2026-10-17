@@ -334,6 +334,7 @@ test("engine off on the Test Car's wiring: parked within 2 min, not after the bo
     assert.ok(offCall, "closed");
     assert.equal(db.status.is_tracking, false);
     assert.equal(db.status.power_cut_at, null, "power back clears the warning");
+    assert.deepEqual(db.events, [], "the wiring fault never pushes 'unplugged'");
   });
 });
 
@@ -355,5 +356,52 @@ test("working ACC wire: key off → parked in ~1.5 min despite 10-s reports", as
     const end = db.trips().find((c) => c.method === "PATCH");
     const endedAt = (Date.parse(end.body.ended_at) - T0) / 1000;
     assert.ok(endedAt <= 480, `ends at key off (got ${endedAt} s)`);
+  });
+});
+
+// 17 Oct ~11:58: tracker removed from the parked Test Car. No 0x02 alarm,
+// only the power bit said "battery". Owners must be told.
+test("unplugged while parked → one 'unplugged' alert ~3 min later, 'back' when replugged", async () => {
+  await run(async ({ at, fix, hb, db }) => {
+    for (let s = 0; s <= 540; s += 180) await at(s, () => hb(false, 6, true)); // parked, powered
+    await at(600, () => fix(600, -1.906, 30.131, 0));
+    // Pulled out: every report says "battery".
+    for (let s = 660; s <= 1380; s += 180) await at(s, () => hb(false, 6, false));
+    assert.ok(db.status.power_cut_at, "dashboard shows it lost power");
+    assert.deepEqual(
+      db.events.map((e) => e.kind),
+      ["gps_tamper"],
+      "one alert, not one per heartbeat",
+    );
+    assert.match(db.events[0].detail, /unplugged: lost the vehicle's power at .* while parked/);
+    // Plugged back in.
+    await at(1500, () => hb(false, 6, true));
+    await at(1680, () => hb(false, 6, true));
+    assert.deepEqual(
+      db.events.map((e) => e.kind),
+      ["gps_tamper", "gps_back"],
+    );
+    assert.equal(db.status.power_cut_at, null);
+  });
+});
+
+test("power lost while driving and still missing 3 min after parking → alert", async () => {
+  await run(async ({ at, fix, hb, db }) => {
+    await at(0, () => hb(true, 6, true));
+    let lon = 30.131;
+    for (let s = 10; s <= 300; s += 10) {
+      lon += 0.0002;
+      if (s === 100) await at(99, () => hb(false, 6, false)); // power gone mid-drive
+      if (s === 110) await at(109, () => hb(false, 6, false));
+      await at(s, () => fix(s, -1.906, lon, 15));
+    }
+    assert.deepEqual(db.events, [], "while driving: badge only");
+    // Parked, still no power: slow reports + heartbeats.
+    for (let s = 480; s <= 1200; s += 180) await at(s, () => hb(false, 6, false));
+    assert.equal(db.status.is_tracking, false);
+    assert.deepEqual(
+      db.events.map((e) => e.kind),
+      ["gps_tamper"],
+    );
   });
 });

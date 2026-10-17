@@ -47,7 +47,8 @@ export function messageFor(e) {
     const [what, why] = (e.detail || "GPS tracker unplugged").split(": ");
     return {
       title: `⚠️ ${vehicle}: ${what}`,
-      body: `${why ? `${why[0].toUpperCase()}${why.slice(1)} at ${at}` : `At ${at}`}. Check the vehicle. ${driver}`,
+      // (why may carry its own time: "lost the vehicle's power at 11:59 while parked")
+      body: `${why ? `${why[0].toUpperCase()}${why.slice(1)}${/\d\d:\d\d/.test(why) ? "" : ` at ${at}`}` : `At ${at}`}. Check the vehicle. ${driver}`,
       url: "/dashboard",
     };
   }
