@@ -38,8 +38,6 @@ const SILENT_IGNORE_AFTER_MS = 6 * 3_600_000;
 const STARTUP_GRACE_MS = 10 * 60_000;
 // One alert per incident, not one per repeated alarm packet.
 const TAMPER_REPEAT_MS = 15 * 60_000;
-// Reports in a row without vehicle power before calling it unplugged.
-const POWER_OFF_CONFIRM = 3;
 // GT06 voltage level at or below which a "switching off" alarm is just the
 // backup battery running out, not someone switching the tracker off.
 const BATTERY_DYING_LEVEL = 1;
@@ -258,10 +256,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       state.set(uid, {
         powerCutAt: row?.power_cut_at ? Date.parse(row.power_cut_at) : 0,
         silentSince: row?.silent_since ?? null,
-        powerOffReports: 0,
         powerOnReports: 0,
-        // Can this tracker's "on vehicle power" bit be believed? See notePower.
-        powerBit: "unknown",
         lastTamperAt: 0,
         voltageLevel: null,
         lastReportAt: 0, // any packet at all (heartbeat, position, alarm)
@@ -586,7 +581,7 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   //     already lost the vehicle's power) → alert. Any report afterwards →
   //     "back" alert.
   //
-  // Losing the vehicle's power alone (alarm 0x02, or the power bit) is NOT an
+  // Losing the vehicle's power alone (alarm 0x02) is NOT an
   // alert: on 16 Oct a loose wire put the Test Car's tracker on its backup
   // battery at engine start while the car drove on, and owners got a scary
   // "unplugged" push. It only marks the vehicle "on backup battery" on the
@@ -659,19 +654,16 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (!s.powerCutAt) return;
     s.powerCutAt = 0;
     s.powerOnReports = 0;
-    s.powerOffReports = 0;
     log(`🔌 ${bus.label ?? bus.id}: on the vehicle's power again (${why})`);
     await patchTamper(uid, { power_cut_at: null });
   }
 
   /**
    * The "on vehicle power" bit from a heartbeat or alarm packet, with the ACC
-   * (ignition wire) flag of the same report.
-   *
-   * The bit is only believed once the tracker has proven it means "plugged
-   * in": POWER_OFF_CONFIRM "vehicle" reports in a row. "Battery" while the
-   * ignition wire reads ON proves the opposite (it means "charging" on some
-   * clones), so it is ignored from then on.
+   * (ignition wire) flag of the same report. It only ever *clears* an "on
+   * battery" incident: "vehicle" needs outside power on every GT06 (where the
+   * bit means "charging" too), but "battery" also shows on car power once the
+   * backup battery is full, so only the power-cut alarm (0x02) starts one.
    */
   async function notePower(bus, uid, onPower, acc = null) {
     const s = state.get(uid);
@@ -679,25 +671,11 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
     if (acc === true && onPower) s.accWorks = true;
     // Ignition wire live = the tracker's harness is plugged into the vehicle.
     if (acc === true) await powerBack(bus, uid, "ignition wire live");
-    if (!onPower && acc === true && s.powerBit !== "unreliable") {
-      s.powerBit = "unreliable";
-      log(
-        `ℹ️  ${bus.label ?? bus.id}: power bit says "battery" with ignition on, so it means "charging" on this tracker; ignoring it`,
-      );
-    }
-    if (onPower) {
-      s.powerOffReports = 0;
-      ++s.powerOnReports;
-      // "Vehicle" is never a lie (even where the bit means "charging", that
-      // needs outside power), so two in a row end an "on battery" incident
-      // whether or not the bit is trusted yet.
-      if (s.powerCutAt && s.powerOnReports >= 2) await powerBack(bus, uid, "power bit");
-      if (s.powerBit === "unknown" && s.powerOnReports >= POWER_OFF_CONFIRM) s.powerBit = "trusted";
+    if (!onPower) {
+      s.powerOnReports = 0;
       return;
     }
-    s.powerOnReports = 0;
-    if (s.powerBit !== "trusted") return;
-    if (++s.powerOffReports >= POWER_OFF_CONFIRM) await powerCut(bus, uid, "power bit");
+    if (s.powerCutAt && ++s.powerOnReports >= 2) await powerBack(bus, uid, "power bit");
   }
 
   // Alarms that mean the tracker itself is being tampered with → alert.

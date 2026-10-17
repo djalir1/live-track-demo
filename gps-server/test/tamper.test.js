@@ -47,11 +47,11 @@ test("power bit that means 'charging': never a false alarm", async () => {
 });
 
 test("losing the vehicle's power: dashboard warning, no alert", async () => {
-  // Proven power bit goes to "battery", then back.
-  let r = await run([...hb(false, true, 3), ...hb(false, false, 3), ...hb(false, true, 3)]);
+  // The power bit alone says "battery" (17 Oct: parked, key off, after a
+  // reconnect): not trusted to mark it on battery, only the 0x02 alarm is.
+  let r = await run([...hb(false, true, 3), ...hb(false, false, 6), ...hb(false, true, 3)]);
   assert.deepEqual(r.alerts, []);
-  assert.equal(r.onBattery, 1);
-  assert.equal(r.powerBack, 1);
+  assert.equal(r.onBattery, 0);
 
   // 16 Oct replay: plugged in, engine start, ACC flickers, power-cut alarm,
   // then on battery with ACC "off" for half an hour while driving.
