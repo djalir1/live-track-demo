@@ -66,9 +66,9 @@ test("power bit: two 'battery' reports mark it, one is noise", async () => {
   assert.equal((await run([...hb(false, true, 3), ...hb(false, false, 2)])).onBattery, 1);
 });
 
-test("power back: two 'vehicle' reports clear it, trusted bit or not", async () => {
+test("parked: power-cut alarm → 'unplugged' at once; two 'vehicle' reports → back", async () => {
   const r = await run([{ alarm: ALARM.POWER_CUT }, ...hb(false, false, 4), ...hb(false, true, 2)]);
-  assert.deepEqual(r.alerts, []);
+  assert.deepEqual(r.alerts, ["gps_tamper", "gps_back"]);
   assert.equal(r.onBattery, 1);
   assert.equal(r.powerBack, 1);
 });
@@ -80,20 +80,22 @@ test("tracker tamper alarms alert at once, once per incident", async () => {
   ]);
   assert.deepEqual(await alerts([{ alarm: ALARM.POWER_OFF }]), ["gps_tamper"]);
   assert.deepEqual(await alerts([{ alarm: ALARM.SOS }]), []);
-  // Unplugged, then removed from its mount: that one is real.
+  // Unplugged, then removed from its mount: one incident, one alert.
   assert.deepEqual(await alerts([{ alarm: ALARM.POWER_CUT }, { alarm: ALARM.REMOVED }]), [
     "gps_tamper",
   ]);
 });
 
 test("switching off because the backup battery ran out is not tampering", async () => {
+  // Engine running (wiring fault, no alert), battery runs flat.
+  const running = hb(true, true, 1);
   assert.deepEqual(
-    await alerts([{ alarm: ALARM.POWER_CUT }, { alarm: ALARM.POWER_OFF, voltage: 1 }]),
+    await alerts([...running, { alarm: ALARM.POWER_CUT }, { alarm: ALARM.POWER_OFF, voltage: 1 }]),
     [],
   );
   // Full battery: someone is switching it off.
   assert.deepEqual(
-    await alerts([{ alarm: ALARM.POWER_CUT }, { alarm: ALARM.POWER_OFF, voltage: 5 }]),
+    await alerts([...running, { alarm: ALARM.POWER_CUT }, { alarm: ALARM.POWER_OFF, voltage: 5 }]),
     ["gps_tamper"],
   );
 });

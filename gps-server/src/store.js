@@ -38,7 +38,7 @@ const SILENT_IGNORE_AFTER_MS = 6 * 3_600_000;
 const STARTUP_GRACE_MS = 10 * 60_000;
 // One alert per incident, not one per repeated alarm packet.
 const TAMPER_REPEAT_MS = 15 * 60_000;
-// Without the vehicle's power while parked (engine off) this long = unplugged
+// Losing the vehicle's power once parked (engine off) this long = unplugged
 // or removed → alert. Power lost while the engine runs is a wiring fault (the
 // Test Car loses it at every engine start, 16 Oct) and only shows a badge,
 // unless it is still missing this long after the engine stops.
@@ -675,9 +675,11 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
   async function checkUnplugged(bus, uid) {
     const s = state.get(uid);
     if (!s.powerCutAt || s.engine || s.unpluggedAlerted) return;
-    const since = Math.max(s.powerCutAt, s.onAt);
-    if (nowMs() - since < UNPLUGGED_PARKED_MS) return;
+    // Parked long enough that this isn't the key-off moment. Power loss is
+    // already confirmed (alarm, or two "battery" reports), so no extra wait.
+    if (nowMs() - s.onAt < UNPLUGGED_PARKED_MS) return;
     s.unpluggedAlerted = true;
+    s.lastTamperAt = nowMs(); // a "removed" alarm right after is the same incident
     await fleetEvent(
       bus,
       "gps_tamper",

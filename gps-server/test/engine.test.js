@@ -366,7 +366,10 @@ test("unplugged while parked → one 'unplugged' alert ~3 min later, 'back' when
     for (let s = 0; s <= 540; s += 180) await at(s, () => hb(false, 6, true)); // parked, powered
     await at(600, () => fix(600, -1.906, 30.131, 0));
     // Pulled out: every report says "battery".
-    for (let s = 660; s <= 1380; s += 180) await at(s, () => hb(false, 6, false));
+    await at(660, () => hb(false, 6, false));
+    await at(840, () => hb(false, 6, false));
+    assert.equal(db.events.length, 1, "alert as soon as the 2nd report confirms it");
+    for (let s = 1020; s <= 1380; s += 180) await at(s, () => hb(false, 6, false));
     assert.ok(db.status.power_cut_at, "dashboard shows it lost power");
     assert.deepEqual(
       db.events.map((e) => e.kind),
