@@ -30,18 +30,18 @@ const supabase = createClient(url, key, { auth: { persistSession: false } });
 const SCHOOL_NAME = "Kigali Model Academy";
 const ROUTE_NAME = "Route A — Morning";
 const STOP_DEFS = [
-  { name: "Kimironko",  sequence: 1, type: "pickup", lat: -1.9491, lng: 30.1244, radius_m: 150 },
+  { name: "Kimironko", sequence: 1, type: "pickup", lat: -1.9491, lng: 30.1244, radius_m: 150 },
   { name: "Nyarugenge", sequence: 2, type: "pickup", lat: -1.9464, lng: 30.0587, radius_m: 150 },
-  { name: "School",     sequence: 3, type: "school", lat: -1.9550, lng: 30.0910, radius_m: 120 },
+  { name: "School", sequence: 3, type: "school", lat: -1.955, lng: 30.091, radius_m: 120 },
 ];
 const BUS_DEFS = [
   { label: "Bus Isabuku", plate: "RAF345D", capacity: 30 },
   { label: "Bus Umuyaga", plate: "RAB145M", capacity: 30 },
 ];
 const STUDENT_DEFS = [
-  { name: "Aline U.",   busIdx: 0, stopName: "Kimironko",  cls: "P4" },
-  { name: "Eric M.",    busIdx: 0, stopName: "Kimironko",  cls: "P5" },
-  { name: "Kevine N.",  busIdx: 1, stopName: "Nyarugenge", cls: "P6" },
+  { name: "Aline U.", busIdx: 0, stopName: "Kimironko", cls: "P4" },
+  { name: "Eric M.", busIdx: 0, stopName: "Kimironko", cls: "P5" },
+  { name: "Kevine N.", busIdx: 1, stopName: "Nyarugenge", cls: "P6" },
   { name: "Patrick I.", busIdx: 1, stopName: "Nyarugenge", cls: "P3" },
 ];
 
@@ -51,7 +51,11 @@ async function findOrCreate(table, match, insert) {
   const { data: hit, error: selErr } = await q;
   if (selErr) throw selErr;
   if (hit && hit.length > 0) return { row: hit[0], created: false };
-  const { data: created, error: insErr } = await supabase.from(table).insert(insert).select().single();
+  const { data: created, error: insErr } = await supabase
+    .from(table)
+    .insert(insert)
+    .select()
+    .single();
   if (insErr) throw insErr;
   return { row: created, created: true };
 }
@@ -62,8 +66,15 @@ async function firstDriverIdMatching(plateOrLabelHint) {
   const ids = (roles ?? []).map((r) => r.user_id);
   if (ids.length === 0) return null;
   const { data: profiles } = await supabase
-    .from("profiles").select("id, display_name, plate_number").in("id", ids);
-  const byPlate = (profiles ?? []).find((p) => p.plate_number && plateOrLabelHint && p.plate_number.toUpperCase() === plateOrLabelHint.toUpperCase());
+    .from("profiles")
+    .select("id, display_name, plate_number")
+    .in("id", ids);
+  const byPlate = (profiles ?? []).find(
+    (p) =>
+      p.plate_number &&
+      plateOrLabelHint &&
+      p.plate_number.toUpperCase() === plateOrLabelHint.toUpperCase(),
+  );
   if (byPlate) return byPlate.id;
   return profiles?.[0]?.id ?? null;
 }
@@ -72,8 +83,11 @@ async function firstDriverIdMatching(plateOrLabelHint) {
   const summary = [];
 
   // 1. school
-  const { row: school, created: schoolCreated } =
-    await findOrCreate("schools", { name: SCHOOL_NAME }, { name: SCHOOL_NAME });
+  const { row: school, created: schoolCreated } = await findOrCreate(
+    "schools",
+    { name: SCHOOL_NAME },
+    { name: SCHOOL_NAME },
+  );
   summary.push(`school "${SCHOOL_NAME}" ${schoolCreated ? "CREATED" : "found"} (${school.id})`);
 
   // 2. route
@@ -93,7 +107,9 @@ async function firstDriverIdMatching(plateOrLabelHint) {
       { ...def, route_id: route.id, school_id: school.id },
     );
     stopsByName[def.name] = row;
-    summary.push(`  stop "${def.name}" ${created ? "CREATED" : "found"} (seq ${row.sequence}, ${row.type})`);
+    summary.push(
+      `  stop "${def.name}" ${created ? "CREATED" : "found"} (seq ${row.sequence}, ${row.type})`,
+    );
   }
 
   // 4. buses (paired with any two available drivers)
@@ -106,7 +122,9 @@ async function firstDriverIdMatching(plateOrLabelHint) {
       { ...def, school_id: school.id, route_id: route.id, driver_user_id: driverId },
     );
     busRows.push(row);
-    summary.push(`  bus "${def.label}" ${created ? "CREATED" : "found"} (driver ${row.driver_user_id ?? "unassigned"})`);
+    summary.push(
+      `  bus "${def.label}" ${created ? "CREATED" : "found"} (driver ${row.driver_user_id ?? "unassigned"})`,
+    );
   }
 
   // 5. students
@@ -116,21 +134,41 @@ async function firstDriverIdMatching(plateOrLabelHint) {
     const { row, created } = await findOrCreate(
       "students",
       { school_id: school.id, name: def.name },
-      { school_id: school.id, name: def.name, class: def.cls, bus_id: bus.id, home_stop_id: stop.id },
+      {
+        school_id: school.id,
+        name: def.name,
+        class: def.cls,
+        bus_id: bus.id,
+        home_stop_id: stop.id,
+      },
     );
-    summary.push(`   student "${def.name}" ${created ? "CREATED" : "found"} (bus=${bus.label}, home=${def.stopName})`);
+    summary.push(
+      `   student "${def.name}" ${created ? "CREATED" : "found"} (bus=${bus.label}, home=${def.stopName})`,
+    );
     void row;
   }
 
   // 6. link admins to the school (optional — controlled by env)
-  const wantedEmails = (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const wantedEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (wantedEmails.length > 0) {
     const { data: authList } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
     for (const email of wantedEmails) {
       const u = authList?.users.find((x) => x.email === email);
-      if (!u) { summary.push(`  admin link "${email}" — no such auth user`); continue; }
-      const { error } = await supabase.from("profiles").update({ school_id: school.id }).eq("id", u.id);
-      if (error) { summary.push(`  admin link "${email}" — FAILED (${error.message})`); continue; }
+      if (!u) {
+        summary.push(`  admin link "${email}" — no such auth user`);
+        continue;
+      }
+      const { error } = await supabase
+        .from("profiles")
+        .update({ school_id: school.id })
+        .eq("id", u.id);
+      if (error) {
+        summary.push(`  admin link "${email}" — FAILED (${error.message})`);
+        continue;
+      }
       summary.push(`  admin link "${email}" -> school ${school.id}`);
     }
   } else {
@@ -141,4 +179,7 @@ async function firstDriverIdMatching(plateOrLabelHint) {
   console.log("Phase 1 school seed:");
   console.log("=".repeat(64));
   for (const line of summary) console.log(" " + line);
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

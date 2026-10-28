@@ -15,7 +15,10 @@ export function ComingSoon({ title, description }: { title: string; description:
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <Button asChild className="w-full bg-gradient-primary shadow-glow">
-          <Link to="/"><MapPin className="h-4 w-4 mr-1.5" />Back to Live Track</Link>
+          <Link to="/">
+            <MapPin className="h-4 w-4 mr-1.5" />
+            Back to Live Track
+          </Link>
         </Button>
       </div>
     </div>

@@ -1,8 +1,15 @@
 import type { ComponentType, SVGProps } from "react";
 import type { Database } from "@/integrations/supabase/types";
 import {
-  CarIcon, SUVIcon, VanIcon, TruckIcon, PickupIcon, BusIcon,
-  MotorcycleIcon, BicycleIcon, GenericVehicleIcon,
+  CarIcon,
+  SUVIcon,
+  VanIcon,
+  TruckIcon,
+  PickupIcon,
+  BusIcon,
+  MotorcycleIcon,
+  BicycleIcon,
+  GenericVehicleIcon,
 } from "./vehicle-icons";
 
 export type VehicleType = Database["public"]["Enums"]["vehicle_type"];
@@ -18,15 +25,15 @@ export interface VehicleMeta {
 }
 
 export const VEHICLES: readonly VehicleMeta[] = [
-  { key: "car",        label: "Car",        Icon: CarIcon,             emoji: "🚗" },
-  { key: "suv",        label: "SUV",        Icon: SUVIcon,             emoji: "🚙" },
-  { key: "van",        label: "Van",        Icon: VanIcon,             emoji: "🚐" },
-  { key: "truck",      label: "Truck",      Icon: TruckIcon,           emoji: "🚛" },
-  { key: "pickup",     label: "Pickup",     Icon: PickupIcon,          emoji: "🛻" },
-  { key: "bus",        label: "Bus",        Icon: BusIcon,             emoji: "🚌" },
-  { key: "motorcycle", label: "Motorcycle", Icon: MotorcycleIcon,      emoji: "🏍" },
-  { key: "bicycle",    label: "Bicycle",    Icon: BicycleIcon,         emoji: "🚲" },
-  { key: "other",      label: "Other",      Icon: GenericVehicleIcon,  emoji: "📍" },
+  { key: "car", label: "Car", Icon: CarIcon, emoji: "🚗" },
+  { key: "suv", label: "SUV", Icon: SUVIcon, emoji: "🚙" },
+  { key: "van", label: "Van", Icon: VanIcon, emoji: "🚐" },
+  { key: "truck", label: "Truck", Icon: TruckIcon, emoji: "🚛" },
+  { key: "pickup", label: "Pickup", Icon: PickupIcon, emoji: "🛻" },
+  { key: "bus", label: "Bus", Icon: BusIcon, emoji: "🚌" },
+  { key: "motorcycle", label: "Motorcycle", Icon: MotorcycleIcon, emoji: "🏍" },
+  { key: "bicycle", label: "Bicycle", Icon: BicycleIcon, emoji: "🚲" },
+  { key: "other", label: "Other", Icon: GenericVehicleIcon, emoji: "📍" },
 ] as const;
 
 export function getVehicle(type: VehicleType | null | undefined): VehicleMeta {

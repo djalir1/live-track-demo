@@ -56,10 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (roleFetchFor.current === uid) return;
       roleFetchFor.current = uid;
       try {
-        const { data, error } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", uid);
+        const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", uid);
         if (cancelled || roleFetchFor.current !== uid) return;
         if (error) {
           console.error("[auth] fetchRole error", error);

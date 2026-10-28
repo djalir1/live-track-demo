@@ -81,7 +81,9 @@ function AuthPage() {
     <div className="min-h-[100dvh] flex items-center justify-center px-4 pt-[max(2.5rem,env(safe-area-inset-top))] pb-[max(2.5rem,env(safe-area-inset-bottom))] bg-background relative">
       <div className="absolute inset-0 bg-gradient-hero opacity-30" aria-hidden />
       <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
         className="relative w-full max-w-md rounded-3xl bg-gradient-card border border-border/60 shadow-glow p-8"
       >
         <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg mb-6">
@@ -91,12 +93,20 @@ function AuthPage() {
           Live Track
         </Link>
 
-        <h1 className="font-display text-2xl font-bold">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>
+        <h1 className="font-display text-2xl font-bold">
+          {mode === "signin" ? "Welcome back" : "Create your account"}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {mode === "signin" ? "Sign in to continue tracking." : "Start tracking in under a minute."}
+          {mode === "signin"
+            ? "Sign in to continue tracking."
+            : "Start tracking in under a minute."}
         </p>
 
-        <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup")} className="mt-6">
+        <Tabs
+          value={mode}
+          onValueChange={(v) => setMode(v as "signin" | "signup")}
+          className="mt-6"
+        >
           <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="signin">Sign in</TabsTrigger>
             <TabsTrigger value="signup">Create account</TabsTrigger>
@@ -106,16 +116,33 @@ function AuthPage() {
             <TabsContent value="signup" className="space-y-4 mt-0">
               <div className="space-y-2">
                 <Label htmlFor="name">Driver name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex Rivera" required={mode === "signup"} />
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Alex Rivera"
+                  required={mode === "signup"}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="vehicle">Vehicle name</Label>
-                  <Input id="vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Van #4" />
+                  <Input
+                    id="vehicle"
+                    value={vehicle}
+                    onChange={(e) => setVehicle(e.target.value)}
+                    placeholder="Van #4"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="plate">Plate number</Label>
-                  <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="ABC-123" className="uppercase" />
+                  <Input
+                    id="plate"
+                    value={plate}
+                    onChange={(e) => setPlate(e.target.value)}
+                    placeholder="ABC-123"
+                    className="uppercase"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
@@ -145,22 +172,53 @@ function AuthPage() {
               {needsSeats && (
                 <div className="space-y-2">
                   <Label htmlFor="seats">Number of seats</Label>
-                  <Input id="seats" type="number" min={1} max={200} value={seats} onChange={(e) => setSeats(e.target.value)} placeholder={vehicleType === "bus" ? "e.g. 40" : "e.g. 12"} />
+                  <Input
+                    id="seats"
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={seats}
+                    onChange={(e) => setSeats(e.target.value)}
+                    placeholder={vehicleType === "bus" ? "e.g. 40" : "e.g. 12"}
+                  />
                 </div>
               )}
             </TabsContent>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
             </div>
 
-            <Button type="submit" disabled={busy} className="w-full h-11 bg-gradient-primary shadow-glow text-base">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "signin" ? "Sign in" : "Create account"}
+            <Button
+              type="submit"
+              disabled={busy}
+              className="w-full h-11 bg-gradient-primary shadow-glow text-base"
+            >
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : mode === "signin" ? (
+                "Sign in"
+              ) : (
+                "Create account"
+              )}
             </Button>
           </form>
         </Tabs>

@@ -149,7 +149,11 @@ export function GenericVehicleIcon(p: IconProps) {
   // Placeholder / other — abstract vehicle marker
   return (
     <svg {...base(p)}>
-      <path d="M16 3l3 6 6 1-4.5 4 1.2 6-5.7-3-5.7 3 1.2-6-4.5-4 6-1z" fill="currentColor" fillOpacity="0.15" />
+      <path
+        d="M16 3l3 6 6 1-4.5 4 1.2 6-5.7-3-5.7 3 1.2-6-4.5-4 6-1z"
+        fill="currentColor"
+        fillOpacity="0.15"
+      />
       <path d="M16 3l3 6 6 1-4.5 4 1.2 6-5.7-3-5.7 3 1.2-6-4.5-4 6-1z" />
     </svg>
   );

@@ -4,8 +4,8 @@
 //
 // Freshness thresholds are the same ones the admin dashboard uses.
 
-export const FRESH_MS = 30_000;     // < 30s: live
-export const OFFLINE_MS = 90_000;   // > 90s: offline
+export const FRESH_MS = 30_000; // < 30s: live
+export const OFFLINE_MS = 90_000; // > 90s: offline
 export const MOVING_KMH = 0.8;
 
 export interface DeviceStatusLite {

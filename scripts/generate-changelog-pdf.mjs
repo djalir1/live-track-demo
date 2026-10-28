@@ -14,14 +14,31 @@ const OUT = resolve(__dirname, "..", "LIVETRACK-Change-Report.pdf");
 // Any Unicode punctuation that helvetica can't render -> ASCII equivalent.
 // Belt-and-braces safety net; the content strings above are also ASCII-clean.
 const UNI_MAP = {
-  "–": "-",  "—": "-",  "―": "-",
-  "‘": "'",  "’": "'",  "‚": ",",  "‛": "'",
-  "“": '"',  "”": '"',  "„": '"',  "‟": '"',
-  "•": "-",  "…": "...",
-  "←": "<-", "↑": "^",  "→": "->", "↓": "v",
-  "⇄": "<->","⇆": "<->",
-  "≤": "<=", "≥": ">=", "×": "x",  "·": "-",
-  "→": "->", " ": " ",
+  "–": "-",
+  "—": "-",
+  "―": "-",
+  "‘": "'",
+  "’": "'",
+  "‚": ",",
+  "‛": "'",
+  "“": '"',
+  "”": '"',
+  "„": '"',
+  "‟": '"',
+  "•": "-",
+  "…": "...",
+  "←": "<-",
+  "↑": "^",
+  "→": "->",
+  "↓": "v",
+  "⇄": "<->",
+  "⇆": "<->",
+  "≤": "<=",
+  "≥": ">=",
+  "×": "x",
+  "·": "-",
+  "→": "->",
+  " ": " ",
 };
 function ascii(s) {
   if (s == null) return s;
@@ -36,18 +53,18 @@ function ascii(s) {
 // Brand palette (matches the app + trip report)
 // -----------------------------------------------------------------------------
 const C = {
-  primary:    [88, 80, 236],
-  primaryDeep:[56, 48, 180],
-  ink:        [24, 27, 40],
-  muted:      [110, 116, 138],
-  faint:      [175, 180, 195],
-  line:       [225, 228, 235],
-  tile:       [246, 247, 251],
-  good:       [34, 197, 94],
-  info:       [59, 130, 246],
-  warn:       [245, 158, 11],
-  bad:        [239, 68, 68],
-  panelDark:  [16, 20, 34],
+  primary: [88, 80, 236],
+  primaryDeep: [56, 48, 180],
+  ink: [24, 27, 40],
+  muted: [110, 116, 138],
+  faint: [175, 180, 195],
+  line: [225, 228, 235],
+  tile: [246, 247, 251],
+  good: [34, 197, 94],
+  info: [59, 130, 246],
+  warn: [245, 158, 11],
+  bad: [239, 68, 68],
+  panelDark: [16, 20, 34],
 };
 
 // -----------------------------------------------------------------------------
@@ -64,93 +81,219 @@ const OVERVIEW = [
 ];
 
 const BEFORE_AFTER = [
-  ["Auth",                "Instant logout, \"failed to fetch\", session lost within seconds.", "Sessions are stable. Signup returns a session immediately (email auto-confirm)."],
-  ["RLS policies",        "Missing on device_status and location_history -- every write blocked.", "Full RLS suite restored, verified via advisors. Own-row + admin-read."],
-  ["Signup form",         "Name + vehicle name + email + password only.",                       "+ Vehicle type (9 options), plate number, seat count (bus/van)."],
-  ["Vehicle icons",       "Generic lucide icons -- Van looked like a box.",                     "Custom SVG silhouettes: sedan, SUV, cargo van, semi-truck, pickup with bed, bus with windows, motorbike, bicycle."],
-  ["Admin dashboard",     "Vehicles disappeared from the map when a filter was applied.",       "Map always shows every driver; filter only narrows the list."],
-  ["Status colors",       "Stopped = red (confusing).",                                         "Moving = green, Parked = calm blue, Idle = amber, Offline = gray."],
-  ["Driver info shown",   "Name, vehicle name, km/h.",                                          "+ Plate pill, phone on/off, battery warning, street name, LIVE badge."],
-  ["Map style",           "Tiles hid street names in dark mode.",                               "CARTO Voyager tiles -- street names readable in both themes."],
-  ["Trip history",        "Did not exist.",                                                     "/history: pick driver + date, see polyline route, stops with addresses, summary tiles."],
-  ["PDF report",          "Did not exist.",                                                     "One-click daily report: driver, plate, seats, distance, driving/stopped time, top speed, stops with addresses, sampled points, battery start/end."],
-  ["Wake Lock",           "Screen turned off, tracking stopped.",                               "Wake Lock keeps the screen on for the whole shift, reacquired on tab-focus."],
-  ["Reverse geocoding",   "Only raw coordinates shown.",                                        "Human-readable addresses via OSM Nominatim, cached in sessionStorage."],
-  ["Landing page",        "Basic hero + 6 static feature cards + \"Built with Lovable\" footer.", "Animated world with vehicle icons moving between cities, live-preview mock, stats strip, feature grid, 3-step how-it-works, use cases, dark CTA, 3-column footer."],
-  ["Mobile responsive",   "Panels stacked awkwardly, list scrolled past map.",                  "Tab-switch layout (Drivers <-> Map on /dashboard, Trip details <-> Route on /history) below 1024px."],
-  ["Positioning",         "Freemium copy (\"Start tracking free\").",                           "Enterprise / B2B copy: \"Access your workspace\", built for fleet operators."],
-  ["Deployment",          "Cloudflare-only wrangler config, no .env.example.",                  "vercel.json + api/ssr.js Node function, .env.example, .gitignore protects .env, ready for one-click Vercel deploy."],
+  [
+    "Auth",
+    'Instant logout, "failed to fetch", session lost within seconds.',
+    "Sessions are stable. Signup returns a session immediately (email auto-confirm).",
+  ],
+  [
+    "RLS policies",
+    "Missing on device_status and location_history -- every write blocked.",
+    "Full RLS suite restored, verified via advisors. Own-row + admin-read.",
+  ],
+  [
+    "Signup form",
+    "Name + vehicle name + email + password only.",
+    "+ Vehicle type (9 options), plate number, seat count (bus/van).",
+  ],
+  [
+    "Vehicle icons",
+    "Generic lucide icons -- Van looked like a box.",
+    "Custom SVG silhouettes: sedan, SUV, cargo van, semi-truck, pickup with bed, bus with windows, motorbike, bicycle.",
+  ],
+  [
+    "Admin dashboard",
+    "Vehicles disappeared from the map when a filter was applied.",
+    "Map always shows every driver; filter only narrows the list.",
+  ],
+  [
+    "Status colors",
+    "Stopped = red (confusing).",
+    "Moving = green, Parked = calm blue, Idle = amber, Offline = gray.",
+  ],
+  [
+    "Driver info shown",
+    "Name, vehicle name, km/h.",
+    "+ Plate pill, phone on/off, battery warning, street name, LIVE badge.",
+  ],
+  [
+    "Map style",
+    "Tiles hid street names in dark mode.",
+    "CARTO Voyager tiles -- street names readable in both themes.",
+  ],
+  [
+    "Trip history",
+    "Did not exist.",
+    "/history: pick driver + date, see polyline route, stops with addresses, summary tiles.",
+  ],
+  [
+    "PDF report",
+    "Did not exist.",
+    "One-click daily report: driver, plate, seats, distance, driving/stopped time, top speed, stops with addresses, sampled points, battery start/end.",
+  ],
+  [
+    "Wake Lock",
+    "Screen turned off, tracking stopped.",
+    "Wake Lock keeps the screen on for the whole shift, reacquired on tab-focus.",
+  ],
+  [
+    "Reverse geocoding",
+    "Only raw coordinates shown.",
+    "Human-readable addresses via OSM Nominatim, cached in sessionStorage.",
+  ],
+  [
+    "Landing page",
+    'Basic hero + 6 static feature cards + "Built with Lovable" footer.',
+    "Animated world with vehicle icons moving between cities, live-preview mock, stats strip, feature grid, 3-step how-it-works, use cases, dark CTA, 3-column footer.",
+  ],
+  [
+    "Mobile responsive",
+    "Panels stacked awkwardly, list scrolled past map.",
+    "Tab-switch layout (Drivers <-> Map on /dashboard, Trip details <-> Route on /history) below 1024px.",
+  ],
+  [
+    "Positioning",
+    'Freemium copy ("Start tracking free").',
+    'Enterprise / B2B copy: "Access your workspace", built for fleet operators.',
+  ],
+  [
+    "Deployment",
+    "Cloudflare-only wrangler config, no .env.example.",
+    "vercel.json + api/ssr.js Node function, .env.example, .gitignore protects .env, ready for one-click Vercel deploy.",
+  ],
 ];
 
 const BUGS_FIXED = [
-  { title: "Instant logout after login",
+  {
+    title: "Instant logout after login",
     was: "Users were signed out within seconds of logging in -- 'failed to fetch' toasts, session vanished.",
-    now: "Removed the redundant getSession() race that fought onAuthStateChange, and stopped calling supabase.auth.getUser() inside use-tracker. No more AuthRefreshDiscardedError." },
-  { title: "\"new row violates RLS policy for device_status\"",
+    now: "Removed the redundant getSession() race that fought onAuthStateChange, and stopped calling supabase.auth.getUser() inside use-tracker. No more AuthRefreshDiscardedError.",
+  },
+  {
+    title: '"new row violates RLS policy for device_status"',
     was: "Right after signup the tracker's first upsert raced ahead of the auth token being attached to the Supabase client, spamming a red toast.",
-    now: "Transient RLS/JWT errors are retried up to 3x with backoff and never surface to the user. Only genuine errors reach the UI." },
-  { title: "Vehicle disappearing from the map",
+    now: "Transient RLS/JWT errors are retried up to 3x with backoff and never surface to the user. Only genuine errors reach the UI.",
+  },
+  {
+    title: "Vehicle disappearing from the map",
     was: "When an admin filtered the list to Moving/Parked/etc., matching vehicles also disappeared from the map.",
-    now: "The map now always renders every driver. Filters only narrow the side list." },
-  { title: "Stale error message",
+    now: "The map now always renders every driver. Filters only narrow the side list.",
+  },
+  {
+    title: "Stale error message",
     was: "Once the tracker errored, the red banner stayed on screen even after subsequent successful updates.",
-    now: "Successful persists clear stats.error." },
-  { title: "Wrong Supabase project",
+    now: "Successful persists clear stats.error.",
+  },
+  {
+    title: "Wrong Supabase project",
     was: ".env pointed to a project that didn't exist in the account, breaking every fetch.",
-    now: ".env fixed. .env.example committed. Real values live only in local .env / Vercel dashboard." },
-  { title: "Loading screen looked like a blank blue page",
+    now: ".env fixed. .env.example committed. Real values live only in local .env / Vercel dashboard.",
+  },
+  {
+    title: "Loading screen looked like a blank blue page",
     was: "Dashboard showed muted-on-muted 'Loading...' text with no background -- read as 'the app is broken'.",
-    now: "Explicit background, spinner icon, clear label." },
+    now: "Explicit background, spinner icon, clear label.",
+  },
 ];
 
 const FEATURES = [
-  { title: "Signup with vehicle profile",
-    body: "Driver name, vehicle name, plate number, vehicle type from a 9-option grid, and seat count for buses/vans -- all captured on signup and stored on the profile." },
-  { title: "Realistic vehicle icons",
-    body: "Custom SVG silhouettes for each type. Icons render both in the signup grid, in the driver list, and inside the map markers." },
-  { title: "Real-time admin dashboard",
-    body: "Every vehicle on one CARTO Voyager map with a vehicle-shaped marker. Side list shows driver, plate, vehicle, speed, address, battery, and 'Phone off' chip when the driver stops tracking. Realtime updates via Supabase channels." },
-  { title: "Human-readable addresses",
-    body: "OSM Nominatim reverse-geocoding with in-memory + sessionStorage cache and in-flight dedupe. Shown on tracker, dashboard cards, map popups, and PDF reports." },
-  { title: "Trip history + route playback",
-    body: "/history route: admin picks a driver + a date, sees the day's polyline on the map with stop pins. Summary tiles: distance, driving time, stopped time, top speed." },
-  { title: "PDF daily reports",
-    body: "One-click download: purple gradient header, identity card with plate, six summary tiles, route overview with battery start/end + drop, stops table, sampled points table. Footer on every page." },
-  { title: "Wake Lock while tracking",
-    body: "Screen stays on for the entire shift so the tab isn't backgrounded and throttled. Lock is reacquired when the tab returns to visible." },
-  { title: "Mobile-first responsive layout",
-    body: "Below 1024px, both /dashboard and /history collapse to a tab-switch layout so the map and the driver list each get full-width real estate. Header labels drop to icons." },
-  { title: "Auto-confirmed accounts",
-    body: "A BEFORE INSERT trigger on auth.users sets email_confirmed_at so signUp() returns a session immediately -- no verification email required for this deployment." },
-  { title: "Deployment-ready repo",
-    body: "vercel.json + api/ssr.js Node function wrap the TanStack Start SSR bundle. .env.example documents required vars. .gitignore prevents leaking .env. README walks through the 5-step Vercel deploy." },
+  {
+    title: "Signup with vehicle profile",
+    body: "Driver name, vehicle name, plate number, vehicle type from a 9-option grid, and seat count for buses/vans -- all captured on signup and stored on the profile.",
+  },
+  {
+    title: "Realistic vehicle icons",
+    body: "Custom SVG silhouettes for each type. Icons render both in the signup grid, in the driver list, and inside the map markers.",
+  },
+  {
+    title: "Real-time admin dashboard",
+    body: "Every vehicle on one CARTO Voyager map with a vehicle-shaped marker. Side list shows driver, plate, vehicle, speed, address, battery, and 'Phone off' chip when the driver stops tracking. Realtime updates via Supabase channels.",
+  },
+  {
+    title: "Human-readable addresses",
+    body: "OSM Nominatim reverse-geocoding with in-memory + sessionStorage cache and in-flight dedupe. Shown on tracker, dashboard cards, map popups, and PDF reports.",
+  },
+  {
+    title: "Trip history + route playback",
+    body: "/history route: admin picks a driver + a date, sees the day's polyline on the map with stop pins. Summary tiles: distance, driving time, stopped time, top speed.",
+  },
+  {
+    title: "PDF daily reports",
+    body: "One-click download: purple gradient header, identity card with plate, six summary tiles, route overview with battery start/end + drop, stops table, sampled points table. Footer on every page.",
+  },
+  {
+    title: "Wake Lock while tracking",
+    body: "Screen stays on for the entire shift so the tab isn't backgrounded and throttled. Lock is reacquired when the tab returns to visible.",
+  },
+  {
+    title: "Mobile-first responsive layout",
+    body: "Below 1024px, both /dashboard and /history collapse to a tab-switch layout so the map and the driver list each get full-width real estate. Header labels drop to icons.",
+  },
+  {
+    title: "Auto-confirmed accounts",
+    body: "A BEFORE INSERT trigger on auth.users sets email_confirmed_at so signUp() returns a session immediately -- no verification email required for this deployment.",
+  },
+  {
+    title: "Deployment-ready repo",
+    body: "vercel.json + api/ssr.js Node function wrap the TanStack Start SSR bundle. .env.example documents required vars. .gitignore prevents leaking .env. README walks through the 5-step Vercel deploy.",
+  },
 ];
 
 const TECHNICAL = [
-  { title: "Database schema", detail: "user_roles (admin/user enum), profiles (display_name, vehicle_name, vehicle_type enum, plate_number, seats), device_status (per-user snapshot), location_history (per-point log). RLS enabled on all four." },
-  { title: "RLS policies",    detail: "SELECT own row OR admin (via has_role SECURITY DEFINER helper). INSERT/UPDATE limited to own user_id." },
-  { title: "Migrations",      detail: "restore_rls_policies_and_triggers, auto_confirm_email_on_signup, add_vehicle_type, add_plate_and_seats." },
-  { title: "Realtime",        detail: "device_status REPLICA IDENTITY FULL and added to supabase_realtime publication. Dashboard subscribes to postgres_changes for live updates." },
-  { title: "Auth model",      detail: "Client uses supabase-js v2 with autoRefreshToken. Auth context single-flights role fetches to avoid concurrent refresh cycles." },
-  { title: "Frontend stack",  detail: "TanStack Start (SSR) + React 19 + Tailwind CSS 4 + Framer Motion + Leaflet + Lucide + jsPDF + jspdf-autotable." },
+  {
+    title: "Database schema",
+    detail:
+      "user_roles (admin/user enum), profiles (display_name, vehicle_name, vehicle_type enum, plate_number, seats), device_status (per-user snapshot), location_history (per-point log). RLS enabled on all four.",
+  },
+  {
+    title: "RLS policies",
+    detail:
+      "SELECT own row OR admin (via has_role SECURITY DEFINER helper). INSERT/UPDATE limited to own user_id.",
+  },
+  {
+    title: "Migrations",
+    detail:
+      "restore_rls_policies_and_triggers, auto_confirm_email_on_signup, add_vehicle_type, add_plate_and_seats.",
+  },
+  {
+    title: "Realtime",
+    detail:
+      "device_status REPLICA IDENTITY FULL and added to supabase_realtime publication. Dashboard subscribes to postgres_changes for live updates.",
+  },
+  {
+    title: "Auth model",
+    detail:
+      "Client uses supabase-js v2 with autoRefreshToken. Auth context single-flights role fetches to avoid concurrent refresh cycles.",
+  },
+  {
+    title: "Frontend stack",
+    detail:
+      "TanStack Start (SSR) + React 19 + Tailwind CSS 4 + Framer Motion + Leaflet + Lucide + jsPDF + jspdf-autotable.",
+  },
 ];
 
 const USER_FLOWS = [
-  { role: "Driver", steps: [
-    "Open the app, tap Create account.",
-    "Fill in name, vehicle name, plate number, pick vehicle type (bus/van also asks for seat count).",
-    "Enter email + password -> account is created + session issued instantly (no email verification).",
-    "Land on /track. Location permission is requested. Tap Start tracking.",
-    "Status shows Parked/Moving with a LIVE pulsing badge. Speed, distance, battery, address all update live.",
-    "Wake Lock keeps the screen on. Stop tracking any time.",
-  ]},
-  { role: "Admin", steps: [
-    "Sign in — land on /dashboard (once the account has been promoted to admin in user_roles).",
-    "See every driver as a vehicle-shaped marker on the map, plus a side list with plate, address, battery, phone status.",
-    "Filter list by status (All/Moving/Parked/Idle/Offline) or search by name/plate/street. Map still shows everyone.",
-    "Click History -> pick a driver + date -> see the full route polyline with stops.",
-    "Click Export PDF -> downloads a full daily report.",
-  ]},
+  {
+    role: "Driver",
+    steps: [
+      "Open the app, tap Create account.",
+      "Fill in name, vehicle name, plate number, pick vehicle type (bus/van also asks for seat count).",
+      "Enter email + password -> account is created + session issued instantly (no email verification).",
+      "Land on /track. Location permission is requested. Tap Start tracking.",
+      "Status shows Parked/Moving with a LIVE pulsing badge. Speed, distance, battery, address all update live.",
+      "Wake Lock keeps the screen on. Stop tracking any time.",
+    ],
+  },
+  {
+    role: "Admin",
+    steps: [
+      "Sign in — land on /dashboard (once the account has been promoted to admin in user_roles).",
+      "See every driver as a vehicle-shaped marker on the map, plus a side list with plate, address, battery, phone status.",
+      "Filter list by status (All/Moving/Parked/Idle/Offline) or search by name/plate/street. Map still shows everyone.",
+      "Click History -> pick a driver + date -> see the full route polyline with stops.",
+      "Click Export PDF -> downloads a full daily report.",
+    ],
+  },
 ];
 
 const DEPLOY = [
@@ -171,16 +314,32 @@ const M = 18;
 let y = M;
 
 function assertRgb(c, label) {
-  if (!Array.isArray(c) || c.length !== 3 || c.some((v) => typeof v !== "number" || !Number.isFinite(v))) {
+  if (
+    !Array.isArray(c) ||
+    c.length !== 3 ||
+    c.some((v) => typeof v !== "number" || !Number.isFinite(v))
+  ) {
     throw new Error(`Bad color for ${label}: ${JSON.stringify(c)}`);
   }
 }
-function setFillC(c)   { assertRgb(c, "fill"); doc.setFillColor(c[0], c[1], c[2]); }
-function setStrokeC(c) { assertRgb(c, "stroke"); doc.setDrawColor(c[0], c[1], c[2]); }
-function setTextC(c)   { assertRgb(c, "text"); doc.setTextColor(c[0], c[1], c[2]); }
+function setFillC(c) {
+  assertRgb(c, "fill");
+  doc.setFillColor(c[0], c[1], c[2]);
+}
+function setStrokeC(c) {
+  assertRgb(c, "stroke");
+  doc.setDrawColor(c[0], c[1], c[2]);
+}
+function setTextC(c) {
+  assertRgb(c, "text");
+  doc.setTextColor(c[0], c[1], c[2]);
+}
 
 function needPage(next = 10) {
-  if (y + next > H - 20) { doc.addPage(); y = M; }
+  if (y + next > H - 20) {
+    doc.addPage();
+    y = M;
+  }
 }
 
 function h1(text) {
@@ -236,7 +395,11 @@ function bulletList(items, opts = {}) {
 }
 
 function calloutRow(kind, title, was, now) {
-  const badge = { fixed: ["FIXED", C.good], improved: ["IMPROVED", C.info], new: ["NEW", C.primary] }[kind] ?? ["", C.muted];
+  const badge = {
+    fixed: ["FIXED", C.good],
+    improved: ["IMPROVED", C.info],
+    new: ["NEW", C.primary],
+  }[kind] ?? ["", C.muted];
   // Measure first
   doc.setFontSize(8.5);
   const wasText = doc.splitTextToSize(ascii(was), W - M * 2 - 10);
@@ -331,7 +494,16 @@ doc.text("Everything that changed on Live Track, in one document.", M, 168);
 
 doc.setFontSize(9);
 setTextC(C.faint);
-doc.text(REPORT_DATE.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }), M, 178);
+doc.text(
+  REPORT_DATE.toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }),
+  M,
+  178,
+);
 doc.text("Prepared for the Live Track team.", M, 184);
 
 // footer marker
@@ -362,7 +534,10 @@ bulletList([
 doc.addPage();
 y = M;
 h1("Before -> After, at a glance");
-paragraph("A one-table summary of every visible change. Details for each row follow in later sections.", { color: C.muted, gap: 6 });
+paragraph(
+  "A one-table summary of every visible change. Details for each row follow in later sections.",
+  { color: C.muted, gap: 6 },
+);
 
 autoTable(doc, {
   startY: y,
@@ -372,7 +547,11 @@ autoTable(doc, {
   headStyles: { fillColor: C.primary, textColor: 255, fontStyle: "bold", fontSize: 9 },
   alternateRowStyles: { fillColor: C.tile },
   styles: { fontSize: 8.5, cellPadding: 2.5, textColor: C.ink, valign: "top" },
-  columnStyles: { 0: { cellWidth: 34, fontStyle: "bold" }, 1: { cellWidth: 63 }, 2: { cellWidth: "auto" } },
+  columnStyles: {
+    0: { cellWidth: 34, fontStyle: "bold" },
+    1: { cellWidth: 63 },
+    2: { cellWidth: "auto" },
+  },
 });
 
 // -----------------------------------------------------------------------------
@@ -381,7 +560,10 @@ autoTable(doc, {
 doc.addPage();
 y = M;
 h1("Bugs fixed");
-paragraph("These are the concrete defects users could see before, and how each was addressed.", { color: C.muted, gap: 8 });
+paragraph("These are the concrete defects users could see before, and how each was addressed.", {
+  color: C.muted,
+  gap: 8,
+});
 for (const b of BUGS_FIXED) calloutRow("fixed", b.title, b.was, b.now);
 
 // -----------------------------------------------------------------------------
@@ -390,7 +572,10 @@ for (const b of BUGS_FIXED) calloutRow("fixed", b.title, b.was, b.now);
 doc.addPage();
 y = M;
 h1("New features");
-paragraph("Capabilities that did not exist (or did not work) in the previous version.", { color: C.muted, gap: 8 });
+paragraph("Capabilities that did not exist (or did not work) in the previous version.", {
+  color: C.muted,
+  gap: 8,
+});
 
 for (const f of FEATURES) {
   needPage(20);
@@ -424,7 +609,10 @@ for (const f of FEATURES) {
 doc.addPage();
 y = M;
 h1("Under the hood");
-paragraph("For anyone who wants to open the code — here's how the pieces fit together.", { color: C.muted, gap: 8 });
+paragraph("For anyone who wants to open the code — here's how the pieces fit together.", {
+  color: C.muted,
+  gap: 8,
+});
 
 for (const t of TECHNICAL) {
   needPage(16);
@@ -458,7 +646,10 @@ for (const f of USER_FLOWS) {
 // PAGE: Deploy
 // -----------------------------------------------------------------------------
 h1("Deploying to Vercel");
-paragraph("The repo is already configured. Steps to push to production:", { color: C.muted, gap: 6 });
+paragraph("The repo is already configured. Steps to push to production:", {
+  color: C.muted,
+  gap: 6,
+});
 bulletList(DEPLOY);
 
 // -----------------------------------------------------------------------------

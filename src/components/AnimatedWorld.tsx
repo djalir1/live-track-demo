@@ -23,19 +23,19 @@ const CITIES: Array<{ x: number; y: number; name: string }> = [
 
 // Which cities each vehicle visits, in order. The path animation loops.
 const ROUTES = [
-  { color: "#22c55e", speed: 12, cities: [0, 3, 4, 6, 7],       vehicle: "car" as const },      // NY -> Berlin -> Cairo -> Delhi -> Tokyo
-  { color: "#3b82f6", speed: 16, cities: [4, 5, 8, 9],          vehicle: "van" as const },      // Cairo -> Kigali -> Jakarta -> Sydney
-  { color: "#f59e0b", speed: 14, cities: [1, 0, 3, 2],          vehicle: "truck" as const },    // Sao Paulo -> NY -> Berlin -> London
-  { color: "#a855f7", speed: 18, cities: [7, 8, 9, 6],          vehicle: "bus" as const },      // Tokyo -> Jakarta -> Sydney -> Delhi
-  { color: "#ec4899", speed: 10, cities: [2, 3, 4, 5],          vehicle: "car" as const },      // London -> Berlin -> Cairo -> Kigali
+  { color: "#22c55e", speed: 12, cities: [0, 3, 4, 6, 7], vehicle: "car" as const }, // NY -> Berlin -> Cairo -> Delhi -> Tokyo
+  { color: "#3b82f6", speed: 16, cities: [4, 5, 8, 9], vehicle: "van" as const }, // Cairo -> Kigali -> Jakarta -> Sydney
+  { color: "#f59e0b", speed: 14, cities: [1, 0, 3, 2], vehicle: "truck" as const }, // Sao Paulo -> NY -> Berlin -> London
+  { color: "#a855f7", speed: 18, cities: [7, 8, 9, 6], vehicle: "bus" as const }, // Tokyo -> Jakarta -> Sydney -> Delhi
+  { color: "#ec4899", speed: 10, cities: [2, 3, 4, 5], vehicle: "car" as const }, // London -> Berlin -> Cairo -> Kigali
 ];
 
 // Very small icons that read at 16px — a filled roundrect with a wheel dot.
 const VEHICLE_SVG: Record<"car" | "van" | "truck" | "bus", string> = {
-  car:   `M-6 0 L-4 -3 L4 -3 L6 0 L6 2 L-6 2 Z`,
-  van:   `M-7 -3 L5 -3 L7 0 L7 2 L-7 2 Z`,
+  car: `M-6 0 L-4 -3 L4 -3 L6 0 L6 2 L-6 2 Z`,
+  van: `M-7 -3 L5 -3 L7 0 L7 2 L-7 2 Z`,
   truck: `M-7 -3 L1 -3 L1 -1 L4 -1 L7 1 L7 2 L-7 2 Z`,
-  bus:   `M-8 -3 L8 -3 L8 2 L-8 2 Z`,
+  bus: `M-8 -3 L8 -3 L8 2 L-8 2 Z`,
 };
 
 function pathThrough(indices: number[]) {
@@ -103,16 +103,20 @@ function buildMotionTimes(indices: number[], stopFrac = 0.14) {
 
 export function AnimatedWorld({ className = "" }: { className?: string }) {
   const routeData = useMemo(
-    () => ROUTES.map((r) => {
-      const d = pathThrough(r.cities);
-      const { keyTimes, keyPoints } = buildMotionTimes(r.cities);
-      return { ...r, d, keyTimes, keyPoints };
-    }),
-    []
+    () =>
+      ROUTES.map((r) => {
+        const d = pathThrough(r.cities);
+        const { keyTimes, keyPoints } = buildMotionTimes(r.cities);
+        return { ...r, d, keyTimes, keyPoints };
+      }),
+    [],
   );
 
   return (
-    <div className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`} aria-hidden>
+    <div
+      className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}
+      aria-hidden
+    >
       <svg viewBox="0 0 960 500" className="absolute inset-0 h-full w-full opacity-80">
         <defs>
           <radialGradient id="city-glow" cx="50%" cy="50%" r="50%">
@@ -123,11 +127,26 @@ export function AnimatedWorld({ className = "" }: { className?: string }) {
             <circle cx="1.5" cy="1.5" r="0.9" fill="oklch(0.6 0.05 256 / 0.35)" />
           </pattern>
           <mask id="continents">
-            <path d="M80 130 Q120 100 180 120 Q230 130 240 175 L235 220 Q220 260 180 275 L140 290 Q100 275 90 240 Q65 200 80 160 Z" fill="white" />
-            <path d="M195 275 Q220 260 240 275 Q250 320 235 370 Q210 410 195 380 Q175 340 185 305 Z" fill="white" />
-            <path d="M425 145 Q470 130 500 145 Q505 170 495 190 L470 205 Q440 200 425 180 Z" fill="white" />
-            <path d="M455 210 Q510 200 530 235 Q540 285 510 335 Q485 370 470 340 Q450 300 445 260 Z" fill="white" />
-            <path d="M540 170 Q640 155 720 175 Q790 195 800 235 Q770 275 700 290 Q620 300 560 275 Q525 245 535 205 Z" fill="white" />
+            <path
+              d="M80 130 Q120 100 180 120 Q230 130 240 175 L235 220 Q220 260 180 275 L140 290 Q100 275 90 240 Q65 200 80 160 Z"
+              fill="white"
+            />
+            <path
+              d="M195 275 Q220 260 240 275 Q250 320 235 370 Q210 410 195 380 Q175 340 185 305 Z"
+              fill="white"
+            />
+            <path
+              d="M425 145 Q470 130 500 145 Q505 170 495 190 L470 205 Q440 200 425 180 Z"
+              fill="white"
+            />
+            <path
+              d="M455 210 Q510 200 530 235 Q540 285 510 335 Q485 370 470 340 Q450 300 445 260 Z"
+              fill="white"
+            />
+            <path
+              d="M540 170 Q640 155 720 175 Q790 195 800 235 Q770 275 700 290 Q620 300 560 275 Q525 245 535 205 Z"
+              fill="white"
+            />
             <path d="M695 295 Q740 300 760 320 Q740 345 700 340 Z" fill="white" />
             <path d="M765 320 Q820 315 850 340 Q855 375 815 380 Q780 375 765 355 Z" fill="white" />
           </mask>
@@ -136,7 +155,13 @@ export function AnimatedWorld({ className = "" }: { className?: string }) {
         {/* Backdrop grid */}
         <rect width="960" height="500" fill="url(#worlddots)" opacity="0.35" />
         {/* Continents as dots + subtle glow */}
-        <rect width="960" height="500" fill="url(#worlddots)" mask="url(#continents)" opacity="0.95" />
+        <rect
+          width="960"
+          height="500"
+          fill="url(#worlddots)"
+          mask="url(#continents)"
+          opacity="0.95"
+        />
         <rect width="960" height="500" fill="oklch(0.55 0.2 256 / 0.06)" mask="url(#continents)" />
 
         {/* Route paths — very subtle */}
@@ -161,7 +186,13 @@ export function AnimatedWorld({ className = "" }: { className?: string }) {
               {/* halo */}
               <circle r="7" fill={r.color} opacity="0.25" />
               {/* body */}
-              <path d={VEHICLE_SVG[r.vehicle]} fill={r.color} stroke="white" strokeWidth="0.8" strokeLinejoin="round" />
+              <path
+                d={VEHICLE_SVG[r.vehicle]}
+                fill={r.color}
+                stroke="white"
+                strokeWidth="0.8"
+                strokeLinejoin="round"
+              />
               {/* wheels */}
               <circle cx="-3.5" cy="2.5" r="1" fill="oklch(0.15 0.02 250)" />
               <circle cx="3.5" cy="2.5" r="1" fill="oklch(0.15 0.02 250)" />
@@ -193,12 +224,44 @@ export function LivePreviewCard() {
 
   const drivers = useMemo(
     () => [
-      { name: "Alex R.", vehicle: "Van #4", plate: "VN-042", status: "moving" as const, color: "var(--moving)", km: 32 + (tick % 5), battery: 78 - (tick % 3) },
-      { name: "Kira O.", vehicle: "Bus 12", plate: "BX-112", status: "moving" as const, color: "var(--moving)", km: 48 + (tick % 4), battery: 62 },
-      { name: "Sam T.",  vehicle: "SUV 7",  plate: "SV-007", status: "stopped" as const, color: "var(--stopped)", km: 0, battery: 91 },
-      { name: "Mira N.", vehicle: "Bike",   plate: "MC-020", status: "idle" as const, color: "var(--idle)", km: 12, battery: 44 },
+      {
+        name: "Alex R.",
+        vehicle: "Van #4",
+        plate: "VN-042",
+        status: "moving" as const,
+        color: "var(--moving)",
+        km: 32 + (tick % 5),
+        battery: 78 - (tick % 3),
+      },
+      {
+        name: "Kira O.",
+        vehicle: "Bus 12",
+        plate: "BX-112",
+        status: "moving" as const,
+        color: "var(--moving)",
+        km: 48 + (tick % 4),
+        battery: 62,
+      },
+      {
+        name: "Sam T.",
+        vehicle: "SUV 7",
+        plate: "SV-007",
+        status: "stopped" as const,
+        color: "var(--stopped)",
+        km: 0,
+        battery: 91,
+      },
+      {
+        name: "Mira N.",
+        vehicle: "Bike",
+        plate: "MC-020",
+        status: "idle" as const,
+        color: "var(--idle)",
+        km: 12,
+        battery: 44,
+      },
     ],
-    [tick]
+    [tick],
   );
 
   // Route path for the mini-map: a curved journey with 3 waypoints where the
@@ -221,7 +284,9 @@ export function LivePreviewCard() {
           <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.78_0.17_80)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.18_150)]" />
         </div>
-        <div className="text-xs font-medium text-muted-foreground ml-2">livetrack.app/dashboard</div>
+        <div className="text-xs font-medium text-muted-foreground ml-2">
+          livetrack.app/dashboard
+        </div>
         <div className="ml-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--moving)]">
           <span className="relative flex h-2 w-2">
             <span className="absolute inset-0 rounded-full bg-[var(--moving)] animate-ping opacity-60" />
@@ -240,13 +305,20 @@ export function LivePreviewCard() {
               layout
               className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-accent/40 transition-colors"
             >
-              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: d.color, boxShadow: `0 0 8px ${d.color}` }} />
+              <span
+                className="h-2.5 w-2.5 rounded-full shrink-0"
+                style={{ background: d.color, boxShadow: `0 0 8px ${d.color}` }}
+              />
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold truncate">{d.name}</div>
-                <div className="text-[10px] text-muted-foreground truncate">{d.vehicle} · {d.plate}</div>
+                <div className="text-[10px] text-muted-foreground truncate">
+                  {d.vehicle} · {d.plate}
+                </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-xs font-bold tabular-nums" style={{ color: d.color }}>{d.km} km/h</div>
+                <div className="text-xs font-bold tabular-nums" style={{ color: d.color }}>
+                  {d.km} km/h
+                </div>
                 <div className="text-[10px] text-muted-foreground">{d.battery}%</div>
               </div>
             </motion.div>
@@ -258,7 +330,12 @@ export function LivePreviewCard() {
           <svg viewBox="0 0 320 260" className="h-full w-full">
             <defs>
               <pattern id="mini-grid" width="18" height="18" patternUnits="userSpaceOnUse">
-                <path d="M18 0 L0 0 0 18" fill="none" stroke="oklch(0.5 0.02 250 / 0.15)" strokeWidth="0.5" />
+                <path
+                  d="M18 0 L0 0 0 18"
+                  fill="none"
+                  stroke="oklch(0.5 0.02 250 / 0.15)"
+                  strokeWidth="0.5"
+                />
               </pattern>
               <linearGradient id="route-g" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="oklch(0.72 0.18 150)" stopOpacity="0.35" />
@@ -268,24 +345,70 @@ export function LivePreviewCard() {
             <rect width="320" height="260" fill="url(#mini-grid)" />
 
             {/* Fake streets */}
-            <path d="M 20 210 Q 90 200 130 155 Q 175 105 220 105 Q 260 105 290 55" stroke="oklch(0.4 0.02 250 / 0.35)" strokeWidth="6" fill="none" strokeLinecap="round" />
-            <path d="M 40 40 L 260 240" stroke="oklch(0.4 0.02 250 / 0.22)" strokeWidth="4" fill="none" strokeLinecap="round" />
-            <path d="M 20 130 L 300 130" stroke="oklch(0.4 0.02 250 / 0.18)" strokeWidth="3" fill="none" strokeLinecap="round" />
+            <path
+              d="M 20 210 Q 90 200 130 155 Q 175 105 220 105 Q 260 105 290 55"
+              stroke="oklch(0.4 0.02 250 / 0.35)"
+              strokeWidth="6"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 40 40 L 260 240"
+              stroke="oklch(0.4 0.02 250 / 0.22)"
+              strokeWidth="4"
+              fill="none"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 20 130 L 300 130"
+              stroke="oklch(0.4 0.02 250 / 0.18)"
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+            />
 
             {/* Traced trip line */}
-            <path d={routeD} stroke="url(#route-g)" strokeWidth="3" fill="none" strokeLinecap="round"
-                  strokeDasharray="6 6" style={{ animation: "trip-dash 2s linear infinite" }} />
+            <path
+              d={routeD}
+              stroke="url(#route-g)"
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray="6 6"
+              style={{ animation: "trip-dash 2s linear infinite" }}
+            />
 
             {/* Static markers at the stops */}
             <g>
               <circle r="7" fill="oklch(0.72 0.18 150 / 0.25)" cx="25" cy="210" />
-              <circle r="4" fill="oklch(0.72 0.18 150)" cx="25" cy="210" stroke="white" strokeWidth="1.2" />
+              <circle
+                r="4"
+                fill="oklch(0.72 0.18 150)"
+                cx="25"
+                cy="210"
+                stroke="white"
+                strokeWidth="1.2"
+              />
 
               <circle r="7" fill="oklch(0.78 0.17 80 / 0.2)" cx="150" cy="130" />
-              <circle r="4" fill="oklch(0.78 0.17 80)" cx="150" cy="130" stroke="white" strokeWidth="1.2" />
+              <circle
+                r="4"
+                fill="oklch(0.78 0.17 80)"
+                cx="150"
+                cy="130"
+                stroke="white"
+                strokeWidth="1.2"
+              />
 
               <circle r="7" fill="oklch(0.62 0.14 240 / 0.2)" cx="290" cy="55" />
-              <circle r="4" fill="oklch(0.62 0.14 240)" cx="290" cy="55" stroke="white" strokeWidth="1.2" />
+              <circle
+                r="4"
+                fill="oklch(0.62 0.14 240)"
+                cx="290"
+                cy="55"
+                stroke="white"
+                strokeWidth="1.2"
+              />
             </g>
 
             {/* Vehicle icon that follows the route and STOPS at each marker */}
@@ -293,14 +416,34 @@ export function LivePreviewCard() {
               {/* Halo */}
               <circle r="9" fill="oklch(0.72 0.18 150 / 0.35)" />
               {/* Body */}
-              <rect x="-8" y="-4" width="16" height="7" rx="1.5" fill="oklch(0.72 0.18 150)" stroke="white" strokeWidth="0.9" />
-              <path d="M-6 -4 L-4 -6 L4 -6 L6 -4 Z" fill="oklch(0.72 0.18 150)" stroke="white" strokeWidth="0.9" />
+              <rect
+                x="-8"
+                y="-4"
+                width="16"
+                height="7"
+                rx="1.5"
+                fill="oklch(0.72 0.18 150)"
+                stroke="white"
+                strokeWidth="0.9"
+              />
+              <path
+                d="M-6 -4 L-4 -6 L4 -6 L6 -4 Z"
+                fill="oklch(0.72 0.18 150)"
+                stroke="white"
+                strokeWidth="0.9"
+              />
               {/* Wheels */}
               <circle cx="-4.5" cy="3" r="1.5" fill="oklch(0.15 0.02 250)" />
               <circle cx="4.5" cy="3" r="1.5" fill="oklch(0.15 0.02 250)" />
 
-              <animateMotion dur="7s" repeatCount="indefinite" path={routeD}
-                             keyTimes={stopKeyTimes} keyPoints={stopKeyPoints} rotate="auto" />
+              <animateMotion
+                dur="7s"
+                repeatCount="indefinite"
+                path={routeD}
+                keyTimes={stopKeyTimes}
+                keyPoints={stopKeyPoints}
+                rotate="auto"
+              />
             </g>
           </svg>
         </div>

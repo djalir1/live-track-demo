@@ -2,8 +2,21 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Battery, Wifi, WifiOff, Satellite, Gauge, Route as RouteIcon,
-  Play, Square, LogOut, MapPin, Sun, Moon, ShieldCheck, Zap, Loader2,
+  Battery,
+  Wifi,
+  WifiOff,
+  Satellite,
+  Gauge,
+  Route as RouteIcon,
+  Play,
+  Square,
+  LogOut,
+  MapPin,
+  Sun,
+  Moon,
+  ShieldCheck,
+  Zap,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
@@ -17,9 +30,9 @@ export const Route = createFileRoute("/track")({
 });
 
 const STATUS_META = {
-  moving:  { label: "Moving",  color: "var(--moving)",  hint: "GPS live" },
-  stopped: { label: "Parked",  color: "var(--stopped)", hint: "Waiting for movement" },
-  idle:    { label: "Idle",    color: "var(--idle)",    hint: "No recent updates" },
+  moving: { label: "Moving", color: "var(--moving)", hint: "GPS live" },
+  stopped: { label: "Parked", color: "var(--stopped)", hint: "Waiting for movement" },
+  idle: { label: "Idle", color: "var(--idle)", hint: "No recent updates" },
   offline: { label: "Offline", color: "var(--offline)", hint: "Not tracking" },
 } as const;
 
@@ -44,7 +57,9 @@ function TrackPage() {
 
   useEffect(() => {
     if (
-      !loading && user && role === "user" &&
+      !loading &&
+      user &&
+      role === "user" &&
       !stats.isTracking &&
       stats.permission !== "denied" &&
       stats.permission !== "unsupported"
@@ -62,7 +77,9 @@ function TrackPage() {
       const label = await reverseGeocode(stats.latitude, stats.longitude);
       if (!cancelled && label) setAddress(label);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [stats.latitude?.toFixed(3), stats.longitude?.toFixed(3)]);
 
   // Never render the driver UI for anyone whose role isn't confirmed "user".
@@ -97,7 +114,9 @@ function TrackPage() {
           <div className="flex items-center gap-1">
             {role === "admin" && (
               <Button asChild variant="ghost" size="icon" title="Admin dashboard">
-                <Link to="/dashboard"><ShieldCheck className="h-4 w-4" /></Link>
+                <Link to="/dashboard">
+                  <ShieldCheck className="h-4 w-4" />
+                </Link>
               </Button>
             )}
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
@@ -113,7 +132,8 @@ function TrackPage() {
       <main className="mx-auto max-w-md px-4 pt-6 space-y-5">
         {blocked && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5 space-y-3"
           >
             <div className="flex items-start gap-3">
@@ -135,13 +155,22 @@ function TrackPage() {
             </div>
             {stats.permission === "denied" && (
               <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside pl-1">
-                <li>Open your device <b>Settings → Location</b> and turn it ON.</li>
-                <li>In your browser, tap the lock/info icon in the address bar and allow <b>Location</b> for this site.</li>
-                <li>Return here and tap <b>Retry</b>.</li>
+                <li>
+                  Open your device <b>Settings → Location</b> and turn it ON.
+                </li>
+                <li>
+                  In your browser, tap the lock/info icon in the address bar and allow{" "}
+                  <b>Location</b> for this site.
+                </li>
+                <li>
+                  Return here and tap <b>Retry</b>.
+                </li>
               </ol>
             )}
             <div className="flex gap-2">
-              <Button onClick={start} className="flex-1">Retry</Button>
+              <Button onClick={start} className="flex-1">
+                Retry
+              </Button>
               <Button variant="outline" onClick={() => location.reload()} className="flex-1">
                 Reload
               </Button>
@@ -151,11 +180,14 @@ function TrackPage() {
 
         {/* Status hero */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
           className="relative overflow-hidden rounded-3xl bg-gradient-card border border-border/60 shadow-soft p-6"
         >
-          <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full opacity-30"
-            style={{ background: `radial-gradient(circle, ${meta.color}, transparent 70%)` }} />
+          <div
+            className="absolute -top-24 -right-24 h-56 w-56 rounded-full opacity-30"
+            style={{ background: `radial-gradient(circle, ${meta.color}, transparent 70%)` }}
+          />
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wider text-muted-foreground">Status</p>
@@ -175,10 +207,19 @@ function TrackPage() {
             </div>
             <div className="flex items-center gap-3 text-muted-foreground text-xs shrink-0">
               <span className="flex items-center gap-1" title={stats.online ? "Online" : "Offline"}>
-                {stats.online ? <Wifi className="h-4 w-4 text-[var(--moving)]" /> : <WifiOff className="h-4 w-4 text-[var(--idle)]" />}
+                {stats.online ? (
+                  <Wifi className="h-4 w-4 text-[var(--moving)]" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-[var(--idle)]" />
+                )}
               </span>
-              <span className="flex items-center gap-1" title={stats.gpsActive ? "GPS active" : "GPS off"}>
-                <Satellite className={`h-4 w-4 ${stats.gpsActive ? "text-[var(--moving)]" : "text-muted-foreground"}`} />
+              <span
+                className="flex items-center gap-1"
+                title={stats.gpsActive ? "GPS active" : "GPS off"}
+              >
+                <Satellite
+                  className={`h-4 w-4 ${stats.gpsActive ? "text-[var(--moving)]" : "text-muted-foreground"}`}
+                />
               </span>
               <span className="flex items-center gap-1" title="Battery">
                 <Battery className="h-4 w-4" />
@@ -188,15 +229,33 @@ function TrackPage() {
           </div>
 
           <div className="mt-8 grid grid-cols-2 gap-3">
-            <Stat icon={<Gauge className="h-4 w-4" />} label="Speed" value={`${stats.speedKmh.toFixed(1)}`} unit="km/h" />
-            <Stat icon={<RouteIcon className="h-4 w-4" />} label="Distance" value={(stats.totalDistanceM / 1000).toFixed(2)} unit="km" />
+            <Stat
+              icon={<Gauge className="h-4 w-4" />}
+              label="Speed"
+              value={`${stats.speedKmh.toFixed(1)}`}
+              unit="km/h"
+            />
+            <Stat
+              icon={<RouteIcon className="h-4 w-4" />}
+              label="Distance"
+              value={(stats.totalDistanceM / 1000).toFixed(2)}
+              unit="km"
+            />
           </div>
 
           <div className="mt-4 rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground space-y-1">
             {stats.latitude != null ? (
               <>
-                <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /> <span className="font-medium text-foreground truncate">{address ?? "Locating…"}</span></div>
-                <div className="font-mono opacity-70">{stats.latitude.toFixed(5)}, {stats.longitude!.toFixed(5)} · ±{stats.accuracy?.toFixed(0) ?? "—"}m</div>
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" />{" "}
+                  <span className="font-medium text-foreground truncate">
+                    {address ?? "Locating…"}
+                  </span>
+                </div>
+                <div className="font-mono opacity-70">
+                  {stats.latitude.toFixed(5)}, {stats.longitude!.toFixed(5)} · ±
+                  {stats.accuracy?.toFixed(0) ?? "—"}m
+                </div>
               </>
             ) : (
               <div>Waiting for GPS fix…</div>
@@ -209,21 +268,29 @@ function TrackPage() {
           {!stats.isTracking ? (
             <motion.button
               key="start"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               onClick={start}
               className="group relative w-full h-20 rounded-3xl bg-gradient-primary text-primary-foreground font-display font-bold text-xl shadow-glow active:scale-[0.98] transition-transform"
             >
               <span className="absolute inset-0 rounded-3xl bg-white/0 group-hover:bg-white/5 transition" />
-              <span className="inline-flex items-center gap-3"><Play className="h-6 w-6" /> Start tracking</span>
+              <span className="inline-flex items-center gap-3">
+                <Play className="h-6 w-6" /> Start tracking
+              </span>
             </motion.button>
           ) : (
             <motion.button
               key="stop"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               onClick={stop}
               className="w-full h-20 rounded-3xl bg-[var(--stopped)] text-white font-display font-bold text-xl shadow-soft active:scale-[0.98] transition-transform"
             >
-              <span className="inline-flex items-center gap-3"><Square className="h-6 w-6" /> Stop tracking</span>
+              <span className="inline-flex items-center gap-3">
+                <Square className="h-6 w-6" /> Stop tracking
+              </span>
             </motion.button>
           )}
         </AnimatePresence>
@@ -235,14 +302,25 @@ function TrackPage() {
         )}
 
         <p className="text-xs text-center text-muted-foreground">
-          Keep this tab open (and screen on) while tracking. On phones, install as a PWA and enable Wake Lock for best results.
+          Keep this tab open (and screen on) while tracking. On phones, install as a PWA and enable
+          Wake Lock for best results.
         </p>
       </main>
     </div>
   );
 }
 
-function Stat({ icon, label, value, unit }: { icon: React.ReactNode; label: string; value: string; unit: string }) {
+function Stat({
+  icon,
+  label,
+  value,
+  unit,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  unit: string;
+}) {
   return (
     <div className="rounded-2xl bg-background/40 border border-border/50 p-4">
       <div className="flex items-center gap-2 text-muted-foreground text-xs">

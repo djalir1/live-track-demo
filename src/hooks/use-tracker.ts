@@ -56,7 +56,9 @@ function distance(a: [number, number], b: [number, number]) {
 export function useTracker() {
   const { user } = useAuth();
   const userIdRef = useRef<string | null>(user?.id ?? null);
-  useEffect(() => { userIdRef.current = user?.id ?? null; }, [user]);
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null;
+  }, [user]);
   const [stats, setStats] = useState<LiveStats>(initial);
   const watchId = useRef<number | null>(null);
   const lastPos = useRef<[number, number] | null>(null);
@@ -71,24 +73,39 @@ export function useTracker() {
   const acquireWakeLock = useCallback(async () => {
     try {
       const nav = navigator as Navigator & {
-        wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void>; addEventListener: (e: string, cb: () => void) => void }> };
+        wakeLock?: {
+          request: (type: "screen") => Promise<{
+            release: () => Promise<void>;
+            addEventListener: (e: string, cb: () => void) => void;
+          }>;
+        };
       };
       if (!nav.wakeLock) return;
       const lock = await nav.wakeLock.request("screen");
       wakeLockRef.current = lock;
-      lock.addEventListener("release", () => { wakeLockRef.current = null; });
+      lock.addEventListener("release", () => {
+        wakeLockRef.current = null;
+      });
     } catch {
       // Some browsers throw if the tab isn't focused. That's fine — no-op.
     }
   }, []);
   const releaseWakeLock = useCallback(async () => {
-    try { await wakeLockRef.current?.release(); } catch { /* noop */ }
+    try {
+      await wakeLockRef.current?.release();
+    } catch {
+      /* noop */
+    }
     wakeLockRef.current = null;
   }, []);
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === "visible" && watchId.current != null && !wakeLockRef.current) {
+      if (
+        document.visibilityState === "visible" &&
+        watchId.current != null &&
+        !wakeLockRef.current
+      ) {
         void acquireWakeLock();
       }
     };
@@ -121,11 +138,14 @@ export function useTracker() {
       batteryRef.current.level = lvl;
       setStats((s) => ({ ...s, batteryLevel: lvl }));
     };
-    nav.getBattery().then((b) => {
-      bat = b;
-      b.addEventListener("levelchange", update);
-      update();
-    }).catch(() => {});
+    nav
+      .getBattery()
+      .then((b) => {
+        bat = b;
+        b.addEventListener("levelchange", update);
+        update();
+      })
+      .catch(() => {});
   }, []);
 
   // permission state
@@ -135,70 +155,88 @@ export function useTracker() {
       setStats((s) => ({ ...s, permission: "unsupported" }));
       return;
     }
-    const nav = navigator as Navigator & { permissions?: { query: (d: { name: string }) => Promise<{ state: string; onchange: ((e: Event) => void) | null }> } };
+    const nav = navigator as Navigator & {
+      permissions?: {
+        query: (d: {
+          name: string;
+        }) => Promise<{ state: string; onchange: ((e: Event) => void) | null }>;
+      };
+    };
     if (!nav.permissions?.query) return;
     let res: { state: string; onchange: ((e: Event) => void) | null } | null = null;
-    nav.permissions.query({ name: "geolocation" }).then((r) => {
-      res = r;
-      setStats((s) => ({ ...s, permission: r.state as PermissionState }));
-      r.onchange = () => setStats((s) => ({ ...s, permission: r.state as PermissionState }));
-    }).catch(() => {});
-    return () => { if (res) res.onchange = null; };
+    nav.permissions
+      .query({ name: "geolocation" })
+      .then((r) => {
+        res = r;
+        setStats((s) => ({ ...s, permission: r.state as PermissionState }));
+        r.onchange = () => setStats((s) => ({ ...s, permission: r.state as PermissionState }));
+      })
+      .catch(() => {});
+    return () => {
+      if (res) res.onchange = null;
+    };
   }, []);
 
-  const persist = useCallback(async (next: Partial<LiveStats>, status: TrackingStatus, isTracking: boolean) => {
-    const uid = userIdRef.current;
-    if (!uid) return;
-    try {
-      const lat = next.latitude ?? null;
-      const lon = next.longitude ?? null;
+  const persist = useCallback(
+    async (next: Partial<LiveStats>, status: TrackingStatus, isTracking: boolean) => {
+      const uid = userIdRef.current;
+      if (!uid) return;
+      try {
+        const lat = next.latitude ?? null;
+        const lon = next.longitude ?? null;
 
-      const row = {
-        user_id: uid,
-        status,
-        latitude: lat,
-        longitude: lon,
-        speed_kmh: next.speedKmh ?? 0,
-        heading: next.heading ?? null,
-        accuracy: next.accuracy ?? null,
-        battery_level: batteryRef.current.level,
-        is_tracking: isTracking,
-        total_distance_m: next.totalDistanceM ?? 0,
-        last_seen: new Date().toISOString(),
-      };
-      let { error: statusErr } = await supabase.from("device_status").upsert(row);
-      // RLS/JWT can transiently fail right after signup while the auth token
-      // is still being attached to the client. Retry with backoff before
-      // ever surfacing anything to the user — never toast these.
-      let attempt = 0;
-      while (statusErr && attempt < 3 && /row-level|JWT|token|permission|auth/i.test(statusErr.message)) {
-        attempt++;
-        await new Promise((r) => setTimeout(r, 400 * attempt));
-        ({ error: statusErr } = await supabase.from("device_status").upsert(row));
-      }
-      if (statusErr) {
-        // Only surface non-transient errors (e.g. network down, DB constraint).
-        const transient = /row-level|JWT|token|permission|auth/i.test(statusErr.message);
-        console.error("[tracker] device_status upsert error", statusErr);
-        if (!transient) setStats((s) => ({ ...s, error: statusErr.message }));
-      } else {
-        setStats((s) => (s.error ? { ...s, error: null } : s));
-      }
-
-      if (lat != null && lon != null && isTracking) {
-        const { error: histErr } = await supabase.from("location_history").insert({
+        const row = {
           user_id: uid,
+          status,
           latitude: lat,
           longitude: lon,
           speed_kmh: next.speedKmh ?? 0,
+          heading: next.heading ?? null,
+          accuracy: next.accuracy ?? null,
           battery_level: batteryRef.current.level,
-        });
-        if (histErr) console.error("[tracker] location_history insert error", histErr);
+          is_tracking: isTracking,
+          total_distance_m: next.totalDistanceM ?? 0,
+          last_seen: new Date().toISOString(),
+        };
+        let { error: statusErr } = await supabase.from("device_status").upsert(row);
+        // RLS/JWT can transiently fail right after signup while the auth token
+        // is still being attached to the client. Retry with backoff before
+        // ever surfacing anything to the user — never toast these.
+        let attempt = 0;
+        while (
+          statusErr &&
+          attempt < 3 &&
+          /row-level|JWT|token|permission|auth/i.test(statusErr.message)
+        ) {
+          attempt++;
+          await new Promise((r) => setTimeout(r, 400 * attempt));
+          ({ error: statusErr } = await supabase.from("device_status").upsert(row));
+        }
+        if (statusErr) {
+          // Only surface non-transient errors (e.g. network down, DB constraint).
+          const transient = /row-level|JWT|token|permission|auth/i.test(statusErr.message);
+          console.error("[tracker] device_status upsert error", statusErr);
+          if (!transient) setStats((s) => ({ ...s, error: statusErr.message }));
+        } else {
+          setStats((s) => (s.error ? { ...s, error: null } : s));
+        }
+
+        if (lat != null && lon != null && isTracking) {
+          const { error: histErr } = await supabase.from("location_history").insert({
+            user_id: uid,
+            latitude: lat,
+            longitude: lon,
+            speed_kmh: next.speedKmh ?? 0,
+            battery_level: batteryRef.current.level,
+          });
+          if (histErr) console.error("[tracker] location_history insert error", histErr);
+        }
+      } catch (e) {
+        console.error("[tracker] persist exception", e);
       }
-    } catch (e) {
-      console.error("[tracker] persist exception", e);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const start = useCallback(() => {
     if (!("geolocation" in navigator)) {
@@ -243,11 +281,15 @@ export function useTracker() {
 
           const next = {
             ...prev,
-            latitude: lat, longitude: lon,
-            speedKmh, heading: pos.coords.heading,
+            latitude: lat,
+            longitude: lon,
+            speedKmh,
+            heading: pos.coords.heading,
             accuracy: pos.coords.accuracy,
             totalDistanceM,
-            status, gpsActive: true, lastUpdate: now,
+            status,
+            gpsActive: true,
+            lastUpdate: now,
           };
           if (now - lastSent.current > 8000) {
             lastSent.current = now;
@@ -271,7 +313,7 @@ export function useTracker() {
           status: denied ? "offline" : s.status,
         }));
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
     );
   }, [persist, acquireWakeLock]);
 
@@ -281,12 +323,24 @@ export function useTracker() {
     if (idleTimer.current) window.clearTimeout(idleTimer.current);
     void releaseWakeLock();
     setStats((s) => ({ ...s, isTracking: false, status: "offline", gpsActive: false }));
-    await persist({ latitude: stats.latitude, longitude: stats.longitude, totalDistanceM: stats.totalDistanceM, speedKmh: 0 }, "offline", false);
+    await persist(
+      {
+        latitude: stats.latitude,
+        longitude: stats.longitude,
+        totalDistanceM: stats.totalDistanceM,
+        speedKmh: 0,
+      },
+      "offline",
+      false,
+    );
   }, [persist, releaseWakeLock, stats.latitude, stats.longitude, stats.totalDistanceM]);
 
-  useEffect(() => () => {
-    if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current);
+    },
+    [],
+  );
 
   return { stats, start, stop };
 }

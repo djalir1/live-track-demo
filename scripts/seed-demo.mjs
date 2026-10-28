@@ -36,7 +36,12 @@ const DEMO = [
     password: "PulseDemo!Driver1",
     display_name: "Demo Driver One",
     role: "user",
-    profile: { vehicle_type: "van", vehicle_name: "Delivery Van", plate_number: "RAD001A", seats: 3 },
+    profile: {
+      vehicle_type: "van",
+      vehicle_name: "Delivery Van",
+      plate_number: "RAD001A",
+      seats: 3,
+    },
   },
   {
     key: "driver2",
@@ -50,7 +55,10 @@ const DEMO = [
 
 async function ensureUser(spec) {
   // Look up by email; if not present, create.
-  const { data: page, error: listErr } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data: page, error: listErr } = await supabase.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
   if (listErr) throw listErr;
   const existing = page.users.find((u) => u.email === spec.email);
   if (existing) return existing.id;
@@ -74,43 +82,55 @@ async function upsertProfileAndRole(uid, spec) {
   // user_roles has (user_id, role) uniqueness only if a constraint exists;
   // we DELETE + INSERT to be idempotent regardless of the current schema.
   await supabase.from("user_roles").delete().eq("user_id", uid);
-  const { error: rErr } = await supabase.from("user_roles").insert({ user_id: uid, role: spec.role });
+  const { error: rErr } = await supabase
+    .from("user_roles")
+    .insert({ user_id: uid, role: spec.role });
   if (rErr) throw rErr;
 }
 
 // --- Kigali -> Kampala demo day (matches the SQL used to seed the real DB).
 const DEMO_DAY = "2026-06-15";
 const MORNING = [
-  ["06:00:00", -1.9440, 30.0555,  0, 98],
-  ["06:02:00", -1.9455, 30.0570, 12, 98],
-  ["06:04:00", -1.9470, 30.0590, 18, 97],
-  ["06:06:00", -1.9500, 30.0610, 22, 97],
-  ["06:08:00", -1.9530, 30.0630, 22, 96],
-  ["06:10:00", -1.9552, 30.0650, 20, 96],
-  ["06:12:00", -1.9570, 30.0680, 24, 95],
-  ["06:14:00", -1.9585, 30.0720, 26, 95],
-  ["06:16:00", -1.9580, 30.0800, 32, 94],
-  ["06:18:00", -1.9570, 30.0900, 34, 94],
-  ["06:20:00", -1.9560, 30.1000, 34, 93],
-  ["06:22:00", -1.9550, 30.1120, 30, 93],
-  ["06:24:00", -1.9550, 30.1120,  0, 92],
-  ["06:26:00", -1.9550, 30.1120,  0, 92],
+  ["06:00:00", -1.944, 30.0555, 0, 98],
+  ["06:02:00", -1.9455, 30.057, 12, 98],
+  ["06:04:00", -1.947, 30.059, 18, 97],
+  ["06:06:00", -1.95, 30.061, 22, 97],
+  ["06:08:00", -1.953, 30.063, 22, 96],
+  ["06:10:00", -1.9552, 30.065, 20, 96],
+  ["06:12:00", -1.957, 30.068, 24, 95],
+  ["06:14:00", -1.9585, 30.072, 26, 95],
+  ["06:16:00", -1.958, 30.08, 32, 94],
+  ["06:18:00", -1.957, 30.09, 34, 94],
+  ["06:20:00", -1.956, 30.1, 34, 93],
+  ["06:22:00", -1.955, 30.112, 30, 93],
+  ["06:24:00", -1.955, 30.112, 0, 92],
+  ["06:26:00", -1.955, 30.112, 0, 92],
 ];
 const EVENING = [
-  ["21:42:00",  0.3163, 32.5822,  0, 41],
-  ["21:44:00",  0.3180, 32.5850, 22, 40],
-  ["21:46:00",  0.3200, 32.5880, 25, 39],
-  ["21:48:00",  0.3220, 32.5920, 28, 38],
-  ["21:50:00",  0.3250, 32.5960, 30, 37],
-  ["21:52:00",  0.3280, 32.6000, 24, 36],
+  ["21:42:00", 0.3163, 32.5822, 0, 41],
+  ["21:44:00", 0.318, 32.585, 22, 40],
+  ["21:46:00", 0.32, 32.588, 25, 39],
+  ["21:48:00", 0.322, 32.592, 28, 38],
+  ["21:50:00", 0.325, 32.596, 30, 37],
+  ["21:52:00", 0.328, 32.6, 24, 36],
 ];
 
 async function seedDemoDay(driverUid) {
   const dayStart = `${DEMO_DAY} 00:00:00+00`;
   const dayEnd = `${DEMO_DAY} 23:59:59+00`;
   // Wipe any prior demo-day rows so this is idempotent.
-  await supabase.from("location_history").delete().eq("user_id", driverUid).gte("recorded_at", dayStart).lte("recorded_at", dayEnd);
-  await supabase.from("trip_sessions").delete().eq("user_id", driverUid).gte("started_at", dayStart).lte("started_at", dayEnd);
+  await supabase
+    .from("location_history")
+    .delete()
+    .eq("user_id", driverUid)
+    .gte("recorded_at", dayStart)
+    .lte("recorded_at", dayEnd);
+  await supabase
+    .from("trip_sessions")
+    .delete()
+    .eq("user_id", driverUid)
+    .gte("started_at", dayStart)
+    .lte("started_at", dayEnd);
 
   const rows = [...MORNING, ...EVENING].map(([t, lat, lon, kmh, bat]) => ({
     user_id: driverUid,

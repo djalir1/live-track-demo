@@ -8,13 +8,23 @@ const rad = (x: number) => (x * Math.PI) / 180;
 export function haversineM(a: [number, number], b: [number, number]): number {
   const dLat = rad(b[0] - a[0]);
   const dLon = rad(b[1] - a[1]);
-  const la1 = rad(a[0]); const la2 = rad(b[0]);
+  const la1 = rad(a[0]);
+  const la2 = rad(b[0]);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
   return 2 * R_M * Math.asin(Math.sqrt(h));
 }
 
-export interface StopPt { id: string; lat: number; lng: number; sequence: number | null; }
-export interface EventLite { stop_id: string; event_type: "arrive" | "depart"; occurred_at: string; }
+export interface StopPt {
+  id: string;
+  lat: number;
+  lng: number;
+  sequence: number | null;
+}
+export interface EventLite {
+  stop_id: string;
+  event_type: "arrive" | "depart";
+  occurred_at: string;
+}
 
 /** Sort stops by sequence (nulls last) for consistent ordering. */
 export function orderedStops(stops: StopPt[]): StopPt[] {
@@ -36,7 +46,8 @@ export function projectOnRoute(bus: [number, number], stopsIn: StopPt[]) {
   let best = { segIdx: 0, fraction: 0, cumulativeM: 0, bestDistM: Infinity };
   let cum = 0;
   for (let i = 0; i < stops.length - 1; i++) {
-    const a = stops[i], b = stops[i + 1];
+    const a = stops[i],
+      b = stops[i + 1];
     // Local metric: convert lat/lng deltas to metres at the segment midpoint.
     const midLat = (a.lat + b.lat) / 2;
     const mPerDegLat = 111_320;
@@ -50,7 +61,8 @@ export function projectOnRoute(bus: [number, number], stopsIn: StopPt[]) {
     const segLenSq = bx * bx + by * by;
     const segLen = Math.sqrt(segLenSq);
     let t = segLenSq > 0 ? ((px - ax) * bx + (py - ay) * by) / segLenSq : 0;
-    if (t < 0) t = 0; else if (t > 1) t = 1;
+    if (t < 0) t = 0;
+    else if (t > 1) t = 1;
     const projX = ax + t * bx;
     const projY = ay + t * by;
     const dx = px - projX;
@@ -91,7 +103,8 @@ export function remainingMetresToStop(
   // Cumulative distance to each stop.
   const cumTo: number[] = [0];
   for (let i = 1; i < stops.length; i++) {
-    cumTo[i] = cumTo[i - 1] + haversineM([stops[i - 1].lat, stops[i - 1].lng], [stops[i].lat, stops[i].lng]);
+    cumTo[i] =
+      cumTo[i - 1] + haversineM([stops[i - 1].lat, stops[i - 1].lng], [stops[i].lat, stops[i].lng]);
   }
 
   const proj = projectOnRoute(bus, stops);
@@ -107,8 +120,16 @@ export function remainingMetresToStop(
  * over the given time window. Returns null if there are fewer than 2 usable
  * points or the total elapsed time is essentially zero.
  */
-export interface HistoryPt { latitude: number; longitude: number; recorded_at: string; }
-export function rollingSpeedKmh(points: HistoryPt[], windowMinutes = 5, nowMs = Date.now()): number | null {
+export interface HistoryPt {
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+}
+export function rollingSpeedKmh(
+  points: HistoryPt[],
+  windowMinutes = 5,
+  nowMs = Date.now(),
+): number | null {
   if (points.length < 2) return null;
   const cutoff = nowMs - windowMinutes * 60_000;
   const inWindow = points
@@ -122,8 +143,10 @@ export function rollingSpeedKmh(points: HistoryPt[], windowMinutes = 5, nowMs = 
       [inWindow[i].latitude, inWindow[i].longitude],
     );
   }
-  const dt = (new Date(inWindow[inWindow.length - 1].recorded_at).getTime() -
-              new Date(inWindow[0].recorded_at).getTime()) / 1000;
+  const dt =
+    (new Date(inWindow[inWindow.length - 1].recorded_at).getTime() -
+      new Date(inWindow[0].recorded_at).getTime()) /
+    1000;
   if (dt < 5) return null;
   return (dm / dt) * 3.6;
 }
@@ -132,9 +155,9 @@ export function rollingSpeedKmh(points: HistoryPt[], windowMinutes = 5, nowMs = 
 
 export type EtaState =
   | { kind: "eta"; minutes: number; approximate: true }
-  | { kind: "arriving" }         // < 2 minutes
-  | { kind: "passed" }           // depart(home) already seen this trip
-  | { kind: "unknown" };         // insufficient info
+  | { kind: "arriving" } // < 2 minutes
+  | { kind: "passed" } // depart(home) already seen this trip
+  | { kind: "unknown" }; // insufficient info
 
 export const FALLBACK_SPEED_KMH = 20;
 
@@ -165,7 +188,7 @@ export function computeEta(params: {
     return { kind: "unknown" };
   }
   const speed = liveSpeedKmh && liveSpeedKmh > 1 ? liveSpeedKmh : FALLBACK_SPEED_KMH;
-  const minutes = (remM / 1000) / speed * 60;
+  const minutes = (remM / 1000 / speed) * 60;
   if (minutes < 2) return { kind: "arriving" };
   return { kind: "eta", minutes: Math.round(minutes), approximate: true };
 }
@@ -205,7 +228,7 @@ export function bannerForEvent(
   preHomeStopIdVal: string | null,
 ): NotifyIntent | null {
   if (event.event_type !== "arrive") return null;
-  if (!homeStopId) return null;  // no home → no notifications ever
+  if (!homeStopId) return null; // no home → no notifications ever
   if (event.stop_id === homeStopId) return "arrived";
   if (preHomeStopIdVal && event.stop_id === preHomeStopIdVal) return "approach";
   return null;

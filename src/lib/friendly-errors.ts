@@ -3,7 +3,10 @@
 // on `console.error` for debugging; the toast/UI only ever sees the friendly
 // message.
 
-export function friendlyError(e: unknown, fallback = "Something went wrong. Please try again."): string {
+export function friendlyError(
+  e: unknown,
+  fallback = "Something went wrong. Please try again.",
+): string {
   if (!e) return fallback;
   const raw = e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
   const low = raw.toLowerCase();

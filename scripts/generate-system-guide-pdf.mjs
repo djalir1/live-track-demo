@@ -15,143 +15,234 @@ const OUT = resolve(__dirname, "..", "LIVETRACK-System-Guide.pdf");
 
 // jsPDF's default font is Windows-1252. Strip / substitute unicode.
 const UNI_MAP = {
-  "–":"-","—":"-","―":"-",
-  "‘":"'","’":"'","‚":",","‛":"'",
-  "“":"\"","”":"\"","„":"\"","‟":"\"",
-  "•":"-","…":"...",
-  "←":"<-","↑":"^","→":"->","↓":"v",
-  "⇄":"<->","⇆":"<->",
-  "≤":"<=","≥":">=","×":"x","·":"-",
+  "–": "-",
+  "—": "-",
+  "―": "-",
+  "‘": "'",
+  "’": "'",
+  "‚": ",",
+  "‛": "'",
+  "“": '"',
+  "”": '"',
+  "„": '"',
+  "‟": '"',
+  "•": "-",
+  "…": "...",
+  "←": "<-",
+  "↑": "^",
+  "→": "->",
+  "↓": "v",
+  "⇄": "<->",
+  "⇆": "<->",
+  "≤": "<=",
+  "≥": ">=",
+  "×": "x",
+  "·": "-",
 };
-function a(s){ if(s==null) return s; let o=String(s); for(const [u,r] of Object.entries(UNI_MAP)) o=o.split(u).join(r); return o.replace(/[^\x00-\xFF]/g,"?"); }
+function a(s) {
+  if (s == null) return s;
+  let o = String(s);
+  for (const [u, r] of Object.entries(UNI_MAP)) o = o.split(u).join(r);
+  return o.replace(/[^\x00-\xFF]/g, "?");
+}
 
 const C = {
-  primary:[88,80,236], primaryDeep:[56,48,180],
-  ink:[24,27,40], muted:[110,116,138], faint:[175,180,195],
-  line:[225,228,235], tile:[246,247,251],
-  good:[34,197,94], info:[59,130,246], warn:[245,158,11], bad:[239,68,68],
-  panelDark:[16,20,34],
+  primary: [88, 80, 236],
+  primaryDeep: [56, 48, 180],
+  ink: [24, 27, 40],
+  muted: [110, 116, 138],
+  faint: [175, 180, 195],
+  line: [225, 228, 235],
+  tile: [246, 247, 251],
+  good: [34, 197, 94],
+  info: [59, 130, 246],
+  warn: [245, 158, 11],
+  bad: [239, 68, 68],
+  panelDark: [16, 20, 34],
 };
 
-const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 const W = doc.internal.pageSize.getWidth();
 const H = doc.internal.pageSize.getHeight();
 const M = 16;
 let y = M;
 
-const setFillC = (c) => doc.setFillColor(c[0],c[1],c[2]);
-const setStrokeC = (c) => doc.setDrawColor(c[0],c[1],c[2]);
-const setTextC = (c) => doc.setTextColor(c[0],c[1],c[2]);
+const setFillC = (c) => doc.setFillColor(c[0], c[1], c[2]);
+const setStrokeC = (c) => doc.setDrawColor(c[0], c[1], c[2]);
+const setTextC = (c) => doc.setTextColor(c[0], c[1], c[2]);
 
 function needPage(min = 12) {
-  if (y > H - M - min) { doc.addPage(); y = M; drawRunningFooter(); }
+  if (y > H - M - min) {
+    doc.addPage();
+    y = M;
+    drawRunningFooter();
+  }
 }
 
 function drawRunningFooter() {
   const p = doc.getNumberOfPages();
-  setFillC(C.primary); doc.rect(0, H-10, W, 3, "F");
-  setTextC(C.muted); doc.setFont("helvetica","normal"); doc.setFontSize(8);
-  doc.text(a("LIVE TRACK - System Guide"), M, H-4);
-  doc.text(`Page ${p}`, W-M, H-4, { align:"right" });
+  setFillC(C.primary);
+  doc.rect(0, H - 10, W, 3, "F");
+  setTextC(C.muted);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(a("LIVE TRACK - System Guide"), M, H - 4);
+  doc.text(`Page ${p}`, W - M, H - 4, { align: "right" });
 }
 
 function h1(text) {
   needPage(20);
-  setTextC(C.ink); doc.setFont("helvetica","bold"); doc.setFontSize(22);
+  setTextC(C.ink);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
   doc.text(a(text), M, y);
-  setFillC(C.primary); doc.rect(M, y+3, 34, 1.2, "F");
+  setFillC(C.primary);
+  doc.rect(M, y + 3, 34, 1.2, "F");
   y += 14;
 }
 function h2(text) {
   needPage(14);
-  setTextC(C.ink); doc.setFont("helvetica","bold"); doc.setFontSize(14);
-  doc.text(a(text), M, y); y += 8;
+  setTextC(C.ink);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(a(text), M, y);
+  y += 8;
 }
 function h3(text) {
   needPage(10);
-  setTextC(C.primary); doc.setFont("helvetica","bold"); doc.setFontSize(11);
-  doc.text(a(text), M, y); y += 6;
+  setTextC(C.primary);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(a(text), M, y);
+  y += 6;
 }
-function paragraph(text, opts={}) {
-  const { color=C.ink, size=10.5, gap=5 } = opts;
-  setTextC(color); doc.setFont("helvetica","normal"); doc.setFontSize(size);
-  const wrapped = doc.splitTextToSize(a(text), W-M*2);
+function paragraph(text, opts = {}) {
+  const { color = C.ink, size = 10.5, gap = 5 } = opts;
+  setTextC(color);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(size);
+  const wrapped = doc.splitTextToSize(a(text), W - M * 2);
   const lineH = size * 0.42;
-  needPage(wrapped.length*lineH + gap);
+  needPage(wrapped.length * lineH + gap);
   doc.text(wrapped, M, y);
-  y += wrapped.length*lineH + gap;
+  y += wrapped.length * lineH + gap;
 }
-function bulletList(items, opts={}) {
-  const { color=C.ink, size=10, indent=6, gap=3 } = opts;
-  setTextC(color); doc.setFont("helvetica","normal"); doc.setFontSize(size);
+function bulletList(items, opts = {}) {
+  const { color = C.ink, size = 10, indent = 6, gap = 3 } = opts;
+  setTextC(color);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(size);
   const lineH = size * 0.42;
   for (const item of items) {
-    const wrapped = doc.splitTextToSize(a(item), W-M*2-indent);
-    needPage(wrapped.length*lineH + gap + 2);
-    setFillC(C.primary); doc.circle(M+1.5, y-1.2, 0.8, "F");
-    setTextC(color); doc.text(wrapped, M+indent, y);
-    y += wrapped.length*lineH + gap;
+    const wrapped = doc.splitTextToSize(a(item), W - M * 2 - indent);
+    needPage(wrapped.length * lineH + gap + 2);
+    setFillC(C.primary);
+    doc.circle(M + 1.5, y - 1.2, 0.8, "F");
+    setTextC(color);
+    doc.text(wrapped, M + indent, y);
+    y += wrapped.length * lineH + gap;
   }
   y += 2;
 }
 function callout(kind, title, body) {
   const badge = {
-    tip:   ["TIP",   C.info],
+    tip: ["TIP", C.info],
     watch: ["WATCH", C.warn],
-    step:  ["STEP",  C.primary],
-    note:  ["NOTE",  C.muted],
-    ok:    ["OK",    C.good],
-    dont:  ["DON'T", C.bad],
-  }[kind] ?? ["",C.muted];
+    step: ["STEP", C.primary],
+    note: ["NOTE", C.muted],
+    ok: ["OK", C.good],
+    dont: ["DON'T", C.bad],
+  }[kind] ?? ["", C.muted];
   doc.setFontSize(9.5);
-  const wrapped = doc.splitTextToSize(a(body), W-M*2-8);
+  const wrapped = doc.splitTextToSize(a(body), W - M * 2 - 8);
   const lineH = 3.6;
-  const boxH = 12 + wrapped.length*lineH + 5;
-  needPage(boxH+4);
-  setStrokeC(C.line); doc.roundedRect(M, y, W-M*2, boxH, 2.5, 2.5, "S");
-  setFillC(badge[1]); doc.roundedRect(M+4, y+4, 22, 5.5, 1, 1, "F");
-  doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(7.5);
-  doc.text(a(badge[0]), M+15, y+8, { align:"center" });
-  setTextC(C.ink); doc.setFont("helvetica","bold"); doc.setFontSize(11);
-  doc.text(a(title), M+30, y+8.2);
-  setStrokeC(C.line); doc.line(M+4, y+12, W-M-4, y+12);
-  setTextC(C.ink); doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
-  doc.text(wrapped.map(a), M+5, y+16.5);
+  const boxH = 12 + wrapped.length * lineH + 5;
+  needPage(boxH + 4);
+  setStrokeC(C.line);
+  doc.roundedRect(M, y, W - M * 2, boxH, 2.5, 2.5, "S");
+  setFillC(badge[1]);
+  doc.roundedRect(M + 4, y + 4, 22, 5.5, 1, 1, "F");
+  doc.setTextColor(255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.text(a(badge[0]), M + 15, y + 8, { align: "center" });
+  setTextC(C.ink);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(a(title), M + 30, y + 8.2);
+  setStrokeC(C.line);
+  doc.line(M + 4, y + 12, W - M - 4, y + 12);
+  setTextC(C.ink);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.text(wrapped.map(a), M + 5, y + 16.5);
   y += boxH + 4;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COVER
 // ─────────────────────────────────────────────────────────────────────────────
-setFillC(C.panelDark); doc.rect(0,0,W,H,"F");
-setFillC(C.primary); doc.rect(0,60,W,90,"F");
-setFillC(C.primaryDeep); doc.rect(0,148,W,3,"F");
-setFillC([255,255,255]); doc.circle(M,100,5,"F");
-setFillC(C.primary); doc.circle(M,100,2.5,"F");
-doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(11);
-doc.text("LIVE TRACK", M+10, 96);
-doc.setFont("helvetica","normal"); doc.setFontSize(8);
-doc.text("Real-time bus tracking, parent-first", M+10, 101);
-doc.setFont("helvetica","bold"); doc.setFontSize(36);
+setFillC(C.panelDark);
+doc.rect(0, 0, W, H, "F");
+setFillC(C.primary);
+doc.rect(0, 60, W, 90, "F");
+setFillC(C.primaryDeep);
+doc.rect(0, 148, W, 3, "F");
+setFillC([255, 255, 255]);
+doc.circle(M, 100, 5, "F");
+setFillC(C.primary);
+doc.circle(M, 100, 2.5, "F");
+doc.setTextColor(255);
+doc.setFont("helvetica", "bold");
+doc.setFontSize(11);
+doc.text("LIVE TRACK", M + 10, 96);
+doc.setFont("helvetica", "normal");
+doc.setFontSize(8);
+doc.text("Real-time bus tracking, parent-first", M + 10, 101);
+doc.setFont("helvetica", "bold");
+doc.setFontSize(36);
 doc.text("System Guide", M, 128);
 doc.text("& Testing Handbook", M, 143);
-doc.setFont("helvetica","normal"); doc.setFontSize(11);
-doc.text("What the platform does, how each user experiences it, and how to test it end-to-end.", M, 168);
-doc.setFontSize(9); setTextC(C.faint);
-doc.text(new Date().toLocaleDateString(undefined,{weekday:"long",year:"numeric",month:"long",day:"numeric"}), M, 178);
+doc.setFont("helvetica", "normal");
+doc.setFontSize(11);
+doc.text(
+  "What the platform does, how each user experiences it, and how to test it end-to-end.",
+  M,
+  168,
+);
+doc.setFontSize(9);
+setTextC(C.faint);
+doc.text(
+  new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }),
+  M,
+  178,
+);
 doc.text("For the pilot with the Kigali school + anyone joining the team.", M, 184);
-setFillC(C.primary); doc.rect(0,H-12,W,4,"F");
-doc.setFontSize(8); doc.setTextColor(255);
-doc.text(a("LIVE TRACK - System Guide"), M, H-5);
-doc.text("v1.0", W-M, H-5, { align:"right" });
+setFillC(C.primary);
+doc.rect(0, H - 12, W, 4, "F");
+doc.setFontSize(8);
+doc.setTextColor(255);
+doc.text(a("LIVE TRACK - System Guide"), M, H - 5);
+doc.text("v1.0", W - M, H - 5, { align: "right" });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 1 — What is Live Track
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("What is Live Track?");
-paragraph("Live Track is a real-time bus tracking platform for schools. Every driver's phone becomes a live GPS device -- no separate hardware, no SIM per vehicle, no installer visit. The driver opens the app, taps Start, and their bus streams live to the school's admin dashboard and to every parent linked to a child on that bus.");
-paragraph("The platform was built first for a Kigali school in closed pilot, but every feature -- driver app, admin dashboard, parent map -- adapts to any operator that needs live visibility over people they trust with vehicles. Delivery, ride-share, field teams: same system, same phones.");
+paragraph(
+  "Live Track is a real-time bus tracking platform for schools. Every driver's phone becomes a live GPS device -- no separate hardware, no SIM per vehicle, no installer visit. The driver opens the app, taps Start, and their bus streams live to the school's admin dashboard and to every parent linked to a child on that bus.",
+);
+paragraph(
+  "The platform was built first for a Kigali school in closed pilot, but every feature -- driver app, admin dashboard, parent map -- adapts to any operator that needs live visibility over people they trust with vehicles. Delivery, ride-share, field teams: same system, same phones.",
+);
 
 h2("The three questions Live Track answers");
 bulletList([
@@ -161,43 +252,78 @@ bulletList([
 ]);
 
 h2("What lives where");
-paragraph("Frontend: TanStack Start (React 19) + Vite, deployed on Vercel via a Node serverless function (api/ssr.js).");
-paragraph("Map: Leaflet + react-leaflet with CARTO Voyager tiles, theme-aware (works in light and dark).");
-paragraph("Backend: Supabase (Postgres + Auth + Row Level Security + Realtime). All parent-vs-parent isolation is enforced at the database layer, so bugs in the client cannot leak another family's data.");
-paragraph("Names on the map: OpenStreetMap Nominatim (reverse geocoding), rate-limited to 1 request per second and cached to respect fair use.");
-paragraph("Server-only writes (parent-account creation, service-role admin ops): api/parent-redeem.js on Vercel; identical Vite dev middleware locally.");
+paragraph(
+  "Frontend: TanStack Start (React 19) + Vite, deployed on Vercel via a Node serverless function (api/ssr.js).",
+);
+paragraph(
+  "Map: Leaflet + react-leaflet with CARTO Voyager tiles, theme-aware (works in light and dark).",
+);
+paragraph(
+  "Backend: Supabase (Postgres + Auth + Row Level Security + Realtime). All parent-vs-parent isolation is enforced at the database layer, so bugs in the client cannot leak another family's data.",
+);
+paragraph(
+  "Names on the map: OpenStreetMap Nominatim (reverse geocoding), rate-limited to 1 request per second and cached to respect fair use.",
+);
+paragraph(
+  "Server-only writes (parent-account creation, service-role admin ops): api/parent-redeem.js on Vercel; identical Vite dev middleware locally.",
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 2 — The four kinds of users
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("The four kinds of users");
-paragraph("Everything in the app is scoped to WHO you are. Roles live in the user_roles table and cannot be changed from the client.");
+paragraph(
+  "Everything in the app is scoped to WHO you are. Roles live in the user_roles table and cannot be changed from the client.",
+);
 
 const roleRows = [
-  ["Super admin (admin)",   "Run everything. Can see every school and every bus.",                          "/dashboard, /admin/*, /history"],
-  ["School admin",          "Runs ONE school. Manages routes, stops, buses, drivers, students, invites.",   "/admin/routes, /admin/buses, /admin/students, /admin/invites"],
-  ["Driver (user)",         "Owns a bus. Their phone is the tracker.",                                       "/track"],
-  ["Parent",                "Watches ONE bus (their child's). Cannot see anything else.",                    "/join (first time), /me (always)"],
+  [
+    "Super admin (admin)",
+    "Run everything. Can see every school and every bus.",
+    "/dashboard, /admin/*, /history",
+  ],
+  [
+    "School admin",
+    "Runs ONE school. Manages routes, stops, buses, drivers, students, invites.",
+    "/admin/routes, /admin/buses, /admin/students, /admin/invites",
+  ],
+  ["Driver (user)", "Owns a bus. Their phone is the tracker.", "/track"],
+  [
+    "Parent",
+    "Watches ONE bus (their child's). Cannot see anything else.",
+    "/join (first time), /me (always)",
+  ],
 ];
 autoTable(doc, {
-  startY: y, margin: { left: M, right: M },
+  startY: y,
+  margin: { left: M, right: M },
   head: [["Role", "What they do", "Where they land"]],
   body: roleRows,
   headStyles: { fillColor: C.primary, textColor: 255, fontStyle: "bold", fontSize: 9 },
   alternateRowStyles: { fillColor: C.tile },
   styles: { fontSize: 9, cellPadding: 2.5, textColor: C.ink },
-  columnStyles: { 0: { cellWidth: 40, fontStyle: "bold" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 55 } },
+  columnStyles: {
+    0: { cellWidth: 40, fontStyle: "bold" },
+    1: { cellWidth: "auto" },
+    2: { cellWidth: 55 },
+  },
 });
 y = doc.lastAutoTable.finalY + 8;
 
 h2("The trust model in one paragraph");
-paragraph("A parent can read one row from every relevant table -- their own child, their own child's bus, that bus's route and stops, and the device_status row of the driver of that bus. They cannot read any other row. They cannot write anything. The rules live as Postgres RLS policies, verified by 18 assertions in scripts/test-parent-isolation.sql (all pass).");
+paragraph(
+  "A parent can read one row from every relevant table -- their own child, their own child's bus, that bus's route and stops, and the device_status row of the driver of that bus. They cannot read any other row. They cannot write anything. The rules live as Postgres RLS policies, verified by 18 assertions in scripts/test-parent-isolation.sql (all pass).",
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 3 — Data model at a glance
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("The data model in plain English");
 paragraph("The database has 12 tables that matter. The relationships:");
 bulletList([
@@ -226,9 +352,13 @@ bulletList([
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 4 — Feature tour: driver
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("Feature tour: the driver (/track)");
-paragraph("The driver opens the app, signs in with email + password, and lands on /track. It has one primary button and a lot of status.");
+paragraph(
+  "The driver opens the app, signs in with email + password, and lands on /track. It has one primary button and a lot of status.",
+);
 h3("What the driver sees");
 bulletList([
   "Big Start / Stop button.",
@@ -244,13 +374,18 @@ bulletList([
   "On Sign out: same offline-flip runs BEFORE the auth session is torn down. Without this the driver would look 'online' to admins for another minute.",
   "The Kigali -> Kampala 'ghost drive' bug is fixed. The trip report never fabricates a jump: any pair of points separated by more than 3 minutes OR whose implied speed exceeds 150 km/h is flagged 'Signal lost' and contributes zero km and zero minutes.",
 ]);
-callout("watch", "Real-phone caveat",
-  "Automated tests can prove the code is correct. They CANNOT prove that a real Android will keep watchPosition alive with the screen locked / browser backgrounded / OEM battery-optimiser active. That must be tested on a real phone on a real route.");
+callout(
+  "watch",
+  "Real-phone caveat",
+  "Automated tests can prove the code is correct. They CANNOT prove that a real Android will keep watchPosition alive with the screen locked / browser backgrounded / OEM battery-optimiser active. That must be tested on a real phone on a real route.",
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 5 — Feature tour: admin
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("Feature tour: the admin (/dashboard and /admin/*)");
 h3("/dashboard -- the live fleet map");
 bulletList([
@@ -277,7 +412,11 @@ bulletList([
   "Change the driver of an existing bus from the Driver picker on its row.",
   "Optional: GPS tracker IMEI. A bus with a hardware tracker does not need a driver phone -- see 'GPS trackers in the buses'.",
 ]);
-callout("note", "Parents paused", "Parent access (/join, /me) and the Students / Invites tabs are switched off while schools pilot bus tracking. They return by setting PARENTS_ENABLED = true in src/lib/features.ts.");
+callout(
+  "note",
+  "Parents paused",
+  "Parent access (/join, /me) and the Students / Invites tabs are switched off while schools pilot bus tracking. They return by setting PARENTS_ENABLED = true in src/lib/features.ts.",
+);
 h3("/admin/students -- roster (paused)");
 bulletList([
   "Add students. Assign each to a bus and to a home stop; the home-stop picker is limited to the stops on that bus's route.",
@@ -292,10 +431,18 @@ bulletList([
 // ─────────────────────────────────────────────────────────────────────────────
 // GPS trackers in the buses (hardware GT06 trackers)
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("GPS trackers in the buses");
-paragraph("Instead of a driver's phone, a bus can carry a small 4G GPS tracker (GT06 / GT07L / GT08L, sold as 'GPSPOS'). The tracker acts exactly like a driver's phone: the bus appears on /dashboard, parents see it on /me, stop alerts fire, and /history shows the route, km, speed and stops. No one has to open an app or press Start.");
-callout("note", "How it flows", "Tracker (SIM, 4G) -> Live Track GPS server -> Supabase -> dashboard and parents. The tracker is identified by its IMEI (15 digits on its label).");
+paragraph(
+  "Instead of a driver's phone, a bus can carry a small 4G GPS tracker (GT06 / GT07L / GT08L, sold as 'GPSPOS'). The tracker acts exactly like a driver's phone: the bus appears on /dashboard, parents see it on /me, stop alerts fire, and /history shows the route, km, speed and stops. No one has to open an app or press Start.",
+);
+callout(
+  "note",
+  "How it flows",
+  "Tracker (SIM, 4G) -> Live Track GPS server -> Supabase -> dashboard and parents. The tracker is identified by its IMEI (15 digits on its label).",
+);
 
 h2("Add a bus with a tracker -- step by step (admin)");
 bulletList([
@@ -330,7 +477,8 @@ bulletList([
 
 h2("Useful SMS commands (send to the tracker's SIM)");
 autoTable(doc, {
-  startY: y, margin: { left: M, right: M },
+  startY: y,
+  margin: { left: M, right: M },
   head: [["SMS", "What it does"]],
   body: [
     ["PARAM#", "Shows IMEI, report interval, heartbeat."],
@@ -361,7 +509,9 @@ bulletList([
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 6 — Feature tour: parent
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("Feature tour: the parent (/join and /me)");
 h3("/join -- first time");
 bulletList([
@@ -380,16 +530,25 @@ bulletList([
   "OS-level notifications (Notify me toggle) if the parent grants permission -- delivers even when the tab is backgrounded.",
 ]);
 h3("Multi-child on the same bus");
-paragraph("If a parent has siblings on one bus, /me groups them into one chip labelled 'Alice + Bob' and shows 'Alice and Bob's bus arrived at ...' in banners -- not two identical maps side by side.");
-callout("note", "What is NOT on /me yet",
-  "True web-push notifications when the tab is fully CLOSED are a Phase 5 item -- toggle + storage + linkage guard are all in place; VAPID keys + service worker + edge-function sender are the missing pieces. WhatsApp notifications are also deferred (needs registering a WhatsApp Business number for the Rwanda authentication/utility rate).");
+paragraph(
+  "If a parent has siblings on one bus, /me groups them into one chip labelled 'Alice + Bob' and shows 'Alice and Bob's bus arrived at ...' in banners -- not two identical maps side by side.",
+);
+callout(
+  "note",
+  "What is NOT on /me yet",
+  "True web-push notifications when the tab is fully CLOSED are a Phase 5 item -- toggle + storage + linkage guard are all in place; VAPID keys + service worker + edge-function sender are the missing pieces. WhatsApp notifications are also deferred (needs registering a WhatsApp Business number for the Rwanda authentication/utility rate).",
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 7 — Testing scenarios
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("How to test, end-to-end");
-paragraph("Fresh-pilot DB is already loaded: 4 users (2 admins + 2 drivers), 1 school, 1 route, 4 stops, 2 buses, 4 students. No parent accounts and no tracking data. Everything below assumes you're pointed at that state.");
+paragraph(
+  "Fresh-pilot DB is already loaded: 4 users (2 admins + 2 drivers), 1 school, 1 route, 4 stops, 2 buses, 4 students. No parent accounts and no tracking data. Everything below assumes you're pointed at that state.",
+);
 
 h3("Scenario A -- admin signs in and inspects the school");
 bulletList([
@@ -428,39 +587,65 @@ h3("Scenario E -- isolation self-check");
 bulletList([
   "In one private window sign in as Parent A. In another private window sign in as Parent B (needs a second invite for a different bus).",
   "Confirm each parent only sees their own child's bus, driver, and route -- Parent A must NOT see Parent B's bus at any point.",
-  "This same guarantee is enforced by 18 SQL assertions in scripts/test-parent-isolation.sql (run: psql \"$SUPABASE_DB_URL\" -f scripts/test-parent-isolation.sql).",
+  'This same guarantee is enforced by 18 SQL assertions in scripts/test-parent-isolation.sql (run: psql "$SUPABASE_DB_URL" -f scripts/test-parent-isolation.sql).',
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 8 — Operations: prerequisites, reset, notifications, errors
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("Operations");
 
 h2("Prerequisites you MUST have set");
-callout("watch", "Supabase Dashboard: Confirm email OFF",
-  "Authentication -> Providers -> Email -> untick 'Confirm email'. Parent emails are @parent.pulse.local (not deliverable). If Confirm email is on, the parent gets stuck waiting for an email that will never arrive.");
-callout("watch", "Vercel env: SUPABASE_SERVICE_ROLE_KEY",
-  "Vercel -> Project Settings -> Environment Variables -> add SUPABASE_SERVICE_ROLE_KEY with the sb_secret_... value from Supabase (Settings -> API -> Secret keys). Without it, /api/parent-redeem returns 'The service isn't ready yet'.");
+callout(
+  "watch",
+  "Supabase Dashboard: Confirm email OFF",
+  "Authentication -> Providers -> Email -> untick 'Confirm email'. Parent emails are @parent.pulse.local (not deliverable). If Confirm email is on, the parent gets stuck waiting for an email that will never arrive.",
+);
+callout(
+  "watch",
+  "Vercel env: SUPABASE_SERVICE_ROLE_KEY",
+  "Vercel -> Project Settings -> Environment Variables -> add SUPABASE_SERVICE_ROLE_KEY with the sb_secret_... value from Supabase (Settings -> API -> Secret keys). Without it, /api/parent-redeem returns 'The service isn't ready yet'.",
+);
 
 h2("Two reset scripts");
-paragraph("scripts/reset-tracking-only.sql -- clears only GPS/trip/event/prefs data. Keeps school setup and all auth users. Safe before any pilot.");
-paragraph("scripts/reset-fresh-pilot.sql -- also deletes every parent user + invite + parent_students. Keeps the 4 non-parent users and the school. This is the current state.");
-paragraph("scripts/reset-full-wipe.sql -- DESTRUCTIVE (deletes every auth user including you). Wrapped in a commented DO block so accidental paste-and-run is inert. Includes step-by-step recovery instructions at the bottom.");
+paragraph(
+  "scripts/reset-tracking-only.sql -- clears only GPS/trip/event/prefs data. Keeps school setup and all auth users. Safe before any pilot.",
+);
+paragraph(
+  "scripts/reset-fresh-pilot.sql -- also deletes every parent user + invite + parent_students. Keeps the 4 non-parent users and the school. This is the current state.",
+);
+paragraph(
+  "scripts/reset-full-wipe.sql -- DESTRUCTIVE (deletes every auth user including you). Wrapped in a commented DO block so accidental paste-and-run is inert. Includes step-by-step recovery instructions at the bottom.",
+);
 
 h2("How the app talks about errors");
-paragraph("Users never see raw Postgres or Supabase error strings. Every toast in the app runs through src/lib/friendly-errors.ts, which maps common technical messages to short calm sentences:");
+paragraph(
+  "Users never see raw Postgres or Supabase error strings. Every toast in the app runs through src/lib/friendly-errors.ts, which maps common technical messages to short calm sentences:",
+);
 autoTable(doc, {
-  startY: y, margin: { left: M, right: M },
+  startY: y,
+  margin: { left: M, right: M },
   head: [["What the DB said", "What the user sees"]],
   body: [
-    ["new row violates row-level security policy for table ...", "You don't have access to that. Please refresh and try again."],
+    [
+      "new row violates row-level security policy for table ...",
+      "You don't have access to that. Please refresh and try again.",
+    ],
     ["Invalid login credentials", "That phone or PIN doesn't match. Check both and try again."],
     ["Email not confirmed", "This account isn't ready yet. Please contact your school."],
     ["JWT expired / unauthorized", "Your session has expired. Please sign in again."],
     ["duplicate key value violates unique constraint", "That entry already exists."],
-    ["Failed to fetch / network / net::", "Can't reach the server. Check your connection and try again."],
-    ["Server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing", "The service isn't ready yet. Please try again in a few minutes."],
+    [
+      "Failed to fetch / network / net::",
+      "Can't reach the server. Check your connection and try again.",
+    ],
+    [
+      "Server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing",
+      "The service isn't ready yet. Please try again in a few minutes.",
+    ],
   ],
   headStyles: { fillColor: C.primary, textColor: 255, fontStyle: "bold", fontSize: 8.5 },
   alternateRowStyles: { fillColor: C.tile },
@@ -468,27 +653,33 @@ autoTable(doc, {
   columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: "auto" } },
 });
 y = doc.lastAutoTable.finalY + 6;
-paragraph("Raw messages still go to console.error so developers can debug them.", { color: C.muted, size: 9 });
+paragraph("Raw messages still go to console.error so developers can debug them.", {
+  color: C.muted,
+  size: 9,
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE 9 — What's proven vs what still needs a phone
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("What's proven, what still needs a real phone");
 
 h2("Automated -- proven and reproducible");
 autoTable(doc, {
-  startY: y, margin: { left: M, right: M },
+  startY: y,
+  margin: { left: M, right: M },
   head: [["Suite", "Passed"]],
   body: [
     ["scripts/test-parent-trip.ts (projection, ETA, banner mapping)", "27 / 27"],
-    ["scripts/test-parent-presence.ts (fresh vs offline)",             "12 / 12"],
-    ["scripts/test-fixes.ts (Kigali-gap distance, presence)",          "12 / 12"],
-    ["Parent isolation SQL (Parent A vs Parent B)",                    "7 / 7"],
-    ["Cross-school RLS SQL (school A admin vs school B)",              "3 / 3"],
-    ["Used / expired code SQL",                                        "2 / 2"],
-    ["Geofence + isolation e2e SQL (Kimironko -> Nyar -> School)",     "6 / 6"],
-    ["Total automated",                                                "69 / 69"],
+    ["scripts/test-parent-presence.ts (fresh vs offline)", "12 / 12"],
+    ["scripts/test-fixes.ts (Kigali-gap distance, presence)", "12 / 12"],
+    ["Parent isolation SQL (Parent A vs Parent B)", "7 / 7"],
+    ["Cross-school RLS SQL (school A admin vs school B)", "3 / 3"],
+    ["Used / expired code SQL", "2 / 2"],
+    ["Geofence + isolation e2e SQL (Kimironko -> Nyar -> School)", "6 / 6"],
+    ["Total automated", "69 / 69"],
   ],
   headStyles: { fillColor: C.primary, textColor: 255, fontStyle: "bold", fontSize: 9 },
   alternateRowStyles: { fillColor: C.tile },
@@ -506,37 +697,55 @@ bulletList([
   "Whether Realtime latency in Kigali under 3G/4G is acceptable for parents.",
 ]);
 
-callout("tip", "Recommended real-world dry run",
-  "Sign in a driver on a real phone. Take the phone in your pocket on a full route with the screen off. Meanwhile a parent watches /me on their phone. At the end, look at /history and check the polyline matches the route you actually drove.");
+callout(
+  "tip",
+  "Recommended real-world dry run",
+  "Sign in a driver on a real phone. Take the phone in your pocket on a full route with the screen off. Meanwhile a parent watches /me on their phone. At the end, look at /history and check the polyline matches the route you actually drove.",
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LAST PAGE — Quick reference / handoff
 // ─────────────────────────────────────────────────────────────────────────────
-doc.addPage(); y = M; drawRunningFooter();
+doc.addPage();
+y = M;
+drawRunningFooter();
 h1("Quick reference");
 
 h2("URLs at a glance");
 autoTable(doc, {
-  startY: y, margin: { left: M, right: M },
+  startY: y,
+  margin: { left: M, right: M },
   head: [["URL", "Who", "What"]],
   body: [
-    ["/",             "Anyone",       "Landing page. Nav has 'Parent', 'Sign in', 'Access workspace'."],
-    ["/auth",         "Admin, Driver","Email + password sign in / sign up. Not for parents."],
-    ["/track",        "Driver",       "Start / Stop tracking, status pill, battery."],
-    ["/dashboard",    "Super admin",  "Live map of the whole fleet."],
-    ["/history",      "Super admin",  "Any driver + any date -> route + PDF report."],
+    ["/", "Anyone", "Landing page. Nav has 'Parent', 'Sign in', 'Access workspace'."],
+    ["/auth", "Admin, Driver", "Email + password sign in / sign up. Not for parents."],
+    ["/track", "Driver", "Start / Stop tracking, status pill, battery."],
+    ["/dashboard", "Super admin", "Live map of the whole fleet."],
+    ["/history", "Super admin", "Any driver + any date -> route + PDF report."],
     ["/admin/routes", "Admin, School admin", "Routes and named stops (with Leaflet stop picker)."],
-    ["/admin/buses",  "Admin, School admin", "Vehicles: add, assign route + driver + GPS tracker IMEI."],
-    ["/admin/students","Admin, School admin","Students; assign bus + home stop."],
-    ["/admin/invites","Admin, School admin", "Generate + revoke parent codes."],
-    ["/join",         "Parent",       "Enter code -> set PIN -> sign in. Returning-parent tab too."],
-    ["/me",           "Parent",       "Live bus map, ETA, arrival banners, notify toggle."],
-    ["/api/parent-redeem","Server",   "Serverless endpoint that redeems a code. Never called directly."],
+    [
+      "/admin/buses",
+      "Admin, School admin",
+      "Vehicles: add, assign route + driver + GPS tracker IMEI.",
+    ],
+    ["/admin/students", "Admin, School admin", "Students; assign bus + home stop."],
+    ["/admin/invites", "Admin, School admin", "Generate + revoke parent codes."],
+    ["/join", "Parent", "Enter code -> set PIN -> sign in. Returning-parent tab too."],
+    ["/me", "Parent", "Live bus map, ETA, arrival banners, notify toggle."],
+    [
+      "/api/parent-redeem",
+      "Server",
+      "Serverless endpoint that redeems a code. Never called directly.",
+    ],
   ],
   headStyles: { fillColor: C.primary, textColor: 255, fontStyle: "bold", fontSize: 9 },
   alternateRowStyles: { fillColor: C.tile },
   styles: { fontSize: 8.5, cellPadding: 2.2, textColor: C.ink },
-  columnStyles: { 0: { cellWidth: 42, fontStyle: "bold" }, 1: { cellWidth: 34 }, 2: { cellWidth: "auto" } },
+  columnStyles: {
+    0: { cellWidth: 42, fontStyle: "bold" },
+    1: { cellWidth: 34 },
+    2: { cellWidth: "auto" },
+  },
 });
 y = doc.lastAutoTable.finalY + 8;
 

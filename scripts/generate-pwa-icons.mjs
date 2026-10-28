@@ -12,7 +12,10 @@ const pin = `<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0
 
 /** @param {{ rounded: boolean, pinScale: number }} o  pinScale = pin box as a share of the tile */
 function svg({ rounded, pinScale }) {
-  const size = 512, box = size * pinScale, off = (size - box) / 2, s = box / 24;
+  const size = 512,
+    box = size * pinScale,
+    off = (size - box) / 2,
+    s = box / 24;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
     <stop offset="0" stop-color="#3b6ef0"/><stop offset="1" stop-color="#7c4ddf"/>
@@ -34,7 +37,10 @@ const jobs = [
   ["favicon-32.png", 32, { rounded: true, pinScale: 0.62 }],
 ];
 for (const [name, px, o] of jobs) {
-  await sharp(Buffer.from(svg(o))).resize(px, px).png().toFile(new URL(name, OUT).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+  await sharp(Buffer.from(svg(o)))
+    .resize(px, px)
+    .png()
+    .toFile(new URL(name, OUT).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
   console.log("wrote", name);
 }
 // Scalable favicon for modern browsers.

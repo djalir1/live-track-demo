@@ -624,14 +624,12 @@ function StopEditor({
     };
     const { error } = editing
       ? await db.from("stops").update(row).eq("id", editing.id)
-      : await db
-          .from("stops")
-          .insert({
-            ...row,
-            route_id: routeId,
-            school_id: schoolId,
-            sequence: type === "school" ? null : nextSequence,
-          });
+      : await db.from("stops").insert({
+          ...row,
+          route_id: routeId,
+          school_id: schoolId,
+          sequence: type === "school" ? null : nextSequence,
+        });
     setSaving(false);
     if (error) return toast.error(friendlyError(error));
     toast.success(editing ? "Stop updated" : "Stop added");

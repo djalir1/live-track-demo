@@ -37,7 +37,11 @@ async function readJson(req) {
   });
   const raw = Buffer.concat(chunks).toString("utf8");
   if (!raw) return {};
-  try { return JSON.parse(raw); } catch { throw new Error("Invalid JSON body"); }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error("Invalid JSON body");
+  }
 }
 
 function json(res, status, body) {
@@ -52,11 +56,17 @@ export default async function handler(req, res) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    return json(res, 500, { error: "Server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing" });
+    return json(res, 500, {
+      error: "Server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing",
+    });
   }
 
   let input;
-  try { input = await readJson(req); } catch (e) { return json(res, 400, { error: e.message }); }
+  try {
+    input = await readJson(req);
+  } catch (e) {
+    return json(res, 400, { error: e.message });
+  }
   const code = typeof input.code === "string" ? input.code.trim().toUpperCase() : "";
   const pin = typeof input.pin === "string" ? input.pin : "";
   if (!code) return json(res, 400, { error: "code is required" });
@@ -67,7 +77,10 @@ export default async function handler(req, res) {
   try {
     // 1. Look up the invite.
     const { data: inv, error: invErr } = await sb
-      .from("invites").select("*").eq("code", code).maybeSingle();
+      .from("invites")
+      .select("*")
+      .eq("code", code)
+      .maybeSingle();
     if (invErr) return json(res, 500, { error: `Failed to look up invite: ${invErr.message}` });
     if (!inv) return json(res, 404, { error: "That code doesn't match any invite" });
     if (inv.used_at) return json(res, 409, { error: "This code has already been used" });
@@ -85,12 +98,19 @@ export default async function handler(req, res) {
     // 3. Create or find the auth user. email_confirm: true = never send email.
     let userId = null;
     const { data: created, error: createErr } = await sb.auth.admin.createUser({
-      email, password: pin, email_confirm: true, user_metadata: { display_name: "Parent" },
+      email,
+      password: pin,
+      email_confirm: true,
+      user_metadata: { display_name: "Parent" },
     });
     if (createErr) {
       const msg = createErr.message.toLowerCase();
-      const exists = msg.includes("already been registered") || msg.includes("already exists") || msg.includes("duplicate");
-      if (!exists) return json(res, 500, { error: `Failed to create parent account: ${createErr.message}` });
+      const exists =
+        msg.includes("already been registered") ||
+        msg.includes("already exists") ||
+        msg.includes("duplicate");
+      if (!exists)
+        return json(res, 500, { error: `Failed to create parent account: ${createErr.message}` });
       const { data: page } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const u = page.users.find((x) => x.email === email);
       if (!u) return json(res, 500, { error: "Parent account collision but user lookup failed" });
@@ -103,14 +123,19 @@ export default async function handler(req, res) {
     // 4. profiles row.
     const displayName = inv.phone ? `Parent ${inv.phone}` : `Parent ${inv.code}`;
     const { error: profErr } = await sb.from("profiles").upsert({
-      id: userId, display_name: displayName, school_id: inv.school_id,
+      id: userId,
+      display_name: displayName,
+      school_id: inv.school_id,
     });
     if (profErr) return json(res, 500, { error: `Failed to write profile: ${profErr.message}` });
 
     // 5. user_roles: parent (idempotent).
     await sb.from("user_roles").delete().eq("user_id", userId);
-    const { error: roleErr } = await sb.from("user_roles").insert({ user_id: userId, role: "parent" });
-    if (roleErr) return json(res, 500, { error: `Failed to assign parent role: ${roleErr.message}` });
+    const { error: roleErr } = await sb
+      .from("user_roles")
+      .insert({ user_id: userId, role: "parent" });
+    if (roleErr)
+      return json(res, 500, { error: `Failed to assign parent role: ${roleErr.message}` });
 
     // 6. parent_students links.
     const links = inv.student_ids.map((student_id) => ({ parent_user_id: userId, student_id }));
@@ -118,9 +143,11 @@ export default async function handler(req, res) {
     if (linkErr) return json(res, 500, { error: `Failed to link students: ${linkErr.message}` });
 
     // 7. Burn the code (race-safe via WHERE used_at IS NULL).
-    const { error: burnErr } = await sb.from("invites")
+    const { error: burnErr } = await sb
+      .from("invites")
       .update({ used_at: new Date().toISOString() })
-      .eq("id", inv.id).is("used_at", null);
+      .eq("id", inv.id)
+      .is("used_at", null);
     if (burnErr) return json(res, 500, { error: `Failed to mark invite used: ${burnErr.message}` });
 
     return json(res, 200, { email, student_ids: inv.student_ids });
