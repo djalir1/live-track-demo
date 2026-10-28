@@ -16,6 +16,10 @@
 //    losing slow crawling in traffic (fixes every 10 s at 5 km/h are 14 m apart).
 //  • Across a lost-signal gap the straight-line distance is added and flagged
 //    as estimated (the road distance is at least that).
+//  • Every time the tracker went silent longer than it should is listed as
+//    "signal lost", moving or not: > 2 min on a trip (it reports every 10 s),
+//    > 10 min parked (every 5 min). Phones don't report while parked, so the
+//    parked rule only applies to hardware trackers (opts.parkedReports).
 
 export interface RawPoint {
   latitude: number;
@@ -64,6 +68,15 @@ export interface Trip {
   batteryStart: number | null;
   batteryEnd: number | null;
 }
+/** A stretch with no report from the tracker (mobile data lost, power cut…). */
+export interface SignalLoss extends LatLon {
+  from: string;
+  to: string;
+  ms: number;
+  during: "trip" | "parked";
+  /** Still silent at the end of the report window. */
+  ongoing: boolean;
+}
 export interface ParkedPeriod extends LatLon {
   from: string;
   to: string;
@@ -74,6 +87,7 @@ export interface ParkedPeriod extends LatLon {
 export interface DayReport {
   trips: Trip[];
   parked: ParkedPeriod[];
+  signalLost: SignalLoss[];
   totals: {
     trips: number;
     distanceKm: number;
@@ -87,6 +101,8 @@ export interface DayReport {
     avgMovingKmh: number;
     gaps: number;
     gapMs: number;
+    signalLost: number;
+    signalLostMs: number;
     firstStart: string | null;
     lastEnd: string | null;
   };
@@ -104,6 +120,7 @@ const MAX_KMH = 160; // faster implied speed = GPS jump, discard the pair
 const MERGE_SESSIONS_MS = 3 * 60_000;
 const INFER_PARK_MS = 10 * 60_000; // no sessions: stationary this long ends a trip
 const MIN_PARK_MS = 2 * 60_000;
+const PARKED_SILENCE_MS = 10 * 60_000; // two missed 5-min check-ins while parked
 
 const R_M = 6371000;
 const toRad = (x: number) => (x * Math.PI) / 180;
@@ -291,6 +308,8 @@ export interface DayReportOptions {
   now?: number;
   /** Last known position before the window, to place an early parked period. */
   before?: RawPoint | null;
+  /** The source reports while parked (hardware tracker), so silence there counts. */
+  parkedReports?: boolean;
 }
 
 export function buildDayReport(
@@ -338,6 +357,11 @@ export function buildDayReport(
       addPark(cursor, end, last?.end ?? lastPosBefore(end) ?? firstPosAfter(from), true);
   }
 
+  const signalLost = findSignalLoss(sorted, windows, opts.before ?? null, from, end, {
+    parkedReports: opts.parkedReports ?? false,
+    today: now < to,
+  });
+
   const sum = (f: (x: Trip) => number) => trips.reduce((acc, x) => acc + f(x), 0);
   const distanceKm = sum((x) => x.distanceKm);
   const drivingMs = sum((x) => x.drivingMs);
@@ -345,6 +369,7 @@ export function buildDayReport(
   return {
     trips,
     parked,
+    signalLost,
     totals: {
       trips: trips.length,
       distanceKm,
@@ -358,11 +383,49 @@ export function buildDayReport(
       avgMovingKmh: drivingMs > 0 ? distanceKm / (drivingMs / 3_600_000) : 0,
       gaps: gaps.length,
       gapMs: gaps.reduce((a, g) => a + g.ms, 0),
+      signalLost: signalLost.length,
+      signalLostMs: signalLost.reduce((a, g) => a + g.ms, 0),
       firstStart: trips[0]?.startedAt ?? null,
       lastEnd: trips.length ? trips[trips.length - 1].endedAt : null,
     },
     pointCount: sorted.length,
   };
+}
+
+function findSignalLoss(
+  sorted: RawPoint[],
+  windows: Window_[],
+  before: RawPoint | null,
+  from: number,
+  end: number,
+  o: { parkedReports: boolean; today: boolean },
+): SignalLoss[] {
+  // How much of [a, b] the vehicle was on a trip (it reports every 10 s then).
+  const tripOverlap = (a: number, b: number) =>
+    windows.reduce((acc, w) => acc + Math.max(0, Math.min(b, w.end) - Math.max(a, w.start)), 0);
+  const out: SignalLoss[] = [];
+  const consider = (a: RawPoint, bMs: number, ongoing: boolean) => {
+    const aMs = Math.max(t(a.recorded_at), from);
+    const ms = bMs - aMs;
+    const trip = tripOverlap(aMs, bMs) > GAP_MS;
+    if (!trip && !(o.parkedReports && ms > PARKED_SILENCE_MS)) return;
+    out.push({
+      ...ll(a),
+      from: iso(aMs),
+      to: iso(bMs),
+      ms,
+      during: trip ? "trip" : "parked",
+      ongoing,
+    });
+  };
+  let prev = before;
+  for (const p of sorted) {
+    if (prev) consider(prev, t(p.recorded_at), false);
+    prev = p;
+  }
+  // Silent right up to now (or the end of the day).
+  if (prev && end > t(prev.recorded_at)) consider(prev, end, o.today);
+  return out;
 }
 
 /** Distinct colours per trip so A→B and B→A never look like one line. */
