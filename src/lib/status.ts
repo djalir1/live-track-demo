@@ -85,7 +85,7 @@ export function deviceHealth(o: {
       short: "No signal",
       detail: `${
         o.engineOn
-          ? `No report for ${mins(o.ageMs)} while the engine was on: the tracker is probably out of mobile coverage and will catch up when it reconnects. Showing the last known position.`
+          ? `No report for ${mins(o.ageMs)} while the engine was on: the tracker lost its mobile data connection. It normally reconnects by itself within a few minutes. Showing the last known position.`
           : `Parked and silent for ${mins(o.ageMs)} (it normally checks in every 5 min): check the tracker's power and SIM credit. Showing the last known position.`
       }${onBattery}`,
     };

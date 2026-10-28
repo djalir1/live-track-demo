@@ -25,6 +25,8 @@ const RHYTHM_HOLD_MS = 15 * 60_000;
 // off, 16 Oct), so the rhythm says nothing then and must not hold a trip open.
 const BOOT_BURST_MS = 5 * 60_000;
 const BUS_CACHE_MS = 60_000;
+// Parked history rows: one per 5-min check-in (a little under, for jitter).
+const PARKED_HISTORY_MS = 4 * 60_000;
 // Tamper watch. A parked tracker still checks in every 5 min (heartbeat every 3),
 // so 30 min of silence means it lost power, was removed, or has no SIM credit.
 // Mobile data drops of 20+ min happen (16 Oct), so don't go lower.
@@ -527,14 +529,15 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       },
       { gps_fix: true, satellites: fix.satellites ?? null },
     );
-    // Parked (engine off) and not moved: one history row per 30 min is
-    // plenty — device_status above already says it's alive. Saves ~250
-    // identical rows per vehicle per night.
+    // Parked (engine off) and not moved: keep the tracker's 5-min check-in
+    // (TIMER,10,300#) but not the 10-s burst after key off. The history must
+    // show it was alive: a 30-min spacing made every quiet half hour look like
+    // a lost connection in the reports, and hid real ones.
     const parkedRepeat =
       !engineOn &&
       s.lastSaved &&
       haversine(s.lastSaved, fix) < 30 &&
-      now - s.lastSavedAt < 30 * 60_000;
+      now - s.lastSavedAt < PARKED_HISTORY_MS;
     if (!parkedRepeat) {
       await call("location_history", {
         method: "POST",

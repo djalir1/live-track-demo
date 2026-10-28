@@ -18,6 +18,8 @@ export interface LiveUser {
   heading: number | null;
   battery_level: number | null;
   is_tracking: boolean;
+  /** Engine/tracking state in the last report, kept while the device is silent. */
+  last_engine_on?: boolean;
   last_seen: string;
   address?: string | null;
   /** Position comes from a hardware GPS tracker (buses.gps_imei), not a phone. */

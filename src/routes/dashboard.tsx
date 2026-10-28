@@ -204,6 +204,7 @@ function Dashboard() {
         heading: s.heading ?? null,
         battery_level: s.battery_level,
         is_tracking: fresh && s.is_tracking,
+        last_engine_on: s.is_tracking,
         last_seen: s.last_seen,
         address:
           addresses[addrKey(s.latitude, s.longitude)] ??
@@ -331,7 +332,8 @@ function Dashboard() {
         )}
         {filteredList.map((u) => {
           const v = getVehicle(u.vehicle_type);
-          const phoneOff = !u.is_tracking;
+          // A silent tracker whose last report had the engine on is not "off".
+          const phoneOff = !u.is_tracking && !(u.gps_tracker && u.last_engine_on);
           const lowBattery = (u.battery_level ?? 100) <= 20;
           return (
             <motion.button

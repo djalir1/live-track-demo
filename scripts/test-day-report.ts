@@ -165,6 +165,28 @@ const pt = (iso: string, lat: number, lon: number, kmh = 0): RawPoint => ({
   ok("no signal lost", r.signalLost.length === 0, r.signalLost);
 }
 
+// 7b. Older history (before 28 Oct 2026) kept one parked row per 30 min. The
+//     real 28 Oct night: rows 30–37 min apart must NOT read as lost; a 2-h
+//     silence among them must.
+{
+  const pts: RawPoint[] = [];
+  const gaps = [17, 30, 35, 30, 30, 35, 35, 35, 30, 37, 34, 37, 31, 34, 31, 33];
+  let m = 0;
+  for (const g of gaps) {
+    pts.push(pt(at(Math.floor(m / 60), m % 60), -1.8066, 30.1254, 0));
+    m += g;
+  }
+  m += 120; // 2 h silent
+  for (; m < 24 * 60; m += 32) pts.push(pt(at(Math.floor(m / 60), m % 60), -1.8066, 30.1254, 0));
+  const r = buildDayReport(pts, [], { ...DAY, parkedReports: true });
+  console.log("30-min parked rows (older data)");
+  ok(
+    "only the 2-h silence is lost",
+    r.signalLost.length === 1 && r.signalLost[0].ms >= 120 * 60_000,
+    r.signalLost.map((g) => g.ms / 60_000),
+  );
+}
+
 // 8. Period summary: 14 days, used Mon–Fri at 80 km/day → 400 km a week.
 {
   const days = daysBetween("2026-10-12", "2026-10-25"); // Mon 12 → Sun 25

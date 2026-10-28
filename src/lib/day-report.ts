@@ -403,29 +403,49 @@ function findSignalLoss(
   // How much of [a, b] the vehicle was on a trip (it reports every 10 s then).
   const tripOverlap = (a: number, b: number) =>
     windows.reduce((acc, w) => acc + Math.max(0, Math.min(b, w.end) - Math.max(a, w.start)), 0);
-  const out: SignalLoss[] = [];
-  const consider = (a: RawPoint, bMs: number, ongoing: boolean) => {
+  const pairs: Array<{ a: RawPoint; from: number; to: number; trip: boolean; ongoing: boolean }> =
+    [];
+  const add = (a: RawPoint, bMs: number, ongoing: boolean) => {
     const aMs = Math.max(t(a.recorded_at), from);
-    const ms = bMs - aMs;
-    const trip = tripOverlap(aMs, bMs) > GAP_MS;
-    if (!trip && !(o.parkedReports && ms > PARKED_SILENCE_MS)) return;
-    out.push({
-      ...ll(a),
-      from: iso(aMs),
-      to: iso(bMs),
-      ms,
-      during: trip ? "trip" : "parked",
-      ongoing,
-    });
+    if (bMs > aMs)
+      pairs.push({ a, from: aMs, to: bMs, trip: tripOverlap(aMs, bMs) > GAP_MS, ongoing });
   };
   let prev = before;
   for (const p of sorted) {
-    if (prev) consider(prev, t(p.recorded_at), false);
+    if (prev) add(prev, t(p.recorded_at), false);
     prev = p;
   }
   // Silent right up to now (or the end of the day).
-  if (prev && end > t(prev.recorded_at)) consider(prev, end, o.today);
-  return out;
+  if (prev && end > t(prev.recorded_at)) add(prev, end, o.today);
+
+  // Parked, the history is only as dense as the server stores it: one row per
+  // 5-min check-in now, one per 30 min before 28 Oct 2026. So a parked gap is
+  // judged against its neighbours: lost only if clearly longer than the usual
+  // rhythm around it (and never under 10 min).
+  const parked = pairs.filter((x) => !x.trip && x.to - x.from > GAP_MS);
+  const parkedLimit = (i: number) => {
+    // Median of up to 3 parked gaps on each side: robust to a neighbouring
+    // loss and to the gap clipped at midnight.
+    const near = [...parked.slice(Math.max(0, i - 3), i), ...parked.slice(i + 1, i + 4)]
+      .map((x) => x.to - x.from)
+      .sort((a, b) => a - b);
+    const usual = near.length ? near[Math.floor(near.length / 2)] : 30 * 60_000;
+    return Math.max(PARKED_SILENCE_MS, 1.5 * usual);
+  };
+  const lostParked = new Set(
+    o.parkedReports ? parked.filter((x, i) => x.to - x.from > parkedLimit(i)) : [],
+  );
+
+  return pairs
+    .filter((x) => x.trip || lostParked.has(x))
+    .map((x) => ({
+      ...ll(x.a),
+      from: iso(x.from),
+      to: iso(x.to),
+      ms: x.to - x.from,
+      during: x.trip ? ("trip" as const) : ("parked" as const),
+      ongoing: x.ongoing,
+    }));
 }
 
 /** Distinct colours per trip so A→B and B→A never look like one line. */
