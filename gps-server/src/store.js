@@ -64,10 +64,28 @@ export function createStore({ url, serviceKey, dryRun = false, log = console.log
       log(`[dry-run] ${init.method} ${path} ${init.body ?? ""}`);
       return null;
     }
-    const res = await fetch(`${rest}/${path}`, {
-      ...init,
-      headers: { ...headers, ...init.headers },
-    });
+    // A dropped connection to Supabase ("fetch failed", ~1 in 2,000 calls)
+    // used to lose that row. Retry what is safe to repeat: reads, updates,
+    // upserts and history points (a repeated point adds no distance). Never
+    // trip or event inserts, which could be doubled.
+    const method = init.method ?? "GET";
+    const repeatable =
+      method !== "POST" ||
+      path.startsWith("location_history") ||
+      /merge-duplicates/.test(init.headers?.Prefer ?? "");
+    let res;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        res = await fetch(`${rest}/${path}`, {
+          ...init,
+          headers: { ...headers, ...init.headers },
+        });
+        break;
+      } catch (e) {
+        if (!repeatable || attempt >= 2) throw e;
+        await new Promise((r) => setTimeout(r, 1000 * 3 ** attempt)); // 1 s, 3 s
+      }
+    }
     if (!res.ok)
       throw new Error(`${init.method ?? "GET"} ${path} → ${res.status} ${await res.text()}`);
     const text = await res.text();
