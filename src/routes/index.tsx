@@ -21,7 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, homeFor } from "@/lib/auth-context";
 import { PARENTS_ENABLED } from "@/lib/features";
 import { AnimatedWorld, LivePreviewCard } from "@/components/AnimatedWorld";
 
@@ -49,7 +49,7 @@ function Landing() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && user) navigate({ to: role === "admin" ? "/dashboard" : "/track" });
+    if (!loading && user && role) navigate({ to: homeFor(role) });
   }, [loading, user, role, navigate]);
 
   const { scrollY } = useScroll();
@@ -125,19 +125,32 @@ function Landing() {
                 className="h-14 px-8 text-base bg-gradient-primary shadow-glow hover:shadow-[0_20px_60px_-15px_oklch(0.55_0.22_256/0.6)] transition-shadow"
               >
                 <Link to="/auth" className="inline-flex items-center gap-2">
-                  Access your workspace <ChevronRight className="h-4 w-4" />
+                  School &amp; staff sign in <ChevronRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="h-14 px-8 text-base backdrop-blur"
-              >
-                <a href="#how" className="inline-flex items-center gap-2">
-                  <Play className="h-4 w-4 fill-current" /> See how it works
-                </a>
-              </Button>
+              {PARENTS_ENABLED ? (
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="h-14 px-8 text-base backdrop-blur"
+                >
+                  <Link to="/parent" className="inline-flex items-center gap-2">
+                    I'm a parent <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="h-14 px-8 text-base backdrop-blur"
+                >
+                  <a href="#how" className="inline-flex items-center gap-2">
+                    <Play className="h-4 w-4 fill-current" /> See how it works
+                  </a>
+                </Button>
+              )}
             </motion.div>
 
             <motion.div
@@ -234,17 +247,13 @@ function NavBar() {
               asChild
               variant="ghost"
               size="sm"
-              className="hidden sm:inline-flex"
-              title="Parent — enter invite code"
+              title="Parents sign in with their phone number"
             >
-              <Link to="/join">Parent</Link>
+              <Link to="/parent">Parents</Link>
             </Button>
           )}
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/auth">Sign in</Link>
-          </Button>
           <Button asChild size="sm" className="bg-gradient-primary shadow-glow">
-            <Link to="/auth">Access workspace</Link>
+            <Link to="/auth">School sign in</Link>
           </Button>
         </div>
       </div>

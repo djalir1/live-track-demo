@@ -12,20 +12,23 @@ import type { Plugin } from "vite";
 // as a connect middleware and dev calls /api/parent-redeem exactly the same
 // way. Zero client-bundle contamination because the handler is imported only
 // on the server (inside the middleware).
+const DEV_API = ["parent-redeem", "activate"];
 function apiParentRedeemDev(): Plugin {
   return {
     name: "pulse-dev:api-parent-redeem",
     apply: "serve",
     configureServer(server) {
-      server.middlewares.use("/api/parent-redeem", async (req, res, next) => {
-        try {
-          const mod = await server.ssrLoadModule("/api/parent-redeem.js");
-          await mod.default(req, res);
-        } catch (e) {
-          // Fall through to whatever else might handle it.
-          next(e);
-        }
-      });
+      for (const name of DEV_API) {
+        server.middlewares.use(`/api/${name}`, async (req, res, next) => {
+          try {
+            const mod = await server.ssrLoadModule(`/api/${name}.js`);
+            await mod.default(req, res);
+          } catch (e) {
+            // Fall through to whatever else might handle it.
+            next(e);
+          }
+        });
+      }
     },
   };
 }

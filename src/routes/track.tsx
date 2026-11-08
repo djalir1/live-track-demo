@@ -19,7 +19,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, homeFor, canManageSchoolSetup } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme";
 import { useTracker } from "@/hooks/use-tracker";
 import { reverseGeocode } from "@/lib/geocode";
@@ -48,9 +48,9 @@ function TrackPage() {
   }, [loading, user, navigate]);
 
   useEffect(() => {
-    if (!loading && user && role === "admin") {
+    if (!loading && user && role && role !== "user") {
       if (stats.isTracking) stop();
-      navigate({ to: "/dashboard" });
+      navigate({ to: homeFor(role) });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user, role]);
@@ -112,9 +112,9 @@ function TrackPage() {
             Live Track
           </div>
           <div className="flex items-center gap-1">
-            {role === "admin" && (
+            {canManageSchoolSetup(role) && (
               <Button asChild variant="ghost" size="icon" title="Admin dashboard">
-                <Link to="/dashboard">
+                <Link to="/admin">
                   <ShieldCheck className="h-4 w-4" />
                 </Link>
               </Button>

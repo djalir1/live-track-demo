@@ -5,6 +5,7 @@ import http from "node:http";
 import { splitFrames, decodeFrame } from "./gt06.js";
 import { createStore } from "./store.js";
 import { createNotifier } from "./notify.js";
+import { createAttendanceNotifier } from "./attendance-notify.js";
 
 // Node tries each address of a host for only 250 ms ("happy eyeballs") before
 // moving on. From Kigali, Apple's push servers take longer than that, so every
@@ -34,6 +35,18 @@ const store = createStore({
 // Trip alerts to owners' phones (web push; keys from `npm run vapid`).
 if (!DRY_RUN && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   createNotifier({
+    url: process.env.SUPABASE_URL,
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    vapid: {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY,
+      subject: process.env.VAPID_SUBJECT || "mailto:admin@livetrack.app",
+    },
+    log,
+  }).start();
+  // School attendance: parent alerts + school safety alerts (idle until the
+  // attendance migration is applied).
+  createAttendanceNotifier({
     url: process.env.SUPABASE_URL,
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     vapid: {

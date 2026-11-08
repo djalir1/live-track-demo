@@ -24,7 +24,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, canManageSchoolSetup, homeFor } from "@/lib/auth-context";
+import { AppShell, ShellMenuButton } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { reverseGeocode, cachedReverseGeocode } from "@/lib/geocode";
 import { friendlyError } from "@/lib/friendly-errors";
@@ -191,11 +192,11 @@ function HistoryPage() {
       return;
     }
     if (role === null) return;
-    if (role !== "admin") navigate({ to: "/track" });
+    if (!canManageSchoolSetup(role)) navigate({ to: homeFor(role) });
   }, [loading, user, role, navigate]);
 
   useEffect(() => {
-    if (role !== "admin") return;
+    if (!canManageSchoolSetup(role)) return;
     void syncServerClock().then(() => setDate(todayKigali()));
     loadFleet()
       .then(setFleet)
@@ -419,7 +420,7 @@ function HistoryPage() {
     }
   };
 
-  if (loading || role !== "admin") {
+  if (loading || !canManageSchoolSetup(role)) {
     return (
       <div className="min-h-screen bg-background grid place-items-center">
         <div className="flex items-center gap-3 text-muted-foreground">
@@ -639,75 +640,81 @@ function HistoryPage() {
   );
 
   return (
-    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
-      <header className="shrink-0 z-30 pt-safe backdrop-blur-xl bg-background/70 border-b border-border/50">
-        <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">
-              <Link to="/dashboard">
-                <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Dashboard</span>
+    <AppShell bare>
+      <div className="h-full bg-background flex flex-col overflow-hidden">
+        <header className="shrink-0 z-30 pt-safe backdrop-blur-xl bg-background/70 border-b border-border/50">
+          <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <Button asChild variant="ghost" size="sm" className="hidden">
+                <Link to="/dashboard">
+                  <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </Link>
+              </Button>
+              <ShellMenuButton />
+              <Link
+                to="/"
+                className="flex lg:hidden items-center gap-2 font-display font-bold shrink-0"
+              >
+                <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
+                  <MapPin className="h-4 w-4 text-primary-foreground" />
+                </span>
+                <span className="hidden sm:inline">Live Track</span>
               </Link>
-            </Button>
-            <Link to="/" className="flex items-center gap-2 font-display font-bold shrink-0">
-              <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
-                <MapPin className="h-4 w-4 text-primary-foreground" />
+              <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
+                Trip History
               </span>
-              <span className="hidden sm:inline">Live Track</span>
-            </Link>
-            <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
-              Trip History
-            </span>
-          </div>
-          <Button
-            onClick={onExportPdf}
-            disabled={!canExport || pdfBusy}
-            size="sm"
-            className="bg-gradient-primary shadow-glow"
-          >
-            {pdfBusy ? (
-              <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4 sm:mr-1.5" />
-            )}
-            <span className="hidden sm:inline">Export PDF</span>
-            <span className="sm:hidden">PDF</span>
-          </Button>
-        </div>
-
-        <div
-          className={`${range ? "hidden" : "flex"} lg:hidden mx-auto max-w-[1600px] px-3 pb-2 gap-2`}
-        >
-          {(["info", "map"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setMobileView(v)}
-              className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
-                mobileView === v
-                  ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                  : "bg-background/50 border-border text-muted-foreground"
-              }`}
+            </div>
+            <Button
+              onClick={onExportPdf}
+              disabled={!canExport || pdfBusy}
+              size="sm"
+              className="bg-gradient-primary shadow-glow"
             >
-              {v === "info" ? <List className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
-              {v === "info" ? "Day summary" : "Route"}
-            </button>
-          ))}
-        </div>
-      </header>
+              {pdfBusy ? (
+                <Loader2 className="h-4 w-4 sm:mr-1.5 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 sm:mr-1.5" />
+              )}
+              <span className="hidden sm:inline">Export PDF</span>
+              <span className="sm:hidden">PDF</span>
+            </Button>
+          </div>
 
-      <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)]">
-        <div
-          className={`${mobileView === "info" || range ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
-        >
-          {infoPanel}
-        </div>
-        <div
-          className={`${mobileView === "map" && !range ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
-        >
-          {mapPanel}
+          <div
+            className={`${range ? "hidden" : "flex"} lg:hidden mx-auto max-w-[1600px] px-3 pb-2 gap-2`}
+          >
+            {(["info", "map"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setMobileView(v)}
+                className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
+                  mobileView === v
+                    ? "bg-primary text-primary-foreground border-primary shadow-glow"
+                    : "bg-background/50 border-border text-muted-foreground"
+                }`}
+              >
+                {v === "info" ? <List className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
+                {v === "info" ? "Day summary" : "Route"}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)]">
+          <div
+            className={`${mobileView === "info" || range ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
+          >
+            {infoPanel}
+          </div>
+          <div
+            className={`${mobileView === "map" && !range ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
+          >
+            {mapPanel}
+          </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 

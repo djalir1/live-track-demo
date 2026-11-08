@@ -23,7 +23,8 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, canManageSchoolSetup, homeFor } from "@/lib/auth-context";
+import { AppShell, ShellMenuButton } from "@/components/AppShell";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/integrations/supabase/client";
 import type { LiveUser, TrackingStatus } from "@/types/tracking";
@@ -81,7 +82,7 @@ function Dashboard() {
       return;
     }
     if (role === null) return;
-    if (role !== "admin") navigate({ to: "/track" });
+    if (!canManageSchoolSetup(role)) navigate({ to: homeFor(role) });
   }, [user, role, loading, navigate]);
 
   // Device rows come in by realtime, one vehicle at a time; names/roles change
@@ -127,7 +128,7 @@ function Dashboard() {
   };
 
   useEffect(() => {
-    if (role !== "admin") return;
+    if (!canManageSchoolSetup(role)) return;
     void syncServerClock();
     let failures = 0;
     const refresh = async () => {
@@ -279,7 +280,7 @@ function Dashboard() {
       .sort((a, b) => order[a.status] - order[b.status] || (b.speed_kmh ?? 0) - (a.speed_kmh ?? 0));
   })();
 
-  if (loading || role !== "admin") {
+  if (loading || !canManageSchoolSetup(role)) {
     return (
       <div className="min-h-screen bg-background grid place-items-center">
         <div className="flex items-center gap-3 text-muted-foreground">
@@ -430,169 +431,181 @@ function Dashboard() {
   );
 
   return (
-    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
-      <header className="shrink-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/50 pt-safe">
-        <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <Link to="/" className="flex items-center gap-2 font-display font-bold shrink-0">
-              <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
-                <MapPin className="h-4 w-4 text-primary-foreground" />
-              </span>
-              <span className="hidden sm:inline">Live Track</span>
-            </Link>
-            <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
-              Admin Dashboard
-            </span>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <KPI
-              label="Active"
-              value={counts.moving + counts.idle + counts.stopped}
-              color="var(--moving)"
-            />
-            <KPI label="Offline" value={counts.offline} color="var(--offline)" />
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="px-2 sm:px-3"
-              title="Add and manage vehicles"
-            >
-              <Link to="/admin/buses">
-                <Bus className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Vehicles</span>
+    <AppShell bare>
+      <div className="h-full bg-background flex flex-col overflow-hidden">
+        <header className="shrink-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/50 pt-safe">
+          <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <ShellMenuButton />
+              <Link
+                to="/"
+                className="flex lg:hidden items-center gap-2 font-display font-bold shrink-0"
+              >
+                <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
+                  <MapPin className="h-4 w-4 text-primary-foreground" />
+                </span>
+                <span className="hidden sm:inline">Live Track</span>
               </Link>
-            </Button>
-            <Button asChild variant="ghost" size="icon" title="Trip alerts">
-              <Link to="/admin/alerts" aria-label="Trip alerts">
-                <Bell className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3" title="Trip history">
-              <Link to="/history">
-                <History className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">History</span>
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="px-2 sm:px-3 hidden sm:inline-flex"
-              title="My tracker"
-            >
-              <Link to="/track">My tracker</Link>
-            </Button>
-            <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => signOut()} aria-label="Sign out">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="lg:hidden mx-auto max-w-[1600px] px-3 pb-2 flex gap-2">
-          <button
-            onClick={() => setMobileView("list")}
-            className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
-              mobileView === "list"
-                ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                : "bg-background/50 border-border text-muted-foreground"
-            }`}
-          >
-            <List className="h-4 w-4" /> Drivers ({counts.all})
-          </button>
-          <button
-            onClick={() => setMobileView("map")}
-            className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
-              mobileView === "map"
-                ? "bg-primary text-primary-foreground border-primary shadow-glow"
-                : "bg-background/50 border-border text-muted-foreground"
-            }`}
-          >
-            <MapIcon className="h-4 w-4" /> Map
-          </button>
-        </div>
-      </header>
-
-      {activeBuses.length > 0 && (
-        <div
-          className={`${mobileView === "map" ? "hidden lg:block" : ""} shrink-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3`}
-        >
-          <div className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft px-3 py-2.5">
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <span className="h-2 w-2 rounded-full bg-[var(--moving)] animate-pulse" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Active now
-              </span>
-              <span className="text-xs text-muted-foreground">
-                · {activeBuses.length} {activeBuses.length === 1 ? "bus" : "buses"} online
+              <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
+                Admin Dashboard
               </span>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-              {activeBuses.map((u) => {
-                const V = getVehicle(u.vehicle_type).Icon;
-                const isSelected = selected === u.user_id;
-                return (
-                  <button
-                    key={u.user_id}
-                    onClick={() => {
-                      setSelected(u.user_id);
-                      setMobileView("map");
-                    }}
-                    className={`shrink-0 w-56 sm:w-64 text-left rounded-xl border p-2.5 transition-all flex items-center gap-2.5 ${
-                      isSelected
-                        ? "bg-primary/10 border-primary shadow-glow"
-                        : "bg-background/50 border-border/60 hover:border-primary/40"
-                    }`}
-                  >
-                    <span
-                      className="h-9 w-9 rounded-lg grid place-items-center shrink-0 text-white"
-                      style={{ background: DOT[u.status] }}
+            <div className="flex items-center gap-1 sm:gap-2">
+              <KPI
+                label="Active"
+                value={counts.moving + counts.idle + counts.stopped}
+                color="var(--moving)"
+              />
+              <KPI label="Offline" value={counts.offline} color="var(--offline)" />
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="px-2 sm:px-3"
+                title="Add and manage vehicles"
+              >
+                <Link to="/admin/buses">
+                  <Bus className="h-4 w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Vehicles</span>
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="icon" title="Trip alerts">
+                <Link to="/admin/alerts" aria-label="Trip alerts">
+                  <Bell className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="px-2 sm:px-3"
+                title="Trip history"
+              >
+                <Link to="/history">
+                  <History className="h-4 w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">History</span>
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="px-2 sm:px-3 hidden sm:inline-flex"
+                title="My tracker"
+              >
+                <Link to="/track">My tracker</Link>
+              </Button>
+              <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => signOut()} aria-label="Sign out">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="lg:hidden mx-auto max-w-[1600px] px-3 pb-2 flex gap-2">
+            <button
+              onClick={() => setMobileView("list")}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
+                mobileView === "list"
+                  ? "bg-primary text-primary-foreground border-primary shadow-glow"
+                  : "bg-background/50 border-border text-muted-foreground"
+              }`}
+            >
+              <List className="h-4 w-4" /> Drivers ({counts.all})
+            </button>
+            <button
+              onClick={() => setMobileView("map")}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-full text-xs font-medium border transition-all ${
+                mobileView === "map"
+                  ? "bg-primary text-primary-foreground border-primary shadow-glow"
+                  : "bg-background/50 border-border text-muted-foreground"
+              }`}
+            >
+              <MapIcon className="h-4 w-4" /> Map
+            </button>
+          </div>
+        </header>
+
+        {activeBuses.length > 0 && (
+          <div
+            className={`${mobileView === "map" ? "hidden lg:block" : ""} shrink-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3`}
+          >
+            <div className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft px-3 py-2.5">
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <span className="h-2 w-2 rounded-full bg-[var(--moving)] animate-pulse" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Active now
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  · {activeBuses.length} {activeBuses.length === 1 ? "bus" : "buses"} online
+                </span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {activeBuses.map((u) => {
+                  const V = getVehicle(u.vehicle_type).Icon;
+                  const isSelected = selected === u.user_id;
+                  return (
+                    <button
+                      key={u.user_id}
+                      onClick={() => {
+                        setSelected(u.user_id);
+                        setMobileView("map");
+                      }}
+                      className={`shrink-0 w-56 sm:w-64 text-left rounded-xl border p-2.5 transition-all flex items-center gap-2.5 ${
+                        isSelected
+                          ? "bg-primary/10 border-primary shadow-glow"
+                          : "bg-background/50 border-border/60 hover:border-primary/40"
+                      }`}
                     >
-                      <V size={18} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-medium text-sm truncate">{u.display_name}</span>
-                        {u.plate_number && (
-                          <span className="font-mono text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded shrink-0">
-                            {u.plate_number}
+                      <span
+                        className="h-9 w-9 rounded-lg grid place-items-center shrink-0 text-white"
+                        style={{ background: DOT[u.status] }}
+                      >
+                        <V size={18} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-medium text-sm truncate">{u.display_name}</span>
+                          {u.plate_number && (
+                            <span className="font-mono text-[10px] font-bold bg-muted px-1.5 py-0.5 rounded shrink-0">
+                              {u.plate_number}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+                          <span
+                            className="font-semibold tabular-nums"
+                            style={{ color: DOT[u.status] }}
+                          >
+                            {u.speed_kmh?.toFixed(0) ?? 0} km/h
                           </span>
-                        )}
+                          {u.address && <span className="truncate">· 📍 {u.address}</span>}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
-                        <span
-                          className="font-semibold tabular-nums"
-                          style={{ color: DOT[u.status] }}
-                        >
-                          {u.speed_kmh?.toFixed(0) ?? 0} km/h
-                        </span>
-                        {u.address && <span className="truncate">· 📍 {u.address}</span>}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)]">
-        <div
-          className={`${mobileView === "list" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
-        >
-          {listPanel}
-        </div>
-        <div
-          className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
-        >
-          {mapPanel}
+        <div className="flex-1 min-h-0 mx-auto max-w-[1600px] w-full px-3 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col lg:grid lg:gap-4 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)]">
+          <div
+            className={`${mobileView === "list" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
+          >
+            {listPanel}
+          </div>
+          <div
+            className={`${mobileView === "map" ? "flex" : "hidden"} lg:flex flex-col flex-1 min-h-0`}
+          >
+            {mapPanel}
+          </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
 

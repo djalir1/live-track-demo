@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 // Extended for the school-transport layer (parent-phase1 branch).
 // Existing pages that check `role === "admin"` still work: super admin is the
 // highest-priority role, so a super-admin resolves to "admin" as before.
-export type Role = "admin" | "school_admin" | "user" | "parent";
+export type Role = "admin" | "school_admin" | "user" | "parent" | "attendant";
 
 interface AuthCtx {
   user: User | null;
@@ -20,7 +20,7 @@ const Ctx = createContext<AuthCtx | undefined>(undefined);
 
 // Highest privilege wins if a user somehow ends up with more than one role
 // (should be rare — spec says one role per user, but data drift happens).
-const ROLE_PRIORITY: Role[] = ["admin", "school_admin", "parent", "user"];
+const ROLE_PRIORITY: Role[] = ["admin", "school_admin", "attendant", "parent", "user"];
 function pickRole(raw: string[]): Role {
   for (const r of ROLE_PRIORITY) {
     if (raw.includes(r)) return r;
@@ -153,6 +153,14 @@ export function useAuth() {
   const c = useContext(Ctx);
   if (!c) throw new Error("useAuth must be used within AuthProvider");
   return c;
+}
+
+/** Where each kind of account lands after signing in. */
+export function homeFor(role: Role | null): string {
+  if (role === "admin" || role === "school_admin") return "/admin";
+  if (role === "parent") return "/family";
+  if (role === "attendant") return "/bus";
+  return "/track"; // driver ("user")
 }
 
 /** True for accounts that may reach the /admin/* setup screens. */
