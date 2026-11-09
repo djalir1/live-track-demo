@@ -36,5 +36,15 @@ function apiParentRedeemDev(): Plugin {
 export default defineConfig({
   vite: {
     plugins: [apiParentRedeemDev()],
+    // Always pre-bundle these: if the dev cache serves @tanstack/react-store
+    // raw, it imports a CommonJS file and the page crashes before anything
+    // shows (blank pages / invisible sign-in forms in `npm run dev`).
+    optimizeDeps: {
+      include: [
+        "use-sync-external-store/shim/with-selector",
+        "use-sync-external-store/shim",
+        "@tanstack/react-store",
+      ],
+    },
   },
 });
