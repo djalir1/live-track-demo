@@ -67,18 +67,11 @@ Software (enrolment screen, Android wrapper, SDK integration) is our development
 3. **Legal first.** Fingerprints are sensitive personal data under Rwanda **Law N° 058/2021**. Get written parental consent (already recorded per child), register with the data protection authority (NCSA), store templates only, and delete them when a child leaves. Confirm with a legal advisor before the pilot.
 4. Move to all-in-one 4G terminals (Option B) only once the fleet is large.
 
-## 4. How to test this branch without touching production
+## 4. Testing, demo and copies
 
-1. Create a **separate free Supabase project** (e.g. `livetrack-staging`).
-2. In its SQL editor, run every file in `supabase/migrations/` in name order.
-3. Create your admin user, then: `update user_roles set role='admin' where user_id='<id>';`
-4. Run locally against staging: put the staging URL and keys in `.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), then `npm run dev`.
-   For a Vercel preview of this branch, set those env vars **for Preview only** to the staging project.
-5. Flow: Vehicles → Routes & stops → Bus attendants → Students (with parents) → copy a parent code → `/parent` → "First time here?" → attendant activates on `/auth` → `/bus` → start trip and tap children → parent sees it on `/family`.
-
-Tests:
-`npx tsx scripts/test-attendance.ts` (logic) ·
-`npm i --no-save @electric-sql/pglite@0.2.17 && node scripts/test-attendance-db.mjs` (all migrations + 57 database/security checks) ·
-`cd gps-server && node --test`.
-
-Going live later: apply the two new migrations to production, merge the branch, and deploy `gps-server` (which stays idle until the migrations exist).
+- **User manual** (how the manual check-in works, every role): `USER_MANUAL.md`.
+- **Demo / any new copy** (own database, seeded data, simulated buses): `DEMO_SETUP.md`.
+  The migrations in `supabase/migrations/` rebuild the production database exactly
+  (including `20260819140000_prod_baseline.sql`, captured from production).
+- Tests without a database: `npm i --no-save @electric-sql/pglite@0.2.17 && npm run test:db && npm run test:logic`,
+  and `cd gps-server && node --test`.

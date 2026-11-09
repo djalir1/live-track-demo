@@ -5,6 +5,10 @@ import { MapPin, ShieldCheck, BellRing, Navigation } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivateForm, PhoneSignInForm } from "@/components/PhoneSignIn";
 import { useAuth, homeFor } from "@/lib/auth-context";
+import { supabase } from "@/integrations/supabase/client";
+import { accountEmail, formatPhone, normalizePhone } from "@/lib/phone";
+import { DEMO_MODE, DEMO_PARENTS, DEMO_PASSWORD } from "@/lib/demo";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/parent")({
   head: () => ({ meta: [{ title: "Parent sign in — Live Track" }] }),
@@ -97,6 +101,36 @@ function ParentSignIn() {
               <ActivateForm kind="parent" />
             </TabsContent>
           </Tabs>
+
+          {DEMO_MODE && (
+            <div className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-3">
+              <div className="text-sm font-semibold">Demo parents — tap to sign in</div>
+              <div className="mt-2 grid gap-1.5">
+                {DEMO_PARENTS.map((a) => (
+                  <button
+                    key={a.login}
+                    type="button"
+                    onClick={async () => {
+                      const { error } = await supabase.auth.signInWithPassword({
+                        email: accountEmail(normalizePhone(a.login)!, "parent"),
+                        password: DEMO_PASSWORD,
+                      });
+                      if (error) toast.error("Demo account not found. Run the demo seed.");
+                    }}
+                    className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2 text-left hover:border-primary/50"
+                  >
+                    <span>
+                      <span className="block text-sm font-medium">{a.label}</span>
+                      <span className="block text-[11px] text-muted-foreground">{a.hint}</span>
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatPhone(normalizePhone(a.login))}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-10 pt-6 border-t border-border text-sm text-muted-foreground">
             School staff or driver?{" "}

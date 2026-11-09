@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { Toaster } from "@/components/ui/sonner";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { NotificationPrompt } from "@/components/NotificationPrompt";
+import { DEMO_MODE } from "@/lib/demo";
 
 function NotFoundComponent() {
   return (
@@ -89,6 +90,11 @@ function RootComponent() {
         <Outlet />
         <Toaster richColors position="top-center" />
         <InstallPrompt />
+        {DEMO_MODE && (
+          <div className="fixed left-1/2 -translate-x-1/2 top-[max(2px,env(safe-area-inset-top))] z-[80] pointer-events-none rounded-b-lg bg-warning/90 px-2.5 py-0.5 text-[10px] font-semibold text-black shadow-lg">
+            DEMO · fictional data
+          </div>
+        )}
         <NotificationPrompt />
       </AuthProvider>
     </ThemeProvider>

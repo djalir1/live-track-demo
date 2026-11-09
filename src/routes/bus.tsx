@@ -23,6 +23,8 @@ import {
   Siren,
   Wrench,
   MessageSquare,
+  Sunrise,
+  Sunset,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +83,7 @@ import {
   type PendingMark,
 } from "@/lib/offline-queue";
 import { FINGERPRINT_STATUS } from "@/lib/biometrics";
+import { SchoolBusArt } from "@/components/SchoolBusArt";
 import { fmtTime } from "@/lib/time";
 
 export const Route = createFileRoute("/bus")({
@@ -173,6 +176,7 @@ function BusPage() {
               </Link>
             </Button>
           )}
+          <SchoolBusArt size={44} className="shrink-0 hidden min-[360px]:block" />
           <div className="min-w-0 flex-1">
             {buses.length > 1 ? (
               <NativeSelect
@@ -207,7 +211,10 @@ function BusPage() {
               onClick={() => setRun(r)}
               className={`h-9 rounded-full text-sm font-medium border ${run === r ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}
             >
-              {r === "morning" ? "🌅 Morning" : "🌇 Afternoon"}
+              <span className="inline-flex items-center gap-1.5">
+                {r === "morning" ? <Sunrise className="h-4 w-4" /> : <Sunset className="h-4 w-4" />}
+                {r === "morning" ? "Morning" : "Afternoon"}
+              </span>
             </button>
           ))}
         </div>
@@ -501,9 +508,7 @@ function TripScreen({ bus, run, driverOnly }: { bus: BusLite; run: Run; driverOn
   if (!trip) {
     return (
       <div className="flex-1 px-4 py-8 max-w-md mx-auto w-full text-center space-y-5">
-        <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/12 text-primary grid place-items-center">
-          <MapPin className="h-8 w-8" />
-        </div>
+        <SchoolBusArt size={180} className="mx-auto text-primary" moving />
         <div>
           <h1 className="font-display text-2xl font-bold">Start the {run} trip</h1>
           <p className="text-sm text-muted-foreground mt-1">

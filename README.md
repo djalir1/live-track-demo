@@ -81,6 +81,13 @@ SET role = 'admin'
 WHERE user_id = (SELECT id FROM auth.users WHERE email = 'you@example.com');
 ```
 
+## Docs
+
+- `USER_MANUAL.md` — how schools, attendants and parents use Live Track (manual check-in).
+- `ATTENDANCE_SYSTEM.md` — technologies, fingerprint readers and prices.
+- `DEMO_SETUP.md` — copy this project into a separate demo (own database, fictional data,
+  simulated buses), with a ready-made prompt for Claude Code.
+
 ## Tech stack
 
 - **Framework**: TanStack Start (React 19 + Router)

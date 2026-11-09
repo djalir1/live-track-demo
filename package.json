@@ -12,7 +12,11 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "demo:seed": "node scripts/demo/seed.mjs",
+    "demo:simulate": "node scripts/demo/simulate.mjs",
+    "test:logic": "tsx scripts/test-attendance.ts && tsx scripts/test-day-report.ts",
+    "test:db": "node scripts/test-attendance-db.mjs && node scripts/test-demo-db.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",

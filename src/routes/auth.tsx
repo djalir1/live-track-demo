@@ -1,19 +1,22 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin, Loader2, Eye, EyeOff, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/lib/friendly-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { ActivateForm } from "@/components/PhoneSignIn";
 import { accountEmail, looksLikePhone, normalizePhone } from "@/lib/phone";
 import { PARENTS_ENABLED } from "@/lib/features";
-import { VEHICLES, type VehicleType } from "@/lib/vehicles";
+import { DEMO_MODE, DEMO_PASSWORD, DEMO_STAFF } from "@/lib/demo";
+
+// School & staff sign-in: school admins (email), bus attendants (phone),
+// drivers (email). Accounts are created by the school — there is no public
+// sign-up. Parents use /parent.
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Sign in — Live Track" }] }),
@@ -25,61 +28,30 @@ function AuthPage() {
   const { user, role, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    // Wait until role has actually resolved before deciding where to send them,
-    // otherwise a school_admin flashes /track before landing on /admin/routes.
-    if (role === null) return;
+    if (authLoading || !user || role === null) return;
     navigate({ to: homeFor(role) });
   }, [user, role, authLoading, navigate]);
 
-  const [mode, setMode] = useState<"signin" | "signup" | "activate">("signin");
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"signin" | "activate">("signin");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [vehicle, setVehicle] = useState("");
-  const [plate, setPlate] = useState("");
-  const [seats, setSeats] = useState("");
-  const [vehicleType, setVehicleType] = useState<VehicleType>("car");
+  const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const needsSeats = vehicleType === "bus" || vehicleType === "van";
-
-  const handle = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function signIn(id: string, pw: string) {
     setBusy(true);
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: {
-              display_name: name,
-              vehicle_name: vehicle,
-              vehicle_type: vehicleType,
-              plate_number: plate.trim().toUpperCase() || null,
-              seats: seats ? String(parseInt(seats, 10)) : null,
-            },
-          },
-        });
-        if (error) throw error;
-        toast.success("Account created. You're in!");
-      } else {
-        // Bus attendants sign in with their phone number.
-        const id = looksLikePhone(email)
-          ? accountEmail(normalizePhone(email)!, "attendant")
-          : email.trim();
-        const { error } = await supabase.auth.signInWithPassword({ email: id, password });
-        if (error) throw error;
-        toast.success("Welcome back");
-      }
+      // Bus attendants sign in with their phone number.
+      const email = looksLikePhone(id) ? accountEmail(normalizePhone(id)!, "attendant") : id.trim();
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+      if (error) throw error;
+      toast.success("Welcome back");
     } catch (err) {
-      toast.error(friendlyError(err, "Couldn't sign you in. Please try again."));
+      toast.error(friendlyError(err, "Wrong email/phone or password."));
     } finally {
       setBusy(false);
     }
-  };
+  }
 
   return (
     <div className="min-h-[100dvh] flex items-center justify-center px-4 pt-[max(2.5rem,env(safe-area-inset-top))] pb-[max(2.5rem,env(safe-area-inset-bottom))] bg-background relative">
@@ -88,7 +60,7 @@ function AuthPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative w-full max-w-md rounded-3xl bg-gradient-card border border-border/60 shadow-glow p-8"
+        className="relative w-full max-w-md rounded-3xl bg-gradient-card border border-border/60 shadow-glow p-6 sm:p-8"
       >
         <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg mb-6">
           <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
@@ -98,18 +70,12 @@ function AuthPage() {
         </Link>
 
         <h1 className="font-display text-2xl font-bold">
-          {mode === "signin"
-            ? "School & staff sign in"
-            : mode === "activate"
-              ? "Bus attendant: first time"
-              : "Create a driver account"}
+          {mode === "signin" ? "School & staff sign in" : "Bus attendant: first time"}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           {mode === "signin"
-            ? "School admins, drivers and bus attendants."
-            : mode === "activate"
-              ? "Use the 6-digit code from the school to choose your password."
-              : "Start tracking in under a minute."}
+            ? "School admins, bus attendants and drivers. Your account is created by the school."
+            : "Use the 6-digit code from the school to choose your password."}
         </p>
 
         {mode === "activate" ? (
@@ -124,127 +90,81 @@ function AuthPage() {
             </button>
           </div>
         ) : (
-          <Tabs
-            value={mode}
-            onValueChange={(v) => setMode(v as "signin" | "signup")}
-            className="mt-6"
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void signIn(login, password);
+            }}
+            className="mt-6 space-y-4"
           >
-            <TabsList className="grid grid-cols-2 w-full">
-              <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Create account</TabsTrigger>
-            </TabsList>
-
-            <form onSubmit={handle} className="mt-6 space-y-4">
-              <TabsContent value="signup" className="space-y-4 mt-0">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Driver name</Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Alex Rivera"
-                    required={mode === "signup"}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicle">Vehicle name</Label>
-                    <Input
-                      id="vehicle"
-                      value={vehicle}
-                      onChange={(e) => setVehicle(e.target.value)}
-                      placeholder="Van #4"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="plate">Plate number</Label>
-                    <Input
-                      id="plate"
-                      value={plate}
-                      onChange={(e) => setPlate(e.target.value)}
-                      placeholder="ABC-123"
-                      className="uppercase"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Vehicle type</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {VEHICLES.map((v) => {
-                      const active = vehicleType === v.key;
-                      return (
-                        <button
-                          type="button"
-                          key={v.key}
-                          onClick={() => setVehicleType(v.key)}
-                          aria-pressed={active}
-                          className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-xs transition-all ${
-                            active
-                              ? "border-primary bg-primary/10 text-primary shadow-glow"
-                              : "border-border bg-background/40 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                          }`}
-                        >
-                          <v.Icon size={26} />
-                          <span className="text-[11px] font-medium">{v.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                {needsSeats && (
-                  <div className="space-y-2">
-                    <Label htmlFor="seats">Number of seats</Label>
-                    <Input
-                      id="seats"
-                      type="number"
-                      min={1}
-                      max={200}
-                      value={seats}
-                      onChange={(e) => setSeats(e.target.value)}
-                      placeholder={vehicleType === "bus" ? "e.g. 40" : "e.g. 12"}
-                    />
-                  </div>
-                )}
-              </TabsContent>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">{mode === "signin" ? "Email or phone" : "Email"}</Label>
-                <Input
-                  id="email"
-                  type={mode === "signin" ? "text" : "email"}
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+            <div className="space-y-2">
+              <Label htmlFor="login">Email or phone</Label>
+              <Input
+                id="login"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                autoComplete="username"
+                placeholder="you@school.rw or 0788 123 456"
+                required
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
                 <Input
                   id="password"
-                  type="password"
+                  type={show ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                   minLength={6}
+                  className="h-11 pr-11"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShow((s) => !s)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 grid place-items-center text-muted-foreground"
+                  aria-label={show ? "Hide password" : "Show password"}
+                >
+                  {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
+            </div>
+            <Button
+              type="submit"
+              disabled={busy}
+              className="w-full h-11 bg-gradient-primary shadow-glow text-base"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
+            </Button>
+          </form>
+        )}
 
-              <Button
-                type="submit"
-                disabled={busy}
-                className="w-full h-11 bg-gradient-primary shadow-glow text-base"
-              >
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : mode === "signin" ? (
-                  "Sign in"
-                ) : (
-                  "Create account"
-                )}
-              </Button>
-            </form>
-          </Tabs>
+        {DEMO_MODE && mode === "signin" && (
+          <div className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <PlayCircle className="h-4 w-4 text-primary" /> Demo accounts — tap to sign in
+            </div>
+            <div className="mt-2 grid gap-1.5">
+              {DEMO_STAFF.map((a) => (
+                <button
+                  key={a.login}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void signIn(a.login, DEMO_PASSWORD)}
+                  className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2 text-left hover:border-primary/50"
+                >
+                  <span>
+                    <span className="block text-sm font-medium">{a.label}</span>
+                    <span className="block text-[11px] text-muted-foreground">{a.hint}</span>
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">{a.login}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         <div className="mt-6 pt-5 border-t border-border space-y-2 text-sm text-muted-foreground">

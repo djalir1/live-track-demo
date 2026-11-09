@@ -18,6 +18,8 @@ import {
   X,
   Navigation,
   School,
+  Sunrise,
+  Sunset,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +64,7 @@ import {
 import { computeEta, remainingMetresToStop, type EventLite, type StopPt } from "@/lib/parent-trip";
 import { enablePush, getPushState, type PushState } from "@/lib/push";
 import { fmtTime } from "@/lib/time";
+import { SchoolBusArt } from "@/components/SchoolBusArt";
 
 const ParentMap = lazy(() =>
   import("@/components/ParentMap").then((m) => ({ default: m.ParentMap })),
@@ -459,7 +462,14 @@ function FamilyPage() {
                       return (
                         <div key={r} className="rounded-2xl bg-muted/50 p-3">
                           <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
-                            {r === "morning" ? "🌅 To school" : "🌇 Home"}
+                            <span className="inline-flex items-center gap-1.5">
+                              {r === "morning" ? (
+                                <Sunrise className="h-3.5 w-3.5" />
+                              ) : (
+                                <Sunset className="h-3.5 w-3.5" />
+                              )}
+                              {r === "morning" ? "To school" : "Home"}
+                            </span>
                           </div>
                           <div className="mt-1.5">
                             {t ? (
@@ -483,10 +493,15 @@ function FamilyPage() {
                 {/* Live bus */}
                 <section className="rounded-3xl border border-border bg-card overflow-hidden shadow-soft">
                   <div className="p-4 flex items-start gap-3">
-                    <div
-                      className={`h-10 w-10 rounded-xl grid place-items-center ${live ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}
-                    >
-                      <Navigation className="h-5 w-5" />
+                    <div className={`relative shrink-0 ${live ? "" : "grayscale opacity-70"}`}>
+                      <SchoolBusArt
+                        size={64}
+                        moving={live && (pos?.speed_kmh ?? 0) > 3}
+                        className="text-success"
+                      />
+                      {live && (
+                        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success ring-2 ring-card" />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold">
@@ -765,7 +780,12 @@ function NoticeDialog({
                   variant={run === r ? "default" : "outline"}
                   onClick={() => setRun(r)}
                 >
-                  {r === "morning" ? "🌅 Morning" : "🌇 Afternoon"}
+                  {r === "morning" ? (
+                    <Sunrise className="h-4 w-4 mr-1.5" />
+                  ) : (
+                    <Sunset className="h-4 w-4 mr-1.5" />
+                  )}
+                  {r === "morning" ? "Morning" : "Afternoon"}
                 </Button>
               ))}
             </div>

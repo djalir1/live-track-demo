@@ -31,6 +31,7 @@ import { defaultRun, kigaliDate, type Run } from "@/lib/attendance";
 import { ALERT_KIND_LABEL, busName } from "@/lib/school";
 import { busLiveState, useSchoolDay, type BusLiveState } from "@/lib/use-school-day";
 import { fmtTime } from "@/lib/time";
+import { SchoolBusArt } from "@/components/SchoolBusArt";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({ meta: [{ title: "Overview — Live Track" }] }),
@@ -230,7 +231,14 @@ function Overview() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="font-semibold truncate">{busName(b)}</div>
+                        <div className="flex items-center gap-2.5">
+                          <SchoolBusArt
+                            size={46}
+                            className="shrink-0"
+                            moving={busLiveState(b, day.positions) === "moving"}
+                          />
+                          <div className="font-semibold truncate">{busName(b)}</div>
+                        </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {day.attendantByBus.get(b.id)
                             ? `Attendant: ${day.attendantByBus.get(b.id)}`
