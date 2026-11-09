@@ -434,73 +434,17 @@ function Dashboard() {
     <AppShell bare>
       <div className="h-full bg-background flex flex-col overflow-hidden">
         <header className="shrink-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/50 pt-safe">
-          <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <ShellMenuButton />
-              <Link
-                to="/"
-                className="flex lg:hidden items-center gap-2 font-display font-bold shrink-0"
-              >
-                <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
-                  <MapPin className="h-4 w-4 text-primary-foreground" />
-                </span>
-                <span className="hidden sm:inline">Live Track</span>
-              </Link>
-              <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
-                Admin Dashboard
-              </span>
-            </div>
-            <div className="flex items-center gap-1 sm:gap-2">
+          <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-12 flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Every vehicle, live. Click one to follow it.
+            </span>
+            <div className="flex items-center gap-2 ml-auto">
               <KPI
                 label="Active"
                 value={counts.moving + counts.idle + counts.stopped}
                 color="var(--moving)"
               />
               <KPI label="Offline" value={counts.offline} color="var(--offline)" />
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="px-2 sm:px-3"
-                title="Add and manage vehicles"
-              >
-                <Link to="/admin/buses">
-                  <Bus className="h-4 w-4 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Vehicles</span>
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" size="icon" title="Trip alerts">
-                <Link to="/admin/alerts" aria-label="Trip alerts">
-                  <Bell className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="px-2 sm:px-3"
-                title="Trip history"
-              >
-                <Link to="/history">
-                  <History className="h-4 w-4 sm:mr-1.5" />
-                  <span className="hidden sm:inline">History</span>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="px-2 sm:px-3 hidden sm:inline-flex"
-                title="My tracker"
-              >
-                <Link to="/track">My tracker</Link>
-              </Button>
-              <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => signOut()} aria-label="Sign out">
-                <LogOut className="h-4 w-4" />
-              </Button>
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PrettySelect } from "@/components/ui/pretty-select";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -556,10 +557,10 @@ function VehicleFields({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={id("route")}>Route</Label>
-        <select
+        <PrettySelect
           id={id("route")}
           value={form.routeId}
-          onChange={(e) => set("routeId", e.target.value)}
+          onChange={(v) => set("routeId", v)}
           className="w-full h-9 rounded-md bg-background/50 border border-input px-3 text-sm"
         >
           <option value="">— none —</option>
@@ -568,7 +569,7 @@ function VehicleFields({
               {r.name}
             </option>
           ))}
-        </select>
+        </PrettySelect>
       </div>
       <div className="space-y-1.5 col-span-2">
         <div className="flex items-center justify-between">
@@ -580,10 +581,10 @@ function VehicleFields({
             <UserPlus className="h-3 w-3" /> Add a driver
           </Link>
         </div>
-        <select
+        <PrettySelect
           id={id("driver")}
           value={form.driverId}
-          onChange={(e) => set("driverId", e.target.value)}
+          onChange={(v) => set("driverId", v)}
           className="w-full h-9 rounded-md bg-background/50 border border-input px-3 text-sm"
         >
           <option value="">— no driver —</option>
@@ -597,7 +598,7 @@ function VehicleFields({
               </option>
             );
           })}
-        </select>
+        </PrettySelect>
         {drivers.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
             No drivers yet — add them on the Drivers tab, then pick one here.

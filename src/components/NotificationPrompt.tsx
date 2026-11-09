@@ -76,7 +76,7 @@ export function NotificationPrompt() {
   if (!show || path.startsWith("/admin/alerts")) return null;
 
   return (
-    <div className="fixed inset-x-3 top-[max(4.5rem,calc(env(safe-area-inset-top)+4rem))] z-[1000] sm:left-auto sm:right-4 sm:w-96">
+    <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 sm:right-auto sm:left-4 lg:left-auto lg:right-4 sm:w-96">
       <div className="rounded-2xl border border-primary/40 bg-background/95 backdrop-blur-xl shadow-soft p-3 flex items-start gap-3">
         <span className="h-10 w-10 shrink-0 grid place-items-center rounded-xl bg-primary/15 text-primary">
           <BellRing className="h-5 w-5" />

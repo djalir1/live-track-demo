@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { PrettySelect } from "@/components/ui/pretty-select";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -370,9 +371,9 @@ function RoutesPage() {
                   </ul>
                 )}
                 {unassigned.length > 0 ? (
-                  <select
+                  <PrettySelect
                     value=""
-                    onChange={(e) => e.target.value && setBusRoute(e.target.value, selected.id)}
+                    onChange={(v) => v && setBusRoute(v, selected.id)}
                     className="w-full sm:w-80 h-9 rounded-md bg-background/50 border border-input px-3 text-sm"
                   >
                     <option value="">+ Assign a vehicle to this route…</option>
@@ -386,7 +387,7 @@ function RoutesPage() {
                         </option>
                       );
                     })}
-                  </select>
+                  </PrettySelect>
                 ) : (
                   fleet?.buses.length === 0 && (
                     <div className="text-xs text-muted-foreground">
@@ -668,17 +669,17 @@ function StopEditor({
         </div>
         <div className="space-y-2">
           <Label htmlFor="stop-type">Type</Label>
-          <select
+          <PrettySelect
             id="stop-type"
             value={type}
-            onChange={(e) => setType(e.target.value as "school" | "pickup")}
+            onChange={(v) => setType(v as "school" | "pickup")}
             className="w-full h-9 rounded-md bg-background/50 border border-input px-3 text-sm"
           >
             <option value="pickup">Pickup / drop-off point</option>
             <option value="school" disabled={schoolTaken}>
               School{schoolTaken ? " (already on this route)" : ""}
             </option>
-          </select>
+          </PrettySelect>
         </div>
         <div className="space-y-2">
           <Label htmlFor="stop-am">Morning time (optional)</Label>

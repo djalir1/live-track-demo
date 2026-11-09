@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PrettySelect } from "@/components/ui/pretty-select";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -480,10 +481,10 @@ function DriverFields({
       </div>
       <div className="space-y-1.5 col-span-2">
         <Label htmlFor={id("bus")}>Vehicle</Label>
-        <select
+        <PrettySelect
           id={id("bus")}
           value={form.busId}
-          onChange={(e) => set("busId", e.target.value)}
+          onChange={(v) => set("busId", v)}
           className="w-full h-9 rounded-md bg-background/50 border border-input px-3 text-sm"
         >
           <option value="">— not assigned —</option>
@@ -497,14 +498,14 @@ function DriverFields({
               </option>
             );
           })}
-        </select>
+        </PrettySelect>
       </div>
       <div className="space-y-1.5 col-span-2">
         <Label htmlFor={id("app")}>Driver app account (optional)</Label>
-        <select
+        <PrettySelect
           id={id("app")}
           value={form.userId}
-          onChange={(e) => set("userId", e.target.value)}
+          onChange={(v) => set("userId", v)}
           className="w-full h-9 rounded-md bg-background/50 border border-input px-3 text-sm"
         >
           <option value="">No app — the vehicle's GPS tracker reports</option>
@@ -514,7 +515,7 @@ function DriverFields({
               {a.plate_number ? ` (${a.plate_number})` : ""}
             </option>
           ))}
-        </select>
+        </PrettySelect>
         <p className="text-[11px] text-muted-foreground">
           Link an account only if this driver shares their location from the Live Track phone app.
         </p>

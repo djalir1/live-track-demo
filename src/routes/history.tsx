@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { PrettySelect } from "@/components/ui/pretty-select";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   MapPin,
@@ -439,10 +440,10 @@ function HistoryPage() {
       <div className="p-3 sm:p-4 space-y-3 border-b border-border/50 shrink-0">
         <div className="space-y-1.5">
           <Label htmlFor="subject">Vehicle</Label>
-          <select
+          <PrettySelect
             id="subject"
             value={subjectKey}
-            onChange={(e) => setSubjectKey(e.target.value)}
+            onChange={(v) => setSubjectKey(v)}
             className="w-full h-10 rounded-md bg-background/50 border border-input px-3 text-sm"
           >
             {subjects.length === 0 && <option value="">No vehicles yet</option>}
@@ -453,7 +454,7 @@ function HistoryPage() {
                 {s.subtitle ? ` · ${s.subtitle}` : ""}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
         <div className="space-y-1.5">
           <Label>Period</Label>
@@ -643,28 +644,10 @@ function HistoryPage() {
     <AppShell bare>
       <div className="h-full bg-background flex flex-col overflow-hidden">
         <header className="shrink-0 z-30 pt-safe backdrop-blur-xl bg-background/70 border-b border-border/50">
-          <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <Button asChild variant="ghost" size="sm" className="hidden">
-                <Link to="/dashboard">
-                  <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Dashboard</span>
-                </Link>
-              </Button>
-              <ShellMenuButton />
-              <Link
-                to="/"
-                className="flex lg:hidden items-center gap-2 font-display font-bold shrink-0"
-              >
-                <span className="h-8 w-8 grid place-items-center rounded-lg bg-gradient-primary shadow-glow">
-                  <MapPin className="h-4 w-4 text-primary-foreground" />
-                </span>
-                <span className="hidden sm:inline">Live Track</span>
-              </Link>
-              <span className="hidden md:inline-block text-xs uppercase tracking-wider text-muted-foreground border-l border-border pl-3">
-                Trip History
-              </span>
-            </div>
+          <div className="mx-auto max-w-[1600px] px-3 sm:px-4 lg:px-6 h-12 flex items-center justify-end sm:justify-between gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Where each vehicle went, km driven and stops — per day or period.
+            </span>
             <Button
               onClick={onExportPdf}
               disabled={!canExport || pdfBusy}

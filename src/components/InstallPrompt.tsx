@@ -75,7 +75,7 @@ export function InstallPrompt() {
   if (!deferred && !iosHint) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[1000] sm:left-auto sm:right-4 sm:w-96">
+    <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 sm:left-auto sm:right-4 sm:w-96">
       <div className="rounded-2xl border border-border/60 bg-background/95 backdrop-blur-xl shadow-soft p-3 flex items-center gap-3">
         <img src="/icons/icon-192.png" alt="" className="h-11 w-11 rounded-xl shrink-0" />
         <div className="flex-1 min-w-0 text-sm">

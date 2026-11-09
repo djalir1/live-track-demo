@@ -21,6 +21,9 @@ import { formatPhone, telLink } from "@/lib/phone";
 import { isMissingTable, type Guardian, type StudentGuardian, type StudentRow } from "@/lib/school";
 
 export const Route = createFileRoute("/admin/parents")({
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+  }),
   head: () => ({ meta: [{ title: "Parents — Live Track" }] }),
   component: () => (
     <AppShell>
@@ -35,7 +38,11 @@ function ParentsPage() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [links, setLinks] = useState<StudentGuardian[]>([]);
   const [missing, setMissing] = useState(false);
-  const [q, setQ] = useState("");
+  const search = Route.useSearch();
+  const [q, setQ] = useState(search.q ?? "");
+  useEffect(() => {
+    if (search.q != null) setQ(search.q);
+  }, [search.q]);
   const [state, setState] = useState("all");
 
   async function load() {

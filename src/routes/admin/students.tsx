@@ -53,6 +53,9 @@ import {
 } from "@/lib/school";
 
 export const Route = createFileRoute("/admin/students")({
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+  }),
   head: () => ({ meta: [{ title: "Students — Live Track" }] }),
   component: () => (
     <AppShell>
@@ -138,7 +141,11 @@ function StudentsPage() {
   const [links, setLinks] = useState<StudentGuardian[]>([]);
   const [missing, setMissing] = useState(false);
 
-  const [q, setQ] = useState("");
+  const search = Route.useSearch();
+  const [q, setQ] = useState(search.q ?? "");
+  useEffect(() => {
+    if (search.q != null) setQ(search.q);
+  }, [search.q]);
   const [busFilter, setBusFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   const [showInactive, setShowInactive] = useState(false);

@@ -2,6 +2,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { Construction, Database, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PrettySelect } from "@/components/ui/pretty-select";
 import { STATUS_META, TONE_CLASS, type RiderStatus, type Tone } from "@/lib/attendance";
 import { initials, MIGRATION_HINT } from "@/lib/school";
 
@@ -228,30 +229,34 @@ export function Field({
   );
 }
 
-/** Native select styled like the inputs (fast on phones, no portal). */
+/** Dropdown with the app's own list (see components/ui/pretty-select). */
 export function NativeSelect({
   value,
   onChange,
   children,
   className,
+  disabled,
+  id,
   ...rest
 }: {
   value: string;
   onChange: (v: string) => void;
   children: ReactNode;
   className?: string;
-} & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange">) {
+  disabled?: boolean;
+  id?: string;
+  "aria-label"?: string;
+}) {
   return (
-    <select
+    <PrettySelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        className,
-      )}
-      {...rest}
+      onChange={onChange}
+      className={className}
+      disabled={disabled}
+      id={id}
+      aria-label={rest["aria-label"]}
     >
       {children}
-    </select>
+    </PrettySelect>
   );
 }
