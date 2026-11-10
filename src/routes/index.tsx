@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   Smartphone,
   Activity,
-  Battery,
   Route as RouteIcon,
   Globe,
   ChevronRight,
@@ -28,16 +27,16 @@ import { AnimatedWorld, LivePreviewCard } from "@/components/AnimatedWorld";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Live Track — Real-time GPS Fleet Tracking" },
+      { title: "Live Track — School Bus Tracking & Student Check-in" },
       {
         name: "description",
         content:
-          "Turn any smartphone into a live GPS tracker. Real-time fleet, vehicle and team monitoring with a beautiful admin dashboard, trip playback, and PDF reports.",
+          "Live GPS on every school bus and a check-in for every child. Parents see the bus and know when their child boards and gets off; the school sees every bus, every trip and every alert.",
       },
-      { property: "og:title", content: "Live Track — Real-time GPS Tracking" },
+      { property: "og:title", content: "Live Track — Every bus, every child, live" },
       {
         property: "og:description",
-        content: "Your phone is the tracker. Live map, history playback, PDF reports.",
+        content: "Live bus tracking, child check-in and parent alerts for schools.",
       },
     ],
   }),
@@ -95,10 +94,10 @@ function Landing() {
               transition={{ duration: 0.8, delay: 0.05 }}
               className="mt-8 font-display text-5xl md:text-7xl lg:text-8xl font-bold leading-[1.02] tracking-tighter"
             >
-              Your phone is
+              Every bus. Every child.
               <br />
               <span className="bg-gradient-to-r from-[oklch(0.7_0.2_256)] via-[oklch(0.65_0.24_290)] to-[oklch(0.7_0.18_320)] bg-clip-text text-transparent animate-gradient bg-[length:200%_auto]">
-                the tracker.
+                Live.
               </span>
             </motion.h1>
 
@@ -108,9 +107,9 @@ function Landing() {
               transition={{ delay: 0.25, duration: 0.7 }}
               className="mt-6 max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground leading-relaxed"
             >
-              Built for schools who want parents to see the bus, in real time, without hardware or a
-              SIM per vehicle — just the driver's phone. The same platform adapts to any fleet:
-              delivery, ride-share, field service. Ask us for your own instance.
+              A GPS tracker in each bus shows the school and parents where it is, every few seconds.
+              The bus attendant checks each child on and off, so parents know the moment their child
+              boards, arrives at school and gets off at home. The same platform tracks any fleet.
             </motion.p>
 
             <motion.div
@@ -160,13 +159,13 @@ function Landing() {
               className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground"
             >
               <span className="inline-flex items-center gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" /> Row-level security
+                <ShieldCheck className="h-3.5 w-3.5" /> Every child accounted for
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Zap className="h-3.5 w-3.5" /> Real-time under 3s
+                <Zap className="h-3.5 w-3.5" /> Live position every 10 s
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Globe className="h-3.5 w-3.5" /> Works worldwide
+                <Bell className="h-3.5 w-3.5" /> Instant parent alerts
               </span>
             </motion.div>
           </div>
@@ -263,10 +262,10 @@ function NavBar() {
 
 function StatsStrip() {
   const stats = [
-    { value: "<3s", label: "Update latency" },
-    { value: "24/7", label: "Live tracking" },
-    { value: "0", label: "Hardware required" },
-    { value: "∞", label: "Vehicles per fleet" },
+    { value: "10s", label: "GPS update" },
+    { value: "2", label: "Trips checked a day" },
+    { value: "1 tap", label: "Child on / off" },
+    { value: "24/7", label: "Bus monitoring" },
   ];
   return (
     <section className="relative border-y border-border/50 bg-card/30 backdrop-blur">
@@ -295,14 +294,14 @@ function StatsStrip() {
 
 const FEATURES = [
   {
-    icon: Smartphone,
-    title: "Phone-as-tracker",
-    desc: "Any iOS or Android phone becomes a live GPS device with one tap. No SIM, no cable, no separate box.",
+    icon: MapPin,
+    title: "GPS tracker in every bus",
+    desc: "A hard-wired tracker reports the bus position, speed and engine on/off every few seconds — no phone needed in the cab.",
   },
   {
     icon: Activity,
     title: "Live map at a glance",
-    desc: "Every driver on one map with speed, heading and battery — updated every few seconds, never blocked.",
+    desc: "Every bus on one map with its status and on-board count. Collapse the sidebar for a full-screen map.",
   },
   {
     icon: RouteIcon,
@@ -310,24 +309,24 @@ const FEATURES = [
     desc: "Replay any day's route, stops and distances. Reverse-geocoded to real street names automatically.",
   },
   {
-    icon: BarChart3,
-    title: "PDF daily reports",
-    desc: "One-click daily report with plate, distance, stops with addresses, and battery start/end.",
+    icon: Users,
+    title: "Child check-in",
+    desc: "The bus attendant ticks each child on and off, stop by stop. Works offline and syncs when the network is back.",
   },
   {
-    icon: Battery,
-    title: "Battery-aware",
-    desc: "Smart updates respect the device battery and network state. Warns when a driver is running low.",
+    icon: Smartphone,
+    title: "Parent app",
+    desc: 'Parents follow the bus, see minutes to their stop, get boarded / arrived / dropped-off alerts and report "not riding today".',
   },
   {
     icon: ShieldCheck,
-    title: "Secure by default",
-    desc: "Row-level security isolates each driver's data. Admins see the fleet. Nobody else does.",
+    title: "Safety alerts",
+    desc: "No-shows, wrong bus, far drop-offs, a child still on board after the engine stops, tracker unplugged — the school is told at once.",
   },
   {
-    icon: Bell,
-    title: "Status you can trust",
-    desc: "Distinct Moving / Parked / Idle / Offline states with clear colors. Never confuse a stop for a fault.",
+    icon: BarChart3,
+    title: "Reports & registers",
+    desc: "Daily and monthly attendance in Excel and PDF, class register vs. bus list, trip history with km and stops.",
   },
   {
     icon: MapPin,
@@ -343,11 +342,11 @@ function FeaturesGrid() {
         <div className="text-center max-w-2xl mx-auto">
           <SectionEyebrow icon={Sparkles}>Everything you need</SectionEyebrow>
           <h2 className="mt-4 font-display text-4xl md:text-5xl font-bold tracking-tighter">
-            Built for real fleets, not demos.
+            Built for the school run.
           </h2>
           <p className="mt-4 text-muted-foreground text-lg">
-            Every feature was built to answer a question a dispatcher actually asks:
-            <em> where is that van? did they arrive? what was the route?</em>
+            Every feature answers a question a parent or a school actually asks:
+            <em> where is the bus? is my child on it? did everyone get home?</em>
           </p>
         </div>
 
@@ -397,20 +396,20 @@ function FeatureCard({
 const STEPS = [
   {
     n: "01",
-    title: "Provision each driver",
-    desc: "Add drivers to your workspace with their vehicle type, plate number, and seat capacity. Admins are granted access from the dashboard.",
+    title: "Set up the school",
+    desc: "Add buses with their GPS tracker, routes and stops, then students and their parents. Parents and attendants get an activation code.",
     Icon: Users,
   },
   {
     n: "02",
-    title: "Drivers go live",
-    desc: "The driver opens Live Track on their phone, taps Start tracking, and Wake Lock keeps the screen on for the whole shift.",
+    title: "The attendant checks in",
+    desc: "On each trip the attendant opens the list, stop by stop, and taps each child On and Off. The tracker does the driving part by itself.",
     Icon: Play,
   },
   {
     n: "03",
-    title: "You see everything, live",
-    desc: "Every vehicle streams to the admin map in real time. Filter by status, search by plate, download daily PDF reports.",
+    title: "Everyone sees it, live",
+    desc: "Parents get boarded / arrived / dropped-off alerts and the bus ETA. The school sees every bus, every child and every alert.",
     Icon: LineChart,
   },
 ];
@@ -423,7 +422,7 @@ function HowItWorks() {
     >
       <div className="mx-auto max-w-6xl px-4">
         <div className="text-center max-w-2xl mx-auto">
-          <SectionEyebrow icon={Clock}>Live in under a minute</SectionEyebrow>
+          <SectionEyebrow icon={Clock}>How it works</SectionEyebrow>
           <h2 className="mt-4 font-display text-4xl md:text-5xl font-bold tracking-tighter">
             Three steps. That's it.
           </h2>
@@ -474,7 +473,7 @@ const USE_CASES = [
   },
   {
     title: "Ride-share & field teams",
-    body: "Give dispatchers live driver locations and battery, plus daily PDF summaries per driver — same platform, same phones.",
+    body: "Give dispatchers live vehicle locations, engine and tamper alerts, plus daily PDF trip reports — same platform.",
     Icon: MapPin,
   },
 ];
@@ -489,8 +488,8 @@ function UseCases() {
             One platform, your fleet.
           </h2>
           <p className="mt-3 text-sm text-muted-foreground">
-            Right now Live Track is live with a Kigali school. Every piece of it — the driver app,
-            the admin dashboard, the parent map — adapts to any operator that needs live visibility.
+            Right now Live Track is live with a Kigali school. Every piece of it — the GPS trackers,
+            the admin dashboard, the parent app — adapts to any operator that needs live visibility.
             If you're a school, a delivery company or a taxi fleet, ask us for your own instance.
           </p>
         </div>
@@ -537,11 +536,11 @@ function FinalCTA() {
           </div>
           <div className="relative">
             <h2 className="font-display text-4xl md:text-5xl font-bold tracking-tighter text-white">
-              Put your fleet on the map.
+              Every child, every trip, accounted for.
             </h2>
             <p className="mt-4 max-w-xl mx-auto text-lg text-white/70">
-              Deployed with fleet operators who need live visibility across every vehicle. Book a
-              walkthrough with the team or sign in to your workspace.
+              Live Track is running with a school in Kigali. Book a walkthrough with the team, or
+              sign in to your school's workspace.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <Button
@@ -581,7 +580,7 @@ function Footer() {
             Live Track
           </Link>
           <p className="mt-3 text-sm text-muted-foreground max-w-xs">
-            Real-time GPS tracking that turns any phone into a live device.
+            Live school-bus tracking and student check-in for schools and parents.
           </p>
         </div>
         <div className="text-sm">
@@ -624,12 +623,12 @@ function Footer() {
             <div className="font-semibold mb-3">For parents</div>
             <ul className="space-y-2 text-muted-foreground">
               <li>
-                <Link to="/join" className="hover:text-foreground transition-colors">
-                  Enter invite code
+                <Link to="/parent" className="hover:text-foreground transition-colors">
+                  Parent sign in
                 </Link>
               </li>
               <li>
-                <Link to="/me" className="hover:text-foreground transition-colors">
+                <Link to="/family" className="hover:text-foreground transition-colors">
                   Track my child
                 </Link>
               </li>
@@ -639,7 +638,7 @@ function Footer() {
       </div>
       <div className="mt-10 pt-6 border-t border-border/50 mx-auto max-w-6xl px-4 flex flex-col sm:flex-row justify-between gap-2 text-xs text-muted-foreground">
         <div>© {new Date().getFullYear()} Live Track</div>
-        <div>Made for fleets that need to know.</div>
+        <div>Made for schools and parents who need to know.</div>
       </div>
     </footer>
   );

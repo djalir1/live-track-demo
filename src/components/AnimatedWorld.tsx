@@ -225,40 +225,40 @@ export function LivePreviewCard() {
   const drivers = useMemo(
     () => [
       {
-        name: "Alex R.",
-        vehicle: "Van #4",
-        plate: "VN-042",
+        name: "Bus 1 · Kimironko",
+        vehicle: "Morning pickup",
+        plate: "RAD 101 A",
         status: "moving" as const,
         color: "var(--moving)",
         km: 32 + (tick % 5),
-        battery: 78 - (tick % 3),
+        onBoard: `${12 + (tick % 3)}/15 on board`,
       },
       {
-        name: "Kira O.",
-        vehicle: "Bus 12",
-        plate: "BX-112",
+        name: "Bus 2 · Kicukiro",
+        vehicle: "Morning pickup",
+        plate: "RAD 101 B",
         status: "moving" as const,
         color: "var(--moving)",
-        km: 48 + (tick % 4),
-        battery: 62,
+        km: 28 + (tick % 4),
+        onBoard: "9/14 on board",
       },
       {
-        name: "Sam T.",
-        vehicle: "SUV 7",
-        plate: "SV-007",
+        name: "Bus 3 · Nyamirambo",
+        vehicle: "At a stop",
+        plate: "RAD 101 C",
         status: "stopped" as const,
         color: "var(--stopped)",
         km: 0,
-        battery: 91,
+        onBoard: "6/12 on board",
       },
       {
-        name: "Mira N.",
-        vehicle: "Bike",
-        plate: "MC-020",
+        name: "Bus 4 · Remera",
+        vehicle: "At school",
+        plate: "RAD 101 D",
         status: "idle" as const,
         color: "var(--idle)",
-        km: 12,
-        battery: 44,
+        km: 0,
+        onBoard: "All off ✓",
       },
     ],
     [tick],
@@ -319,7 +319,7 @@ export function LivePreviewCard() {
                 <div className="text-xs font-bold tabular-nums" style={{ color: d.color }}>
                   {d.km} km/h
                 </div>
-                <div className="text-[10px] text-muted-foreground">{d.battery}%</div>
+                <div className="text-[10px] text-muted-foreground">{d.onBoard}</div>
               </div>
             </motion.div>
           ))}

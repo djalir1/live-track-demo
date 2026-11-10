@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Live Track — User Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --ink: #1b1d3a; --soft: #4a4e6e; --muted: #8a8fae; --line: #e4e5f0;
+    --card: #f6f6fb; --accent: #6650f0; --accent2: #3b6ef0; --navy: #1a1b4b;
+    --ok: #16a34a; --warn: #f59e0b; --bad: #e03131;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #fff; }
+  body { font-family: "Inter", "Segoe UI", system-ui, sans-serif; color: var(--ink); font-size: 10.4pt; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 210mm; height: 297mm; padding: 17mm 18mm 20mm; position: relative; overflow: hidden; page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .foot { position: absolute; left: 18mm; right: 18mm; bottom: 10mm; border-top: 1px solid var(--line); padding-top: 3mm; font-size: 7.5pt; color: var(--muted); display: flex; justify-content: space-between; }
+  .foot b { color: var(--accent); letter-spacing: .06em; }
+  .eyebrow { font-size: 7.5pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 2mm; }
+  h1, h2 { font-family: "DM Serif Display", Georgia, serif; font-weight: 400; letter-spacing: -.01em; }
+  h2 { font-size: 23pt; line-height: 1.1; margin-bottom: 2.5mm; }
+  h3 { font-size: 11pt; font-weight: 700; margin-bottom: 1.5mm; }
+  h4 { font-size: 10pt; font-weight: 700; margin: 4mm 0 1.5mm; }
+  .lead { color: var(--soft); font-size: 10.5pt; margin-bottom: 6mm; }
+  p { color: var(--soft); }
+  b, strong { color: var(--ink); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4.5mm; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 3mm; padding: 4.5mm 5mm; }
+  .card p, .card li { font-size: 9.3pt; }
+  .ico { width: 8.5mm; height: 8.5mm; border-radius: 2.2mm; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent2), var(--accent)); color: #fff; margin-bottom: 3mm; }
+  .ico svg { width: 4.8mm; height: 4.8mm; }
+  ul.dots { list-style: none; }
+  ul.dots li { position: relative; padding-left: 4.5mm; margin-bottom: 1.4mm; color: var(--soft); }
+  ul.dots li::before { content: ""; position: absolute; left: 0; top: 1.9mm; width: 1.7mm; height: 1.7mm; border-radius: 50%; background: var(--accent); }
+  .callout { border-left: 1.2mm solid var(--warn); background: #fff7e6; border-radius: 0 2.5mm 2.5mm 0; padding: 3.5mm 5mm; font-size: 9.3pt; color: var(--soft); margin-top: 5mm; }
+  .callout.info { border-color: var(--accent); background: #f0eeff; }
+  .callout.ok { border-color: var(--ok); background: #ebfaef; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.1pt; }
+  th { text-align: left; font-size: 7.5pt; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 2mm 3mm; border-bottom: 1px solid var(--line); }
+  td { padding: 2.4mm 3mm; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--soft); }
+  td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  code, .k { font-family: "Cascadia Mono", Consolas, monospace; font-size: 8.6pt; background: #eeeef8; border-radius: 1mm; padding: .3mm 1.2mm; color: var(--ink); }
+  .chip { display: inline-block; background: #fff; border: 1px solid var(--line); border-radius: 2mm; padding: 1.4mm 3mm; font-size: 8.4pt; color: var(--ink); box-shadow: 0 1px 2px rgba(20,20,60,.05); margin-top: 1.5mm; }
+  .chip.bad { background: #fff1f1; border-color: #f5c2c2; }
+  .btn { display: inline-block; border-radius: 1.6mm; padding: .5mm 2.2mm; font-size: 8.2pt; font-weight: 700; color: #fff; background: var(--accent); white-space: nowrap; }
+  .btn.ok { background: var(--ok); } .btn.grey { background: #6b7090; } .btn.warn { background: var(--warn); } .btn.bad { background: var(--bad); }
+
+  /* numbered steps */
+  .steps { counter-reset: s; display: grid; gap: 3.2mm; }
+  .step { counter-increment: s; display: grid; grid-template-columns: 9mm 1fr; gap: 3.5mm; align-items: start; }
+  .step::before { content: counter(s); width: 9mm; height: 9mm; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--accent2), var(--accent)); font-size: 10pt; }
+  .step h3 { margin: 1.4mm 0 .8mm; }
+  .step p, .step li { font-size: 9.3pt; }
+  .where { font-size: 7.6pt; font-weight: 700; color: var(--accent); letter-spacing: .04em; text-transform: uppercase; margin-left: 2mm; }
+
+  /* timeline */
+  .tl { position: relative; }
+  .tl .row { display: grid; grid-template-columns: 13mm 1fr; gap: 3.5mm; position: relative; padding-bottom: 3.6mm; }
+  .tl .row::before { content: ""; position: absolute; left: 15.25mm; top: 2mm; bottom: -1mm; width: 1px; background: #cfcbf7; }
+  .tl .row:last-child::before { display: none; }
+  .tl .t { font-weight: 700; color: var(--accent); font-size: 8.6pt; text-align: right; position: relative; padding-top: .3mm; }
+  .tl .t::after { content: ""; position: absolute; right: -3.15mm; top: 1.4mm; width: 2.2mm; height: 2.2mm; border-radius: 50%; background: var(--accent); }
+  .tl h3 { font-size: 9.6pt; margin-bottom: .4mm; }
+  .tl p { font-size: 8.8pt; }
+
+  /* cover */
+  .cover { background: radial-gradient(circle at 85% 12%, #6a5cf5 0%, rgba(106,92,245,0) 38%), linear-gradient(170deg, #17194a 0%, #23206a 60%, #2d2482 100%); color: #fff; padding: 22mm 20mm; }
+  .cover .brand { display: flex; align-items: center; gap: 3mm; font-weight: 700; font-size: 13pt; }
+  .logo { width: 11mm; height: 11mm; border-radius: 3mm; background: linear-gradient(135deg, #4f7cff, #7a5cf0); display: grid; place-items: center; box-shadow: 0 4px 16px rgba(80,90,255,.45); }
+  .logo svg { width: 5.5mm; height: 5.5mm; color: #fff; }
+  .cover .eyebrow { color: #b9b3ff; margin-top: 82mm; }
+  .cover h1 { font-size: 42pt; line-height: 1.04; margin: 2mm 0 6mm; }
+  .cover p { color: #d3d2f2; font-size: 11.5pt; max-width: 150mm; }
+  .cover .grid3 { margin-top: 12mm; }
+  .cover .card { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.16); }
+  .cover .card h3 { color: #fff; font-size: 9.6pt; }
+  .cover .card p { color: #cfcde9; font-size: 8.4pt; }
+  .cover .small { margin-top: 10mm; font-size: 8pt; color: #a9a7d4; }
+
+  /* phone mock */
+  .phone { width: 64mm; border: 2.2mm solid #1d1f3d; border-radius: 7mm; background: #fff; padding: 3mm 3mm 4mm; box-shadow: 0 6px 20px rgba(20,20,60,.15); }
+  .phone .bar { display: flex; justify-content: space-between; align-items: center; font-size: 7.5pt; font-weight: 700; margin-bottom: 2mm; }
+  .phone .stop { font-size: 6.8pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 2.4mm 0 1.2mm; }
+  .phone .kid { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 2mm; padding: 1.5mm 2mm; margin-bottom: 1.3mm; font-size: 7.8pt; font-weight: 600; }
+  .phone .kid .btn { font-size: 6.8pt; padding: .3mm 1.6mm; }
+  .phone .kid.on { background: #ebfaef; border-color: #bfe8cb; }
+  .tabs { display: flex; gap: 1mm; background: #f0f0f7; border-radius: 2mm; padding: .8mm; font-size: 7pt; font-weight: 700; }
+  .tabs span { flex: 1; text-align: center; padding: .8mm; border-radius: 1.5mm; color: var(--muted); }
+  .tabs span.on { background: #fff; color: var(--ink); }
+  .bigbtn { margin-top: 2mm; border-radius: 2mm; text-align: center; font-size: 7.6pt; font-weight: 700; padding: 1.8mm; color: #fff; background: var(--accent); }
+  .side { display: grid; grid-template-columns: 66mm 1fr; gap: 8mm; align-items: start; }
+</style>
+</head>
+<body>
+
+<!-- ============ 1. COVER ============ -->
+<section class="page cover">
+  <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>Live Track</div>
+  <div class="eyebrow">User manual · School transport</div>
+  <h1>Every Bus,<br>Every Child,<br>Step by Step.</h1>
+  <p>How a school, its bus attendants and its parents use Live Track every day: following each bus live,
+    checking every child on and off, and being told at once when something is not right.</p>
+  <div class="grid3">
+    <div class="card"><h3>School office</h3><p>Sets up buses, routes and students. Watches every bus and every alert from the dashboard.</p></div>
+    <div class="card"><h3>Bus attendant</h3><p>Ticks each child on and off the bus on a phone. Tells parents about delays in one tap.</p></div>
+    <div class="card"><h3>Parent</h3><p>Sees the bus live, minutes to the stop, and gets a message when the child boards and gets off.</p></div>
+  </div>
+  <div class="small">Version 1 · manual check-in · November 2026 · Kigali, Rwanda</div>
+</section>
+
+<!-- ============ 2. IN ONE PAGE ============ -->
+<section class="page">
+  <div class="eyebrow">In one page</div>
+  <h2>What Live Track does</h2>
+  <p class="lead">A GPS tracker in each bus reports where the bus is every few seconds. On every trip, the bus
+    attendant marks each child <b>on</b> and <b>off</b>. Live Track puts the two together: the school and the
+    parents always know where the bus is <b>and who is on it</b>.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <h3>Where is the bus?</h3>
+      <ul class="dots"><li>Live position, speed and engine on/off from the tracker.</li><li>Knows when the bus is at each stop on its route.</li><li>Works out the distance and minutes to each parent's stop.</li></ul>
+    </div>
+    <div class="card">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <h3>Who is on it?</h3>
+      <ul class="dots"><li>The attendant taps each child <b>On</b> and <b>Off</b>.</li><li>The parent gets a message within seconds.</li><li>The school sees on board / still to pick up / dropped off.</li></ul>
+    </div>
+  </div>
+
+  <h4 style="margin-top:7mm">Who signs in where</h4>
+  <table>
+    <tr><th>Who</th><th>Opens</th><th>Signs in with</th></tr>
+    <tr><td>School office (admin)</td><td><code>/auth</code> → School sign in</td><td>Email + password</td></tr>
+    <tr><td>Bus attendant</td><td><code>/auth</code> → School sign in</td><td>Phone number + password</td></tr>
+    <tr><td>Parent</td><td><code>/parent</code> → I'm a parent</td><td>Phone number + password</td></tr>
+    <tr><td>Driver</td><td>Nothing to do</td><td>The GPS tracker in the bus reports by itself</td></tr>
+  </table>
+
+  <div class="callout info"><b>The key rule: attendance is counted per trip, not per day.</b> Morning (home → school)
+    and afternoon (school → home) are two separate trips. A child driven to school by car in the morning and
+    bussed home in the afternoon is never marked absent.</div>
+  <div class="callout"><b>Accounts are created by the school, there is no public sign-up.</b> Parents and attendants
+    receive a <b>6-digit activation code</b> and choose their own password the first time. The same code is used to
+    reset a forgotten password. A code is valid for 30 days and locks after 5 wrong tries.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>2</span></div>
+</section>
+
+<!-- ============ 3. THE PEOPLE ============ -->
+<section class="page">
+  <div class="eyebrow">The people</div>
+  <h2>Four sides, one journey</h2>
+  <p class="lead">Each person sees only what they need. A parent only ever sees their own children and their bus.</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+      <h3>School office (admin)</h3>
+      <ul class="dots">
+        <li>Registers buses, routes, stops, drivers, attendants, students and parents.</li>
+        <li>Sees every bus live with <b>on board / expected / absent</b> counts.</li>
+        <li>Handles safety alerts: wrong bus, no-show, child left on the bus.</li>
+        <li>Sends messages to the parents of one bus or of all buses.</li>
+        <li>Downloads attendance reports in Excel and PDF.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <h3>Parent</h3>
+      <ul class="dots">
+        <li>Follows the bus live and sees <b>km and minutes</b> to their stop.</li>
+        <li>Is told when the child <b>boards</b>, <b>arrives at school</b> and <b>gets off</b>.</li>
+        <li>Says "not riding today" for one trip or a whole day.</li>
+        <li>Receives delay and incident messages from the bus.</li>
+        <li>One account for all their children.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></div>
+      <h3>Bus attendant</h3>
+      <ul class="dots">
+        <li>Sees the trip list: which children to pick up at each stop.</li>
+        <li>Taps each child <b>On</b> and <b>Off</b>.</li>
+        <li>Sends one-tap announcements: traffic, late, accident, breakdown.</li>
+        <li>Does the final <b>"bus is empty"</b> check to close the trip.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="2"/><path d="M12 14v8"/><path d="M10 12H2.5"/><path d="M14 12h7.5"/></svg></div>
+      <h3>Driver and student</h3>
+      <ul class="dots">
+        <li><b>Driver:</b> just drives. The tracker wired into the bus reports the position by itself.</li>
+        <li><b>Student:</b> needs no phone. The attendant marks them.</li>
+        <li>Later, a fingerprint reader at the door will do the attendant's tap (<i>under construction</i>).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout"><b>Safety rule: the driver drives, the attendant marks.</b> If the check-in screen is opened
+    by the driver, it locks while the bus is moving.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>3</span></div>
+</section>
+
+<!-- ============ 4. SETTING UP ============ -->
+<section class="page">
+  <div class="eyebrow">For the school office · once</div>
+  <h2>Setting up your school</h2>
+  <p class="lead">Sign in at <code>/auth</code> and work down the left menu: first <b>Fleet</b>, then <b>Students &amp; parents</b>.
+    Press <span class="k">Ctrl K</span> at any time to search for a page, student, parent or bus.</p>
+  <div class="steps">
+    <div class="step"><div><h3>Add the buses <span class="where">Fleet → Vehicles</span></h3>
+      <p>Name, plate and number of seats. Enter the tracker's 15-digit <b>IMEI</b> (on its label), then send the
+        tracker the setup SMS shown on the page. The bus switches from <i>Waiting for the tracker</i> to <i>Connected</i>.</p></div></div>
+    <div class="step"><div><h3>Draw the routes and stops <span class="where">Fleet → Routes &amp; stops</span></h3>
+      <p>One route per bus. Add the stops <b>in morning order</b> on the map (first pick-up → … → school) and finish
+        with the <b>school</b> stop. Each stop has a circle: when the bus enters it, Live Track knows it is at that stop.</p></div></div>
+    <div class="step"><div><h3>Add drivers and attendants <span class="where">Fleet → Drivers / Bus attendants</span></h3>
+      <p>Assign each to a bus. For an attendant, enter their phone number: a <b>6-digit activation code</b> appears. Give it to them.</p></div></div>
+    <div class="step"><div><h3>Register the students <span class="where">Students &amp; parents → Students</span></h3>
+      <p><b>Add student</b>, or <b>Import CSV</b> for a whole list. For each child:</p>
+      <ul class="dots" style="margin-top:1.5mm">
+        <li>name, class, student number, and a photo only with the parent's consent;</li>
+        <li><b>bus</b>, <b>morning pick-up stop</b> and <b>afternoon drop-off stop</b> (they can differ);</li>
+        <li><b>one or two parents</b> with their phone numbers: brothers and sisters share the same parent;</li>
+        <li>a note for the attendant, e.g. "allergic to peanuts", "gets off with her sister".</li>
+      </ul></div></div>
+    <div class="step"><div><h3>Invite the parents <span class="where">Students &amp; parents → Parents</span></h3>
+      <p>Each new parent gets an activation code. Copy the ready-made <b>WhatsApp / SMS message</b> and send it.
+        The page shows who has activated the app; <b>Reset password</b> gives a parent a new code.</p></div></div>
+  </div>
+  <div class="callout ok"><b>Ready.</b> From the next morning, attendants open their trip list and parents start receiving messages.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>4</span></div>
+</section>
+
+<!-- ============ 5. ACCOUNTS ============ -->
+<section class="page">
+  <div class="eyebrow">For parents and attendants</div>
+  <h2>Getting into the app</h2>
+  <p class="lead">No sign-up and no email needed. Your school gives you a code, you choose your password once.</p>
+
+  <div class="grid3">
+    <div class="card"><h3>1 · Receive a code</h3><p>The school sends you a message: <i>"Your Live Track code is <b>482 913</b>…"</i></p></div>
+    <div class="card"><h3>2 · First time here?</h3><p>Parents open <code>/parent</code>, attendants <code>/auth</code>. Tap <b>First time here?</b> (attendants: <b>Activate your account</b>).</p></div>
+    <div class="card"><h3>3 · Choose a password</h3><p>Enter your phone number, the 6-digit code and a new password. You are signed in.</p></div>
+  </div>
+
+  <h4 style="margin-top:8mm">Next times</h4>
+  <p>Phone number + password. The phone number can be typed any way: <code>0788 200 001</code>, <code>+250788200001</code> or <code>788200001</code>.</p>
+
+  <h4>Forgot the password?</h4>
+  <p>Ask the school office. They press <b>Reset password</b> on your name and give you a new code; you then follow the
+    same 3 steps.</p>
+
+  <h4>Install it like an app</h4>
+  <table>
+    <tr><th>Phone</th><th>How</th></tr>
+    <tr><td>Android</td><td>Open the site in Chrome, tap <b>Install app</b> at the bottom (or menu ⋮ → <i>Install app</i>).</td></tr>
+    <tr><td>iPhone</td><td>Open the site in Safari, tap <b>Share</b> → <b>Add to Home Screen</b>.</td></tr>
+  </table>
+  <p style="margin-top:3mm">Then allow <b>notifications</b> when asked (or later in ⚙ Settings), so messages arrive even when the app is closed.</p>
+
+  <div class="callout"><b>Codes are personal.</b> A code works for 30 days, only for the phone number it was made for,
+    and locks after 5 wrong tries. Never share it.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>5</span></div>
+</section>
+
+<!-- ============ 6. ATTENDANT SCREEN ============ -->
+<section class="page">
+  <div class="eyebrow">For the bus attendant</div>
+  <h2>Checking children on and off</h2>
+  <p class="lead">One screen, big buttons. It works without network: taps are saved on the phone and sent later with their real time.</p>
+  <div class="side">
+    <div class="phone">
+      <div class="bar"><span>Bus 1 · Kimironko</span><span style="color:var(--ok)">● Live</span></div>
+      <div class="tabs"><span class="on">Morning</span><span>Afternoon</span></div>
+      <div class="stop">● Now: Kimironko market</div>
+      <div class="kid on">Amina U. <span class="btn ok">On ✓</span></div>
+      <div class="kid">Brian M. <span><span class="btn ok">On</span> <span class="btn grey">Not here</span></span></div>
+      <div class="stop">Next: Kibagabaga</div>
+      <div class="kid">Chloé I. <span><span class="btn ok">On</span> <span class="btn grey">Not here</span></span></div>
+      <div class="kid" style="opacity:.55">David K. <span style="font-size:6.6pt">Not riding (parent)</span></div>
+      <div class="bigbtn" style="background:var(--warn)">📣 Announce</div>
+      <div class="bigbtn">All off at school</div>
+    </div>
+    <div class="steps">
+      <div class="step"><div><h3>Start the trip</h3><p>Sign in, tap <b>Start morning trip</b> (or the <b>Afternoon</b> tab). Children are grouped <b>by stop, in route order</b>. Parents are told the bus has started.</p></div></div>
+      <div class="step"><div><h3>At each stop</h3><p>The stop the bus is at jumps to the top by itself. Tap <span class="btn ok">On</span> when a child gets on, <span class="btn grey">Not here</span> if they don't come. Children whose parent said <i>not riding</i> are already greyed out.</p></div></div>
+      <div class="step"><div><h3>Something happens on the road</h3><p><b>Announce</b> → Heavy traffic +10 / +20 / +30 min · Running late · Accident (all safe) · Breakdown · your own text. Every parent on the bus is told; accident and breakdown also alert the school.</p></div></div>
+      <div class="step"><div><h3>At school (morning)</h3><p><b>All off at school</b> marks every child on board as dropped off. Afternoon: tap <b>Off here</b> for each child at their stop.</p></div></div>
+      <div class="step"><div><h3>End the trip</h3><p>Tap <b>End trip</b>, walk to the back of the bus and confirm <b>"the bus is empty"</b>. A trip cannot close while a child is still marked on board.</p></div></div>
+    </div>
+  </div>
+  <div class="callout info"><b>Made a mistake?</b> The ↶ button undoes the last tap; the parent receives a short correction.
+    A child who is not on your list (wrong bus) can still be added: search the name, the school is told.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>6</span></div>
+</section>
+
+<!-- ============ 7. SCHOOL DAY ============ -->
+<section class="page">
+  <div class="eyebrow">How it flows</div>
+  <h2>A school day, step by step</h2>
+  <p class="lead">One child, Amina, on Bus 1. This is what each side does and sees.</p>
+  <div class="grid2" style="gap:8mm">
+    <div>
+      <h4 style="margin-top:0">Morning · home → school</h4>
+      <div class="tl">
+        <div class="row"><div class="t">06:15</div><div><h3>Parent (optional)</h3><p>If Amina is going by car or is sick, the parent taps <b>Not riding</b>.</p></div></div>
+        <div class="row"><div class="t">06:40</div><div><h3>Bus starts its trip</h3><p>The attendant taps <b>Start morning trip</b>.</p><span class="chip">🚌 Bus 1 has started the morning pickup</span></div></div>
+        <div class="row"><div class="t">06:52</div><div><h3>One stop away</h3><p>The bus reaches the stop before Amina's.</p><span class="chip">🚌 Bus 1 is one stop away · about 4 min</span></div></div>
+        <div class="row"><div class="t">06:58</div><div><h3>Amina boards</h3><p>The attendant taps <b>On</b>.</p><span class="chip">✅ Amina boarded Bus 1 at Kimironko · 06:58</span></div></div>
+        <div class="row"><div class="t">07:20</div><div><h3>Delay on the road</h3><p>Announce → Heavy traffic +15.</p><span class="chip">⚠️ Bus 1: heavy traffic, about 15 min late</span></div></div>
+        <div class="row"><div class="t">07:45</div><div><h3>Arrival at school</h3><p><b>All off at school</b>, then <b>End trip</b>.</p><span class="chip">🏫 Amina arrived at school · 07:45</span></div></div>
+        <div class="row"><div class="t">08:30</div><div><h3>School check</h3><p>Class register vs. bus list: everyone accounted for.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <h4 style="margin-top:0">Afternoon · school → home</h4>
+      <div class="tl">
+        <div class="row"><div class="t">15:30</div><div><h3>Boarding at school</h3><p>The attendant opens the <b>Afternoon</b> tab and taps each child <b>On</b>.</p><span class="chip">✅ Amina is on Bus 1, heading home</span></div></div>
+        <div class="row"><div class="t">15:40</div><div><h3>Bus leaves</h3><p>A child on the list who was not checked on → the school is alerted.</p></div></div>
+        <div class="row"><div class="t">16:05</div><div><h3>Getting close</h3><p>The parent sees the bus on the map, the km and the minutes left.</p><span class="chip">Bus 1 is 2.3 km away · about 7 min</span></div></div>
+        <div class="row"><div class="t">16:12</div><div><h3>Drop-off</h3><p>The attendant taps <b>Off here</b> at Amina's stop.</p><span class="chip">🏠 Amina got off at Kimironko · 16:12</span></div></div>
+        <div class="row"><div class="t">16:40</div><div><h3>End of trip</h3><p>Back at the depot: <b>End trip</b> and the "bus is empty" walk-through.</p></div></div>
+        <div class="row"><div class="t">16:50</div><div><h3>If something is wrong</h3><p>A child still marked on board after the engine stops →</p><span class="chip bad">🚨 1 child not dropped off on Bus 1. Check the bus now.</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>7</span></div>
+</section>
+
+<!-- ============ 8. RULES ============ -->
+<section class="page">
+  <div class="eyebrow">Real life</div>
+  <h2>What happens when…</h2>
+  <p class="lead">The rules Live Track applies by itself, so no child is forgotten and nobody is alarmed for nothing.</p>
+  <table>
+    <tr><th style="width:52mm">Situation</th><th>What Live Track does</th><th style="width:30mm">Who is told</th></tr>
+    <tr><td>Parent says "not riding"</td><td>The child is marked <i>Not riding</i> for that trip; the bus does not wait. Can be set for today, tomorrow or a date, and cancelled.</td><td>Attendant (list)</td></tr>
+    <tr><td>Child not at the stop</td><td><b>Not here</b> is tapped, or the bus leaves the stop without the child → <i>No-show</i>.</td><td>Parent, school</td></tr>
+    <tr><td>Came by car, goes home by bus</td><td>Counted per trip: never marked absent for the day.</td><td>Nobody</td></tr>
+    <tr><td>Child gets on the wrong bus</td><td>Accepted (safety first) and flagged.</td><td>School, parent</td></tr>
+    <tr><td>Dropped far from home</td><td>An <i>Off</i> tap far from the child's stop raises an alert.</td><td>School</td></tr>
+    <tr><td>Child left on the bus</td><td>Still marked on board 10 min after the engine stops → urgent alert.</td><td>School (urgent)</td></tr>
+    <tr><td>Bus breaks down</td><td><b>Trips &amp; check-in → Move to another bus</b> moves the whole list; parents follow the new bus.</td><td>Parents</td></tr>
+    <tr><td>No mobile network</td><td>Taps are saved on the phone and sent later with their real time and place.</td><td>Parents, once sent</td></tr>
+    <tr><td>Wrong tap</td><td>↶ undoes it; the parent gets a short correction.</td><td>Parent</td></tr>
+    <tr><td>Driver opens the check-in screen</td><td>It locks while the bus is moving.</td><td>—</td></tr>
+    <tr><td>Tracker unplugged or silent</td><td>The bus shows <i>Connection lost</i> with its last known position and the reason.</td><td>School</td></tr>
+  </table>
+  <div class="callout info"><b>Class register.</b> Teachers tick present/absent in <b>Class register</b>. Live Track compares it with the bus:
+    <i>All good</i>, <i>Came by car</i>, <i>Came another way</i>, <i>Absent (excused)</i>, or <b>Check now</b> /
+    <b>Urgent</b> when a child boarded the bus but is not in class.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>8</span></div>
+</section>
+
+<!-- ============ 9. DASHBOARD ============ -->
+<section class="page">
+  <div class="eyebrow">For the school office · every day</div>
+  <h2>The school dashboard</h2>
+  <p class="lead">The left menu is in order of daily use. Click the button next to the logo to fold it into icons and give the map the full screen.</p>
+  <table>
+    <tr><th style="width:40mm">Page</th><th>Use it to</th></tr>
+    <tr><td>Overview</td><td>Today's morning and afternoon at a glance: on board, still to pick up, dropped, not riding, no-shows. Every bus with its live status, the latest check-ins and parent notices.</td></tr>
+    <tr><td>Live map</td><td>Every bus on the map with its status, speed and last report. Fold the menu for a bigger map.</td></tr>
+    <tr><td>Trips &amp; check-in</td><td>Each bus's list for any date, stop by stop, with times. Open a trip or move it to another bus.</td></tr>
+    <tr><td>Safety alerts</td><td>No-shows, wrong bus, left at school, far drop-off, child left on bus, incidents. Tap the parent's number to call, then <b>Handled</b>.</td></tr>
+    <tr><td>Students &amp; parents</td><td>Add, edit, import students; parents' activation status, invitations and password resets.</td></tr>
+    <tr><td>Fleet</td><td>Vehicles and trackers, routes and stops, drivers, bus attendants.</td></tr>
+    <tr><td>Announcements</td><td>Send a message to all parents, or to the parents of one bus.</td></tr>
+    <tr><td>Class register</td><td>Tick present/absent per class and compare with the bus lists.</td></tr>
+    <tr><td>Attendance reports</td><td>Week, month or custom period: rides per day and per child, no-shows, ridership %. Download <b>Excel</b> or <b>PDF</b>.</td></tr>
+    <tr><td>Trip history</td><td>Where each bus went, km driven, stops and any signal losses, per day or period, with a PDF report.</td></tr>
+    <tr><td>Fingerprint check-in</td><td><i>Under construction</i>: consent counts and the list of readers to install.</td></tr>
+  </table>
+  <div class="grid3" style="margin-top:6mm">
+    <div class="card"><h3>🔎 Search</h3><p><span class="k">Ctrl K</span> or <span class="k">/</span> opens search: type a child, parent, bus or page name.</p></div>
+    <div class="card"><h3>🔔 Bell</h3><p>Top right: open safety alerts. A red number means something needs action.</p></div>
+    <div class="card"><h3>👤 Your menu</h3><p>Top right: your notifications, light/dark mode and <b>Sign out</b>.</p></div>
+  </div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>9</span></div>
+</section>
+
+<!-- ============ 10. PARENT APP ============ -->
+<section class="page">
+  <div class="eyebrow">For parents</div>
+  <h2>The parent app</h2>
+  <p class="lead">Open <code>/parent</code> and sign in with your phone number. Everything is on one screen.</p>
+  <div class="side">
+    <div class="phone">
+      <div class="bar"><span>My children</span><span>🔔 ⚙</span></div>
+      <div class="tabs"><span class="on">Amina</span><span>Brian</span></div>
+      <div style="margin-top:2.5mm;border:1px solid var(--line);border-radius:2mm;padding:2mm;font-size:7.6pt">
+        <div style="display:flex;justify-content:space-between;font-weight:700"><span>To school</span><span style="color:var(--ok)">✓ Arrived 07:45</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:1mm"><span>Home</span><span style="color:var(--accent)">On the bus</span></div>
+      </div>
+      <div style="margin-top:2mm;height:26mm;border-radius:2mm;background:linear-gradient(135deg,#e9f1ff,#eef7ee);position:relative;overflow:hidden">
+        <svg viewBox="0 0 100 50" style="position:absolute;inset:0;width:100%;height:100%"><path d="M5 42 C30 40 35 20 55 22 S80 10 95 6" fill="none" stroke="#6650f0" stroke-width="1.6" stroke-dasharray="3 2"/><circle cx="55" cy="22" r="3.2" fill="#f59e0b" stroke="#fff" stroke-width="1"/><circle cx="92" cy="7" r="2.4" fill="#16a34a"/></svg>
+      </div>
+      <div style="margin-top:2mm;font-size:8pt;font-weight:700">Bus 1 · 2.3 km · about 7 min</div>
+      <div class="bigbtn" style="background:#fff;color:var(--ink);border:1px solid var(--line)">Change of plan</div>
+    </div>
+    <div>
+      <ul class="dots">
+        <li><b>All your children on one screen.</b> Tap a name to switch.</li>
+        <li><b>Today's status</b> for <i>To school</i> and <i>Home</i>, with the times.</li>
+        <li><b>The bus live on the map</b> with the minutes and km to your stop. A warning when it is close: choose 1 to 5 km in ⚙ Settings.</li>
+        <li><b>Change of plan:</b> <i>Not riding the bus</i>, <i>I'll pick up from school</i> or <i>Absent</i>, for today, tomorrow or a date. Cancel it with ✕.</li>
+        <li><b>🔔 Messages:</b> boarding, arrivals, drop-offs, delays and school announcements.</li>
+        <li><b>Trip history</b> for each child.</li>
+        <li><b>⚙ Settings:</b> phone notifications on/off, which alerts you want, light/dark mode, sign out.</li>
+      </ul>
+      <h4>The messages you will receive</h4>
+      <span class="chip">🚌 Bus 1 has started the morning pickup</span><br>
+      <span class="chip">🚏 Bus 1 is at Kimironko stop</span><br>
+      <span class="chip">✅ Amina boarded Bus 1 at Kimironko · 06:58</span><br>
+      <span class="chip">🏫 Amina arrived at school · 07:45</span><br>
+      <span class="chip">🏠 Amina got off at Kimironko · 16:12</span><br>
+      <span class="chip">⚠️ Bus 1: heavy traffic, about 15 min late</span>
+    </div>
+  </div>
+  <div class="callout ok"><b>Tell the bus before it comes.</b> A "not riding" notice saves the bus from waiting at your stop and stops a no-show alert.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>10</span></div>
+</section>
+
+<!-- ============ 11. FAQ ============ -->
+<section class="page">
+  <div class="eyebrow">Help</div>
+  <h2>Questions and quick fixes</h2>
+  <p class="lead">The answers to what people ask most in the first weeks.</p>
+  <div class="grid2">
+    <div class="card"><h3>I can't sign in</h3><p>Check the phone number and that you are on the right page: parents at <code>/parent</code>, staff at <code>/auth</code>. Still stuck: ask the school for a new code.</p></div>
+    <div class="card"><h3>I get no notifications</h3><p>Open ⚙ Settings and turn notifications on, and allow them in the phone settings. On iPhone, the app must be added to the Home Screen first.</p></div>
+    <div class="card"><h3>The bus shows "Connection lost"</h3><p>The tracker has no mobile data for a while (tunnel, weak signal, SIM credit). It reconnects by itself; the last known position is shown meanwhile.</p></div>
+    <div class="card"><h3>My child is not on the list</h3><p>The attendant can search and add any child of the school; the school is told so the records can be fixed.</p></div>
+    <div class="card"><h3>The minutes to my stop jump</h3><p>They are worked out from the live position and road speed. Traffic changes them; they settle as the bus gets close.</p></div>
+    <div class="card"><h3>The trip won't close</h3><p>A child is still marked on board. Mark them off (or check the bus!), then confirm "the bus is empty".</p></div>
+    <div class="card"><h3>A parent changed phone number</h3><p>Students &amp; parents → Parents: edit the number, then <b>Reset password</b> to send a new code.</p></div>
+    <div class="card"><h3>Fingerprint check-in?</h3><p><i>Under construction.</i> Consent is already recorded at registration; when the readers are installed they replace the attendant's tap, everything else stays the same.</p></div>
+  </div>
+  <div class="callout info"><b>Privacy.</b> Each parent sees only their own children and their bus. Photos are stored only with
+    the parent's consent. The school can see and correct every record.</div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>11</span></div>
+</section>
+
+<!-- ============ 12. DEMO ============ -->
+<section class="page">
+  <div class="eyebrow">Appendix · demo version</div>
+  <h2>Try it: the demo accounts</h2>
+  <p class="lead">The demo version is a separate copy of Live Track filled with a fictional school, <b>Sunrise Academy (Demo)</b>.
+    Its 3 buses drive their routes by themselves, so the map, stop messages and arrival times work like the real thing.
+    It rebuilds itself every night at 01:00, so nothing you do there can break it.</p>
+  <table>
+    <tr><th>Role</th><th>Sign in at</th><th>Login</th><th>Notes</th></tr>
+    <tr><td>School admin</td><td><code>/auth</code></td><td>school@demo.livetrack.app</td><td>Sunrise Academy (Demo)</td></tr>
+    <tr><td>Platform admin</td><td><code>/auth</code></td><td>admin@demo.livetrack.app</td><td>Sees every school</td></tr>
+    <tr><td>Attendant · Bus 1</td><td><code>/auth</code></td><td>0788 100 001</td><td>Kimironko line</td></tr>
+    <tr><td>Attendant · Bus 2</td><td><code>/auth</code></td><td>0788 100 002</td><td>Kicukiro line</td></tr>
+    <tr><td>Attendant · Bus 3</td><td><code>/auth</code></td><td>0788 100 003</td><td>Nyamirambo line</td></tr>
+    <tr><td>Parent · Grace Uwase</td><td><code>/parent</code></td><td>0788 200 001</td><td>2 children on Bus 1</td></tr>
+    <tr><td>Parent · Eric Mugisha</td><td><code>/parent</code></td><td>0788 200 002</td><td>1 child on Bus 1</td></tr>
+    <tr><td>Parent · Aline Ishimwe</td><td><code>/parent</code></td><td>0788 200 003</td><td>2 children on Bus 2</td></tr>
+  </table>
+  <div class="callout ok"><b>Password for every demo account: <code>demo1234</code>.</b> The sign-in pages also show one-tap buttons for these accounts.</div>
+
+  <h4 style="margin-top:7mm">A 5-minute demo</h4>
+  <div class="steps">
+    <div class="step"><div><p><b>School admin</b> → Overview → Live map (fold the menu for a big map) → Students → open a child.</p></div></div>
+    <div class="step"><div><p>In a second browser: <b>Attendant Bus 1</b> → <i>Afternoon</i> → <b>Start afternoon trip</b> → tick children <b>On</b>.</p></div></div>
+    <div class="step"><div><p>On a phone: <b>Parent Grace</b> → see "boarded" arrive live, the bus on the map and the minutes to the stop.</p></div></div>
+    <div class="step"><div><p>Attendant → <b>Announce → Heavy traffic +15</b> → the parent receives it at once.</p></div></div>
+    <div class="step"><div><p>Attendant → <b>All off</b> → <b>End trip</b>. School admin → Attendance reports → <b>PDF</b>.</p></div></div>
+  </div>
+  <div class="foot"><span><b>LIVE TRACK</b> · User manual</span><span>12</span></div>
+</section>
+
+</body>
+</html>
