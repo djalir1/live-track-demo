@@ -79,7 +79,10 @@ declare
                           'Umutoni','Victor','Wendy','Xavier','Yvette','Zawadi','Aimable','Belyse','Cedric','Divine'];
   v_last text[] := array['Uwase','Mugisha','Ishimwe','Habimana','Mukamana','Niyonzima','Umutoni','Nkurunziza',
                          'Iradukunda','Ndayisaba'];
-  v_parent_names text[] := array['Grace Uwase', 'Eric Mugisha', 'Aline Ishimwe'];
+  v_parent_names text[] := array['Grace Uwase', 'Eric Mugisha', 'Aline Ishimwe', 'Jean Paul Nkurunziza'];
+  -- Parents with app accounts → their children (student numbers 1..30; 1-10 Bus 1, 11-20 Bus 2, 21-30 Bus 3).
+  v_links int[][] := array[[1, 1], [1, 2], [2, 3], [3, 11], [3, 12], [4, 21], [4, 22], [4, 23]];
+  v_linked int[] := array[1, 2, 3, 11, 12, 21, 22, 23];
 begin
   if v_sadmin is null or coalesce(array_length(v_trk, 1), 0) < 3 or coalesce(array_length(v_att, 1), 0) < 3
      or coalesce(array_length(v_par, 1), 0) < 3 then
@@ -106,11 +109,15 @@ begin
   insert into public.user_roles (user_id, role) values (v_sadmin, 'school_admin');
   update public.profiles set display_name = 'Mrs. Claudine Mutesi', school_id = v_school where id = v_sadmin;
   for i in 1..3 loop
-    insert into public.user_roles (user_id, role) values (v_att[i], 'attendant'), (v_par[i], 'parent'), (v_trk[i], 'user');
+    insert into public.user_roles (user_id, role) values (v_att[i], 'attendant'), (v_trk[i], 'user');
     update public.profiles set display_name = v_att_names[i], school_id = v_school, phone = '25078810000' || i where id = v_att[i];
-    update public.profiles set display_name = v_parent_names[i], school_id = v_school, phone = '25078820000' || i where id = v_par[i];
     update public.profiles set display_name = v_bus_labels[i], school_id = v_school, vehicle_type = 'bus',
       vehicle_name = v_bus_labels[i], plate_number = v_plates[i], seats = 30 where id = v_trk[i];
+  end loop;
+
+  for i in 1..least(array_length(v_par, 1), array_length(v_parent_names, 1)) loop
+    insert into public.user_roles (user_id, role) values (v_par[i], 'parent');
+    update public.profiles set display_name = v_parent_names[i], school_id = v_school, phone = '25078820000' || i where id = v_par[i];
   end loop;
 
   -- 3. Routes, stops, buses, drivers, attendants.
@@ -158,12 +165,14 @@ begin
     v_students := v_students || v_sid;
   end loop;
 
-  -- Demo parents with app accounts: Grace (2 kids, Bus 1), Eric (1 kid, Bus 1), Aline (2 kids, Bus 2).
-  for r in select * from (values (1, 1), (1, 2), (2, 3), (3, 11), (3, 12)) t(p, s) loop
+  -- Demo parents with app accounts: Grace (2 kids, Bus 1), Eric (1 kid, Bus 1), Aline (2 kids, Bus 2),
+  -- Jean Paul (3 kids, Bus 3). A 4th parent account is optional (older seed scripts send 3).
+  for r in select v_links[x.j][1] p, v_links[x.j][2] s from generate_subscripts(v_links, 1) as x(j) loop
+    continue when r.p > array_length(v_par, 1);
     select id into v_gid from public.guardians where school_id = v_school and user_id = v_par[r.p];
     if v_gid is null then
       insert into public.guardians (school_id, full_name, phone, relationship, user_id, activated_at)
-      values (v_school, v_parent_names[r.p], '25078820000' || r.p, case when r.p = 2 then 'Father' else 'Mother' end, v_par[r.p], now())
+      values (v_school, v_parent_names[r.p], '25078820000' || r.p, case when r.p in (2, 4) then 'Father' else 'Mother' end, v_par[r.p], now())
       returning id into v_gid;
     end if;
     insert into public.student_guardians (student_id, guardian_id, is_primary) values (v_students[r.s], v_gid, true)
@@ -171,7 +180,8 @@ begin
   end loop;
   -- Everyone else: a parent registered by the school, code not used yet.
   for i in 1..30 loop
-    continue when i in (1, 2, 3, 11, 12);
+    continue when i = any (v_linked) and exists (
+      select 1 from public.student_guardians sg where sg.student_id = v_students[i]);
     insert into public.guardians (school_id, full_name, phone, relationship)
     values (v_school, 'Parent of ' || split_part(v_first[i] || ' ' || v_last[((i - 1) % 10) + 1], ' ', 1) || ' ' || v_last[((i - 1) % 10) + 1],
             '250788300' || lpad(i::text, 3, '0'), case when i % 2 = 0 then 'Father' else 'Mother' end)

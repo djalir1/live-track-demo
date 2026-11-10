@@ -171,7 +171,10 @@ function Dashboard() {
   const users: LiveUser[] = [];
   if (meta) {
     for (const s of rows.values()) {
-      if (!meta.driverIds.has(s.user_id)) continue;
+      // A school admin can only read their own row in user_roles, so
+      // driverIds is empty for them; bus GPS trackers are known from the
+      // buses table instead (which they can read for their own school).
+      if (!meta.driverIds.has(s.user_id) && !meta.trackerDrivers.has(s.user_id)) continue;
       const p = meta.profiles.get(s.user_id);
       // Presence = freshness, measured on the server's clock. Phones upsert
       // about every 8 s while tracking. Hardware trackers report every 10 s with

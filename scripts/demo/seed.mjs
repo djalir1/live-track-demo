@@ -11,7 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { demoEnv } from "./env.mjs";
 
-const PASSWORD = "demo1234"; // keep in sync with src/lib/demo.ts
+const PASSWORD = "demo1234"; // listed in DEMO_GUIDE.md
 
 const ACCOUNTS = {
   platform_admin: [{ email: "admin@demo.livetrack.app", name: "Demo Platform Admin" }],
@@ -20,7 +20,7 @@ const ACCOUNTS = {
     email: `25078810000${i}@staff.livetrack.app`,
     name: `Attendant ${i}`,
   })),
-  parents: [1, 2, 3].map((i) => ({
+  parents: [1, 2, 3, 4].map((i) => ({
     email: `25078820000${i}@parent.livetrack.app`,
     name: `Parent ${i}`,
   })),
@@ -93,14 +93,15 @@ await sb.rpc("demo_tick");
 console.log(`\n✅ Demo ready: ${data.students} students, ${data.buses} buses.\n`);
 console.log("Sign in with (password for all: demo1234):");
 console.table([
-  { who: "School admin", where: "/auth", login: "school@demo.livetrack.app" },
-  { who: "Platform admin", where: "/auth", login: "admin@demo.livetrack.app" },
+  { who: "School admin", where: "/admin", login: "school@demo.livetrack.app" },
+  { who: "Platform admin", where: "/admin", login: "admin@demo.livetrack.app" },
   { who: "Attendant Bus 1", where: "/auth", login: "0788 100 001" },
   { who: "Attendant Bus 2", where: "/auth", login: "0788 100 002" },
   { who: "Attendant Bus 3", where: "/auth", login: "0788 100 003" },
   { who: "Parent Grace (2 kids, Bus 1)", where: "/parent", login: "0788 200 001" },
   { who: "Parent Eric (1 kid, Bus 1)", where: "/parent", login: "0788 200 002" },
   { who: "Parent Aline (2 kids, Bus 2)", where: "/parent", login: "0788 200 003" },
+  { who: "Parent Jean Paul (3 kids, Bus 3)", where: "/parent", login: "0788 200 004" },
 ]);
 console.log(
   "Buses move by themselves if pg_cron is on (see DEMO_SETUP.md); otherwise run: npm run demo:simulate",

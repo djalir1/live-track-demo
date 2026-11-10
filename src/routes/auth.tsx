@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Loader2, Eye, EyeOff, PlayCircle } from "lucide-react";
+import { MapPin, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/lib/friendly-errors";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import { useAuth, homeFor } from "@/lib/auth-context";
 import { ActivateForm } from "@/components/PhoneSignIn";
 import { accountEmail, looksLikePhone, normalizePhone } from "@/lib/phone";
 import { PARENTS_ENABLED } from "@/lib/features";
-import { DEMO_MODE, DEMO_PASSWORD, DEMO_STAFF } from "@/lib/demo";
 
 // School & staff sign-in: school admins (email), bus attendants (phone),
 // drivers (email). Accounts are created by the school — there is no public
@@ -140,31 +139,6 @@ function AuthPage() {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
             </Button>
           </form>
-        )}
-
-        {DEMO_MODE && mode === "signin" && (
-          <div className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-3">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <PlayCircle className="h-4 w-4 text-primary" /> Demo accounts — tap to sign in
-            </div>
-            <div className="mt-2 grid gap-1.5">
-              {DEMO_STAFF.map((a) => (
-                <button
-                  key={a.login}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void signIn(a.login, DEMO_PASSWORD)}
-                  className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2 text-left hover:border-primary/50"
-                >
-                  <span>
-                    <span className="block text-sm font-medium">{a.label}</span>
-                    <span className="block text-[11px] text-muted-foreground">{a.hint}</span>
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">{a.login}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         )}
 
         <div className="mt-6 pt-5 border-t border-border space-y-2 text-sm text-muted-foreground">

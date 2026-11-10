@@ -107,19 +107,20 @@ Same screen, **Afternoon** tab: tick children **On** at school, **Off here** at 
 ## 5. Demo version — accounts and data
 
 The demo project (see `DEMO_SETUP.md`) is filled with fictional data by `npm run demo:seed`.
-**Password for every demo account: `demo1234`.** In demo mode the sign-in pages also show
-one-tap buttons for these accounts.
+**Password for every demo account: `demo1234`.** Sign in through the normal pages (there are no
+shortcut buttons). Step-by-step test scripts: `DEMO_GUIDE.md`.
 
-| Role                   | Sign in at | Login                       | Notes                              |
-| ---------------------- | ---------- | --------------------------- | ---------------------------------- |
-| School admin           | `/auth`    | `school@demo.livetrack.app` | Sunrise Academy (Demo)             |
-| Platform admin         | `/auth`    | `admin@demo.livetrack.app`  | sees all schools                   |
-| Attendant — Bus 1      | `/auth`    | `0788 100 001`              | Alice Mukeshimana · Kimironko line |
-| Attendant — Bus 2      | `/auth`    | `0788 100 002`              | Diane Uwamahoro · Kicukiro line    |
-| Attendant — Bus 3      | `/auth`    | `0788 100 003`              | Josiane Ingabire · Nyamirambo line |
-| Parent — Grace Uwase   | `/parent`  | `0788 200 001`              | 2 children on Bus 1                |
-| Parent — Eric Mugisha  | `/parent`  | `0788 200 002`              | 1 child on Bus 1                   |
-| Parent — Aline Ishimwe | `/parent`  | `0788 200 003`              | 2 children on Bus 2                |
+| Role                          | Sign in at | Login                       | Notes                              |
+| ----------------------------- | ---------- | --------------------------- | ---------------------------------- |
+| School admin                  | `/admin`   | `school@demo.livetrack.app` | Sunrise Academy (Demo)             |
+| Platform admin                | `/admin`   | `admin@demo.livetrack.app`  | sees all schools                   |
+| Attendant — Bus 1             | `/auth`    | `0788 100 001`              | Alice Mukeshimana · Kimironko line |
+| Attendant — Bus 2             | `/auth`    | `0788 100 002`              | Diane Uwamahoro · Kicukiro line    |
+| Attendant — Bus 3             | `/auth`    | `0788 100 003`              | Josiane Ingabire · Nyamirambo line |
+| Parent — Grace Uwase          | `/parent`  | `0788 200 001`              | 2 children on Bus 1                |
+| Parent — Eric Mugisha         | `/parent`  | `0788 200 002`              | 1 child on Bus 1                   |
+| Parent — Aline Ishimwe        | `/parent`  | `0788 200 003`              | 2 children on Bus 2                |
+| Parent — Jean Paul Nkurunziza | `/parent`  | `0788 200 004`              | 3 children on Bus 3                |
 
 What the demo contains:
 
@@ -127,7 +128,7 @@ What the demo contains:
 - **3 buses** (RAD 101 A/B/C) with drivers, attendants and a simulated GPS: they drive their
   route and back all day, pausing 20 s at each stop, so the live map, stop alerts and parent
   ETAs work exactly like with a real tracker.
-- **30 students**, 3 parents with the app, 25 parents still waiting with activation codes
+- **30 students**, 4 parents with the app, 22 parents still waiting with activation codes
   (Parents page), one attendant waiting to activate (Samuel, `0788 100 009`).
 - **Two weeks of trips** with check-ins, a few no-shows and parent notices, class registers,
   announcements and one open safety alert → reports and history have data.
