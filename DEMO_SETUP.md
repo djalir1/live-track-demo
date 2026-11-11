@@ -18,6 +18,7 @@ Hard rules:
   value contains that ref, stop and tell me.
 - Apply supabase/migrations/*.sql ONE FILE AT A TIME, in filename order (never pasted together).
 - Then apply supabase/demo/demo.sql (demo only — it must never go to production).
+- Then apply supabase/demo/demo_controls.sql (demo only as well).
 - Do not deploy or touch gps-server/ (the demo has no GPS server).
 - After each step, run the "Check" listed in DEMO_SETUP.md and show me the result.
 At the end, give me the demo URL and the account table from USER_MANUAL.md section 5.
@@ -65,7 +66,7 @@ Apply every file in `supabase/migrations/` **in filename order, one file per run
 > Why one at a time: some files add account roles (`parent`, `school_admin`, `attendant`) that
 > the next files use; Postgres only allows that after the first file is committed.
 
-Then apply the demo add-on **`supabase/demo/demo.sql`** (SQL editor or `apply_migration`, name `demo_addon`).
+Then apply the demo add-on **`supabase/demo/demo.sql`** (SQL editor or `apply_migration`, name `demo_addon`). Then apply **`supabase/demo/demo_controls.sql`** the same way (name `demo_controls`): bus controls, engine alerts and phone push for the demo.
 
 **Check** (SQL editor):
 
@@ -140,7 +141,7 @@ npm run dev            # http://localhost:8080
 | Positions     | real GT06 trackers → `gps-server` | `demo_tick()` every 10 s (pg_cron)                          |
 | Data          | real school                       | fictional, rebuilt nightly at 01:00 Kigali (`demo_reset()`) |
 | Sign-in pages | normal                            | + small DEMO badge (`VITE_DEMO_MODE=true`)                  |
-| Phone push    | via `gps-server`                  | not set up (in-app notifications work live)                 |
+| Phone push    | via `gps-server`                  | sent by the site itself (`api/demo-push.js`)                |
 
 ## Troubleshooting
 

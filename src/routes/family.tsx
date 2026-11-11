@@ -63,6 +63,7 @@ import {
 } from "@/lib/school";
 import { computeEta, remainingMetresToStop, type EventLite, type StopPt } from "@/lib/parent-trip";
 import { enablePush, getPushState, type PushState } from "@/lib/push";
+import { ParentPushCard } from "@/components/ParentPushCard";
 import { fmtTime } from "@/lib/time";
 import { SchoolBusArt } from "@/components/SchoolBusArt";
 
@@ -310,6 +311,8 @@ function FamilyPage() {
     [routeStops, followRun],
   );
   const live = !!pos && Date.now() - new Date(pos.last_seen).getTime() < 10 * 60_000;
+  // Engine off: say so, instead of an arrival time that will not happen.
+  const parked = live && (pos as { is_tracking?: boolean } | null)?.is_tracking === false;
   const busPt: [number, number] | null =
     pos?.latitude != null && pos.longitude != null ? [pos.latitude, pos.longitude] : null;
   const eta = computeEta({
@@ -423,6 +426,7 @@ function FamilyPage() {
         </div>
       ) : (
         <main className="max-w-5xl mx-auto px-3 sm:px-4 py-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
+          <ParentPushCard />
           {kids.length > 1 && (
             <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] -mx-3 px-3">
               {kids.map((k, i) => (
@@ -509,13 +513,17 @@ function FamilyPage() {
                           ? "No bus assigned"
                           : !live
                             ? `${busName(bus)} isn't sending its position right now`
-                            : eta.kind === "eta"
-                              ? `About ${eta.minutes} min to ${myStop?.name ?? "your stop"}`
-                              : eta.kind === "arriving"
-                                ? `Arriving at ${myStop?.name ?? "your stop"}`
-                                : eta.kind === "passed"
-                                  ? `${busName(bus)} has passed ${myStop?.name ?? "your stop"}`
-                                  : `${busName(bus)} is on the road`}
+                            : parked
+                              ? `${busName(bus)} is parked (engine off)`
+                              : eta.kind === "eta"
+                                ? `About ${eta.minutes} min to ${myStop?.name ?? "your stop"}`
+                                : eta.kind === "arriving"
+                                  ? `Arriving at ${myStop?.name ?? "your stop"}`
+                                  : eta.kind === "passed"
+                                    ? `${busName(bus)} has passed ${myStop?.name ?? "your stop"}`
+                                    : (pos?.speed_kmh ?? 0) < 3
+                                      ? `${busName(bus)} is stopped (engine on)`
+                                      : `${busName(bus)} is on the road`}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {kmLeft != null ? `${(kmLeft / 1000).toFixed(1)} km away · ` : ""}

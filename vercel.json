@@ -3,7 +3,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/client",
   "framework": null,
+  "functions": { "api/demo-push.js": { "maxDuration": 30 } },
   "rewrites": [
-    { "source": "/((?!assets/|api/|icons/|favicon\\.ico|robots\\.txt|.*\\.(?:js|css|map|webmanifest|html|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf)$).*)", "destination": "/api/ssr" }
+    {
+      "source": "/((?!assets/|api/|icons/|favicon\\.ico|robots\\.txt|.*\\.(?:js|css|map|webmanifest|html|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf)$).*)",
+      "destination": "/api/ssr"
+    }
   ]
 }

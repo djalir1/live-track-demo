@@ -12,6 +12,7 @@ import { useAuth, homeFor } from "@/lib/auth-context";
 import { ActivateForm } from "@/components/PhoneSignIn";
 import { accountEmail, looksLikePhone, normalizePhone } from "@/lib/phone";
 import { PARENTS_ENABLED } from "@/lib/features";
+import { DemoLogins } from "@/components/DemoLogins";
 
 // School & staff sign-in: school admins (email), bus attendants (phone),
 // drivers (email). Accounts are created by the school — there is no public
@@ -140,6 +141,8 @@ function AuthPage() {
             </Button>
           </form>
         )}
+
+        {mode === "signin" && <DemoLogins group="staff" />}
 
         <div className="mt-6 pt-5 border-t border-border space-y-2 text-sm text-muted-foreground">
           {mode === "signin" && PARENTS_ENABLED && (

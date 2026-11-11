@@ -162,19 +162,9 @@ function NavLink({
   );
 }
 
-/** Full sidebar navigation: single links + collapsible groups. */
+/** Full sidebar navigation: everyday pages, then plain sections (nothing to open). */
 function ExpandedNav({ alerts, onNavigate }: { alerts: number; onNavigate?: () => void }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const activeGroup = NAV.find(
-    (e) => isGroup(e) && e.items.some((i) => isActivePath(path, i.to)),
-  ) as NavGroup | undefined;
-  const [open, setOpen] = useState<Record<string, boolean>>(() =>
-    activeGroup ? { [activeGroup.id]: true } : { families: true },
-  );
-  useEffect(() => {
-    if (activeGroup) setOpen((o) => (o[activeGroup.id] ? o : { ...o, [activeGroup.id]: true }));
-  }, [activeGroup]);
-
   return (
     <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5 [scrollbar-width:thin]">
       {NAV.map((e) => {
@@ -188,49 +178,20 @@ function ExpandedNav({ alerts, onNavigate }: { alerts: number; onNavigate?: () =
               onNavigate={onNavigate}
             />
           );
-        const isOpen = !!open[e.id];
-        const childActive = e.items.some((i) => isActivePath(path, i.to));
         return (
-          <div key={e.id} className="pt-0.5">
-            <button
-              onClick={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))}
-              aria-expanded={isOpen}
-              className={cn(rowBase, "w-full", childActive && !isOpen ? rowActive : rowIdle)}
-            >
-              <e.Icon className={cn("h-[18px] w-[18px] shrink-0", childActive && "text-primary")} />
-              <span className="truncate">{e.label}</span>
-              <ChevronDown
-                className={cn(
-                  "ml-auto h-4 w-4 text-muted-foreground transition-transform",
-                  isOpen && "rotate-180",
-                )}
-              />
-            </button>
-            <div
-              className={cn(
-                "grid transition-[grid-template-rows] duration-200",
-                isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-              )}
-            >
-              <div className="overflow-hidden">
-                <div className="relative py-0.5">
-                  <span
-                    className="absolute left-[25px] top-1 bottom-1 w-px bg-border"
-                    aria-hidden
-                  />
-                  {e.items.map((i) => (
-                    <NavLink
-                      key={i.to}
-                      item={i}
-                      nested
-                      active={isActivePath(path, i.to)}
-                      alerts={alerts}
-                      onNavigate={onNavigate}
-                    />
-                  ))}
-                </div>
-              </div>
+          <div key={e.id} className="pt-4">
+            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
+              {e.label}
             </div>
+            {e.items.map((i) => (
+              <NavLink
+                key={i.to}
+                item={i}
+                active={isActivePath(path, i.to)}
+                alerts={alerts}
+                onNavigate={onNavigate}
+              />
+            ))}
           </div>
         );
       })}

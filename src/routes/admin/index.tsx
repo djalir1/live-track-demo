@@ -32,6 +32,7 @@ import { ALERT_KIND_LABEL, busName } from "@/lib/school";
 import { busLiveState, useSchoolDay, type BusLiveState } from "@/lib/use-school-day";
 import { fmtTime } from "@/lib/time";
 import { SchoolBusArt } from "@/components/SchoolBusArt";
+import { DemoBusControls } from "@/components/DemoBusControls";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({ meta: [{ title: "Overview — Live Track" }] }),
@@ -131,6 +132,8 @@ function Overview() {
           </>
         }
       />
+
+      <DemoBusControls schoolId={schoolId} className="mb-5" />
 
       {urgent > 0 && (
         <Link

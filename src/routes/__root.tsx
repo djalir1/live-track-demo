@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
@@ -84,6 +85,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  // Demo: there is no gps-server, so wake the demo's own push sender (it also
+  // learns this site's address the first time). See api/demo-push.js.
+  useEffect(() => {
+    if (DEMO_MODE) void fetch("/api/demo-push").catch(() => {});
+  }, []);
   return (
     <ThemeProvider>
       <AuthProvider>

@@ -6,7 +6,7 @@
 --                        Kigali roads, 3 buses, drivers, attendants, 30
 --                        students, parents, 2 weeks of trips & attendance)
 --   demo_reset()         rebuilds it with the same accounts (nightly)
---   demo_tick()          moves every demo bus along its route like a GPS
+--   demo_tick()          (replaced by demo_controls.sql) moves every demo bus along its route like a GPS
 --                        tracker would (every 10 s): live map, stop
 --                        arrivals, parent ETAs and alerts all work
 --
@@ -144,10 +144,10 @@ begin
     insert into public.attendants (school_id, full_name, phone, bus_id, user_id, activated_at)
     values (v_school, v_att_names[b], '25078810000' || b, v_bus, v_att[b], now());
 
-    insert into public.demo_sim (bus_id, tracker_user_id, progress_m, speed_kmh)
-    values (v_bus, v_trk[b], b * 900, 24 + b * 4)
+    insert into public.demo_sim (bus_id, tracker_user_id, progress_m, speed_kmh, mode, goto_stop)
+    values (v_bus, v_trk[b], b * 900, 24 + b * 4, case when b = 3 then 'drive' else 'off' end, case when b < 3 then (select id from public.stops where route_id = v_route and type = 'school') end)
     on conflict (bus_id) do update set progress_m = excluded.progress_m, speed_kmh = excluded.speed_kmh,
-      tracker_user_id = excluded.tracker_user_id, dwell_until = null, last_tick = now();
+      tracker_user_id = excluded.tracker_user_id, mode = excluded.mode, goto_stop = excluded.goto_stop, dwell_until = null, last_tick = now();
   end loop;
   -- An extra attendant with a code still to activate (shows the flow).
   insert into public.attendants (school_id, full_name, phone, bus_id) values (v_school, 'Samuel Hakizimana', '250788100009', null);
@@ -183,16 +183,16 @@ begin
     continue when i = any (v_linked) and exists (
       select 1 from public.student_guardians sg where sg.student_id = v_students[i]);
     insert into public.guardians (school_id, full_name, phone, relationship)
-    values (v_school, 'Parent of ' || split_part(v_first[i] || ' ' || v_last[((i - 1) % 10) + 1], ' ', 1) || ' ' || v_last[((i - 1) % 10) + 1],
+    values (v_school, case when i % 2 = 0 then (array['Emmanuel','Innocent','Theogene','Faustin','Celestin','Damascene','Gaspard'])[((i / 2) % 7) + 1] else (array['Jeanne','Claudine','Vestine','Josephine','Beatrice','Chantal','Immaculee','Esperance'])[((i / 2) % 8) + 1] end || ' ' || v_last[((i - 1) % 10) + 1],
             '250788300' || lpad(i::text, 3, '0'), case when i % 2 = 0 then 'Father' else 'Mother' end)
     returning id into v_gid;
     insert into public.student_guardians (student_id, guardian_id, is_primary) values (v_students[i], v_gid, true);
   end loop;
 
-  -- 5. History: the last 10 school days (+ today's morning if it's past 09:00).
+  -- 5. History: the last 10 school days. Today is left free so both runs can be shown live.
   for v_day in
-    select d::date from generate_series(v_today - 16, v_today, interval '1 day') d
-     where extract(isodow from d) < 6 and (d::date < v_today or v_now_kgl > time '09:00')
+    select d::date from generate_series(v_today - 16, v_today - 1, interval '1 day') d
+     where extract(isodow from d) < 6
   loop
     for b in 1..3 loop
       for k in 0..1 loop

@@ -5,6 +5,7 @@ import { MapPin, ShieldCheck, BellRing, Navigation } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivateForm, PhoneSignInForm } from "@/components/PhoneSignIn";
 import { useAuth, homeFor } from "@/lib/auth-context";
+import { DemoLogins } from "@/components/DemoLogins";
 
 export const Route = createFileRoute("/parent")({
   head: () => ({ meta: [{ title: "Parent sign in — Live Track" }] }),
@@ -97,6 +98,8 @@ function ParentSignIn() {
               <ActivateForm kind="parent" />
             </TabsContent>
           </Tabs>
+
+          <DemoLogins group="parents" />
 
           <div className="mt-10 pt-6 border-t border-border text-sm text-muted-foreground">
             School staff or driver?{" "}

@@ -191,7 +191,7 @@ function RoutesPage() {
     if (
       !window.confirm(
         `Delete route "${r.name}" and its ${r.stops} stop(s)?` +
-          (n ? `\n\n${n} vehicle(s) on it will have no route until you assign another one.` : ""),
+          (n ? `\n\n${n} bus(es) on it will have no route until you choose another one.` : ""),
       )
     )
       return;
@@ -256,7 +256,7 @@ function RoutesPage() {
     <AdminShell>
       <div className="grid lg:grid-cols-[320px_1fr] gap-4">
         {/* Routes */}
-        <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3 h-fit">
+        <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3 h-fit lg:sticky lg:top-20">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold">Routes</div>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -317,7 +317,7 @@ function RoutesPage() {
                         <div className="text-sm font-medium truncate">{r.name}</div>
                         <div className="text-[11px] text-muted-foreground">
                           {r.stops} stop{r.stops === 1 ? "" : "s"} ·{" "}
-                          {n ? `${n} vehicle${n === 1 ? "" : "s"}` : "no vehicle"}
+                          {n ? `${n} bus${n === 1 ? "" : "es"}` : "no bus"}
                         </div>
                       </button>
                       <IconBtn label="Rename" onClick={() => setRenaming(r.id)}>
@@ -343,10 +343,10 @@ function RoutesPage() {
             <>
               {/* Vehicles on this route */}
               <div className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3">
-                <div className="text-sm font-semibold">Vehicles on {selected.name}</div>
+                <div className="text-sm font-semibold">Buses on {selected.name}</div>
                 {busesOn(selected.id).length === 0 ? (
                   <div className="text-xs text-muted-foreground">
-                    No vehicle runs this route yet — assign one below.
+                    No bus drives this route yet — choose one below.
                   </div>
                 ) : (
                   <ul className="flex flex-wrap gap-2">
@@ -376,7 +376,7 @@ function RoutesPage() {
                     onChange={(v) => v && setBusRoute(v, selected.id)}
                     className="w-full sm:w-80 h-9 rounded-md bg-background/50 border border-input px-3 text-sm"
                   >
-                    <option value="">+ Assign a vehicle to this route…</option>
+                    <option value="">+ Add a bus to this route…</option>
                     {unassigned.map((b) => {
                       const on = routes.find((r) => r.id === b.route_id)?.name;
                       return (
@@ -391,9 +391,9 @@ function RoutesPage() {
                 ) : (
                   fleet?.buses.length === 0 && (
                     <div className="text-xs text-muted-foreground">
-                      No vehicles yet.{" "}
+                      No buses yet.{" "}
                       <Link to="/admin/buses" className="underline underline-offset-2">
-                        Add a vehicle
+                        Add a bus
                       </Link>
                     </div>
                   )

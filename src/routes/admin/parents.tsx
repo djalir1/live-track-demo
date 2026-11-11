@@ -1,7 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Search, Users, KeyRound, RefreshCw, Phone, CheckCircle2, Clock, Copy } from "lucide-react";
+import {
+  Search,
+  Users,
+  KeyRound,
+  RefreshCw,
+  Phone,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Pencil,
+  UserPlus,
+} from "lucide-react";
+import { ParentDialog } from "@/components/school/ParentDialog";
 import { AppShell, PageHeader, useCurrentSchool } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +56,8 @@ function ParentsPage() {
     if (search.q != null) setQ(search.q);
   }, [search.q]);
   const [state, setState] = useState("all");
+  /** null = closed · "new" = add a parent · a parent = edit them. */
+  const [editing, setEditing] = useState<Guardian | "new" | null>(null);
 
   async function load() {
     if (!schoolId) return;
@@ -114,21 +128,26 @@ function ParentsPage() {
     <>
       <PageHeader
         title="Parents"
-        description="Parents are added with their child on the Students page. Here you hand out activation codes and reset forgotten passwords."
+        description="Add parents, link them to their children, and give them the code they need to start using the app."
+        actions={
+          <Button className="bg-gradient-primary shadow-glow" onClick={() => setEditing("new")}>
+            <UserPlus className="h-4 w-4 mr-1.5" /> Add a parent
+          </Button>
+        }
       />
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6">
-        <StatCard label="Parents registered" value={total} Icon={Users} tone="info" />
+        <StatCard label="Parents" value={total} Icon={Users} tone="info" />
         <StatCard
           label="Using the app"
           value={active}
-          hint={`${total ? Math.round((active / total) * 100) : 0}% activated`}
+          hint={`${total ? Math.round((active / total) * 100) : 0}% have signed in`}
           Icon={CheckCircle2}
           tone="success"
         />
         <StatCard
-          label="Waiting to activate"
+          label="Not signed in yet"
           value={total - active}
-          hint="Share their code"
+          hint="Give them their code"
           Icon={Clock}
           tone="warning"
         />
@@ -147,7 +166,7 @@ function ParentsPage() {
           </div>
           <NativeSelect value={state} onChange={setState} className="sm:w-48">
             <option value="all">Everyone</option>
-            <option value="pending">Waiting to activate</option>
+            <option value="pending">Not signed in yet</option>
             <option value="active">Using the app</option>
           </NativeSelect>
         </div>
@@ -155,9 +174,7 @@ function ParentsPage() {
           <Loading />
         ) : list.length === 0 ? (
           <EmptyState Icon={Users} title={total ? "No parent matches" : "No parents yet"}>
-            {total
-              ? "Try another search."
-              : "Add parents together with their children on the Students page."}
+            {total ? "Try another search." : "Tap “Add a parent” to register the first one."}
           </EmptyState>
         ) : (
           <ul className="divide-y divide-border">
@@ -181,9 +198,9 @@ function ParentsPage() {
                           <span className="text-xs text-muted-foreground">{g.relationship}</span>
                         )}
                         {g.user_id ? (
-                          <Pill tone="success">App active</Pill>
+                          <Pill tone="success">Uses the app</Pill>
                         ) : (
-                          <Pill tone="warning">Not activated</Pill>
+                          <Pill tone="warning">Has not signed in yet</Pill>
                         )}
                       </div>
                       <a
@@ -231,6 +248,14 @@ function ParentsPage() {
                         <Copy className="h-4 w-4" />
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Edit parent"
+                      onClick={() => setEditing(g)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => newCode(g)}>
                       {g.user_id ? (
                         <KeyRound className="h-4 w-4 mr-1.5" />
@@ -246,6 +271,24 @@ function ParentsPage() {
           </ul>
         )}
       </Panel>
+
+      {editing && schoolId && (
+        <ParentDialog
+          schoolId={schoolId}
+          guardian={editing === "new" ? null : editing}
+          students={students}
+          childIds={
+            editing === "new"
+              ? []
+              : links.filter((l) => l.guardian_id === editing.id).map((l) => l.student_id)
+          }
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            void load();
+          }}
+        />
+      )}
     </>
   );
 }

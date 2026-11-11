@@ -39,15 +39,16 @@ export interface NavGroup {
 export type NavEntry = NavItem | NavGroup;
 export const isGroup = (e: NavEntry): e is NavGroup => "items" in e;
 
-// Ordered by how often a school uses them.
+// Four everyday pages on top, then everything else in plain sections
+// (always visible — no menus to open).
 export const NAV: NavEntry[] = [
   { to: "/admin", label: "Overview", Icon: LayoutDashboard, keywords: "home dashboard today" },
   { to: "/dashboard", label: "Live map", Icon: MapIcon, keywords: "gps where bus position" },
   {
     to: "/admin/trips",
-    label: "Trips & check-in",
+    label: "Today's trips",
     Icon: ClipboardCheck,
-    keywords: "attendance boarding on board list",
+    keywords: "attendance boarding on board list check-in",
   },
   {
     to: "/admin/incidents",
@@ -57,8 +58,8 @@ export const NAV: NavEntry[] = [
     keywords: "incident no-show wrong bus",
   },
   {
-    id: "families",
-    label: "Students & parents",
+    id: "people",
+    label: "People",
     Icon: GraduationCap,
     items: [
       {
@@ -73,40 +74,40 @@ export const NAV: NavEntry[] = [
         Icon: Users,
         keywords: "guardians activation codes password",
       },
+      { to: "/admin/attendants", label: "Bus attendants", Icon: UserCheck, keywords: "staff" },
+      { to: "/admin/drivers", label: "Drivers", Icon: IdCard },
     ],
   },
   {
     id: "fleet",
-    label: "Fleet",
+    label: "Buses & routes",
     Icon: Bus,
     items: [
-      { to: "/admin/buses", label: "Vehicles", Icon: Bus, keywords: "bus tracker gps imei" },
+      { to: "/admin/buses", label: "Buses", Icon: Bus, keywords: "vehicle tracker gps imei" },
       {
         to: "/admin/routes",
         label: "Routes & stops",
         Icon: RouteIcon,
         keywords: "stop pickup map",
       },
-      { to: "/admin/drivers", label: "Drivers", Icon: IdCard },
-      { to: "/admin/attendants", label: "Bus attendants", Icon: UserCheck, keywords: "staff" },
     ],
   },
   {
-    to: "/admin/announcements",
-    label: "Announcements",
-    Icon: Megaphone,
-    keywords: "message parents sms notify",
-  },
-  {
     id: "reports",
-    label: "Reports",
+    label: "Messages & reports",
     Icon: BarChart3,
     items: [
+      {
+        to: "/admin/announcements",
+        label: "Messages to parents",
+        Icon: Megaphone,
+        keywords: "announcement sms notify",
+      },
       {
         to: "/admin/reports",
         label: "Attendance reports",
         Icon: BarChart3,
-        keywords: "excel pdf monthly export",
+        keywords: "excel pdf monthly export boarded not boarded",
       },
       {
         to: "/admin/register",
@@ -116,7 +117,7 @@ export const NAV: NavEntry[] = [
       },
       {
         to: "/history",
-        label: "Trip history",
+        label: "Bus trip history",
         Icon: History,
         keywords: "km distance route day week",
       },

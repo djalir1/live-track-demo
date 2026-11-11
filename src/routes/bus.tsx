@@ -54,6 +54,8 @@ import {
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme";
 import { db } from "@/lib/fleet";
+import { DEMO_MODE } from "@/lib/demo";
+import { DemoBusControls } from "@/components/DemoBusControls";
 import { friendlyError } from "@/lib/friendly-errors";
 import {
   countTrip,
@@ -219,6 +221,11 @@ function BusPage() {
           ))}
         </div>
       </header>
+      {bus && (
+        <div className="px-3 pt-3">
+          <DemoBusControls busId={bus.id} collapsible />
+        </div>
+      )}
       {bus ? (
         <TripScreen key={`${bus.id}:${run}`} bus={bus} run={run} driverOnly={isDriverOnly} />
       ) : (
@@ -241,7 +248,9 @@ function Centered({ children }: { children: React.ReactNode }) {
 function useGeo() {
   const pos = useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
-    if (!("geolocation" in navigator)) return;
+    // Demo: the phone is not on the bus, so its position would only raise
+    // false "got off far from the stop" alerts.
+    if (DEMO_MODE || !("geolocation" in navigator)) return;
     const id = navigator.geolocation.watchPosition(
       (p) => (pos.current = { lat: p.coords.latitude, lng: p.coords.longitude }),
       () => {},

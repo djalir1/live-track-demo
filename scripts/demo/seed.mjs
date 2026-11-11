@@ -16,14 +16,14 @@ const PASSWORD = "demo1234"; // listed in DEMO_GUIDE.md
 const ACCOUNTS = {
   platform_admin: [{ email: "admin@demo.livetrack.app", name: "Demo Platform Admin" }],
   school_admin: [{ email: "school@demo.livetrack.app", name: "Mrs. Claudine Mutesi" }],
-  attendants: [1, 2, 3].map((i) => ({
-    email: `25078810000${i}@staff.livetrack.app`,
-    name: `Attendant ${i}`,
+  // Names as in demo_seed() (supabase/demo/demo.sql): the apps greet people by them.
+  attendants: ["Alice Mukeshimana", "Diane Uwamahoro", "Josiane Ingabire"].map((name, i) => ({
+    email: `25078810000${i + 1}@staff.livetrack.app`,
+    name,
   })),
-  parents: [1, 2, 3, 4].map((i) => ({
-    email: `25078820000${i}@parent.livetrack.app`,
-    name: `Parent ${i}`,
-  })),
+  parents: ["Grace Uwase", "Eric Mugisha", "Aline Ishimwe", "Jean Paul Nkurunziza"].map(
+    (name, i) => ({ email: `25078820000${i + 1}@parent.livetrack.app`, name }),
+  ),
   // The "GPS trackers" of the 3 simulated buses (nobody signs in with these).
   trackers: [1, 2, 3].map((i) => ({
     email: `gps-demo-bus-${i}@livetrack.app`,
@@ -52,6 +52,7 @@ async function ensureUser(existing, { email, name, password = PASSWORD }) {
     const { error } = await sb.auth.admin.updateUserById(found.id, {
       password,
       email_confirm: true,
+      user_metadata: { ...found.user_metadata, display_name: name },
     });
     if (error) throw error;
     return found.id;
@@ -104,5 +105,6 @@ console.table([
   { who: "Parent Jean Paul (3 kids, Bus 3)", where: "/parent", login: "0788 200 004" },
 ]);
 console.log(
-  "Buses move by themselves if pg_cron is on (see DEMO_SETUP.md); otherwise run: npm run demo:simulate",
+  "Bus 3 drives by itself; Bus 1 and Bus 2 start parked at school. Move them with the\n" +
+    '"Demo: drive the bus" buttons (school Overview and attendant screen). Tests: DEMO_GUIDE.md',
 );

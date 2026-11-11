@@ -21,12 +21,12 @@ export function normalizePhone(input: string | null | undefined): string | null 
   return d.length >= 9 && d.length <= 15 ? d : null;
 }
 
-/** 250788123456 → +250 788 123 456 */
+/** 250788123456 → 0788 123 456 (how people write it in Rwanda; other countries keep +code). */
 export function formatPhone(p: string | null | undefined): string {
   if (!p) return "";
   const d = p.replace(/\D+/g, "");
   if (d.length === 12 && d.startsWith("250"))
-    return `+250 ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}`;
+    return `0${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}`;
   return d ? `+${d}` : "";
 }
 
