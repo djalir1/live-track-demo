@@ -59,7 +59,7 @@ export function NotificationPrompt() {
     try {
       const s = await enablePush();
       if (s === "on") {
-        toast.success("Trip alerts are on for this phone");
+        toast.success("Safety alerts are on for this phone");
         setShow(false);
       } else if (s === "denied") {
         toast.error("Notifications are blocked. Allow them for this site in your phone settings.");
@@ -82,9 +82,9 @@ export function NotificationPrompt() {
           <BellRing className="h-5 w-5" />
         </span>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold">Get trip alerts on this phone</div>
+          <div className="text-sm font-semibold">Get safety alerts on this phone</div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Know when a bus starts a trip and when it parks with the engine off.{" "}
+            Know at once when a child misses the bus, is on the wrong bus or is still on board.{" "}
             <Link to="/admin/alerts" className="underline underline-offset-2">
               Settings
             </Link>

@@ -159,7 +159,7 @@ function StudentsPage() {
     if (!schoolId) return;
     const [s, b, st, g, l] = await Promise.all([
       db.from("students").select("*").eq("school_id", schoolId).order("name"),
-      db.from("buses").select("*").eq("school_id", schoolId).order("label"),
+      db.from("buses").select("*, routes(name)").eq("school_id", schoolId).order("label"),
       db.from("stops").select("*").eq("school_id", schoolId).order("sequence"),
       db.from("guardians").select("*").eq("school_id", schoolId).order("full_name"),
       db.from("student_guardians").select("student_id, guardian_id, is_primary"),
@@ -265,7 +265,7 @@ function StudentsPage() {
     <>
       <PageHeader
         title="Students"
-        description="Register each child once: class, photo, bus, morning and afternoon stop, and up to two parents. Parents get a code to activate their account."
+        description="Register each child once: class, photo, bus, morning and afternoon stop, and up to two parents. Each parent gets a code to start using the app."
         actions={
           <>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
@@ -287,16 +287,16 @@ function StudentsPage() {
           Icon={BusIcon}
         />
         <StatCard
-          label="Parent registered"
+          label="Have a parent on file"
           value={`${stats.total ? Math.round((stats.withParent / stats.total) * 100) : 0}%`}
           hint={`${stats.withParent} of ${stats.total}`}
           Icon={Users}
           tone="success"
         />
         <StatCard
-          label="Parent app active"
+          label="Parent uses the app"
           value={stats.activated}
-          hint="children with a parent signed in"
+          hint="children whose parent has signed in"
           Icon={KeyRound}
           tone="warning"
         />
@@ -542,6 +542,12 @@ async function saveGuardians(
 
 // ── Add / edit dialog ────────────────────────────────────────────────────────
 
+/** "Bus 1 · Kimironko line" — so the school sees which area each bus covers. */
+function busWithRoute(b: BusLite) {
+  const route = (b as BusLite & { routes?: { name: string } | null }).routes?.name;
+  return route ? `${busName(b)} · ${route}` : busName(b);
+}
+
 function StudentDialog({
   draft,
   schoolId,
@@ -716,7 +722,7 @@ function StudentDialog({
                   <option value="">Doesn't ride a bus</option>
                   {buses.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {busName(b)}
+                      {busWithRoute(b)}
                     </option>
                   ))}
                 </NativeSelect>

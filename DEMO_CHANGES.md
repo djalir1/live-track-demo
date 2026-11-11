@@ -10,6 +10,15 @@ then, newest first, so the two projects can be compared.
 - **Demo only** — exists only to make demonstrations possible; never put it in production.
 - **Already there** — came from main.
 
+## 11 Nov 2026 (afternoon) — tidier school screens
+
+| Change                                                                                                                                                                         | Files                                                                                         | Bring to main?              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | --------------------------- |
+| **Routes & stops**: the big "Add a stop" form and map open only when you tap "Add a stop"; the routes list lines up with the rest of the page                                  | `src/routes/admin/routes.tsx`                                                                 | Yes                         |
+| **Student editor**: each bus shows its route ("Bus 1 · Kimironko line") so you pick the right one                                                                              | `src/routes/admin/students.tsx`                                                               | Yes                         |
+| **Plainer words**: "Missed the bus" instead of "No-shows", "not riding (parent said)" instead of "excused", "Parent uses the app", page title "Today's trips" matches the menu | `src/routes/admin/reports.tsx`, `src/routes/admin/students.tsx`, `src/routes/admin/trips.tsx` | Yes                         |
+| **School admin's alert pop-up** describes the safety alerts it really sends (missed bus, wrong bus, child still on board) instead of fleet trip alerts                         | `src/components/NotificationPrompt.tsx`                                                       | Yes, for school deployments |
+
 ## 11 Nov 2026 — make the demo testable, clearer screens
 
 | Change                                                                                                                                                                                             | Files                                                                                                                               | Bring to main?                                                                               |

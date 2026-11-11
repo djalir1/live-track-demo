@@ -84,6 +84,8 @@ function RoutesPage() {
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [editingStop, setEditingStop] = useState<StopRow | null>(null);
+  // The stop form (with its map) is big: open it only when asked.
+  const [addingStop, setAddingStop] = useState(false);
   const [schoolSpot, setSchoolSpot] = useState<{ lat: number; lng: number; from: string } | null>(
     null,
   );
@@ -158,6 +160,7 @@ function RoutesPage() {
   function select(id: string) {
     setSelectedId(id);
     setEditingStop(null);
+    setAddingStop(false);
     void loadStops(id);
   }
 
@@ -256,7 +259,7 @@ function RoutesPage() {
     <AdminShell>
       <div className="grid lg:grid-cols-[320px_1fr] gap-4">
         {/* Routes */}
-        <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3 h-fit lg:sticky lg:top-20">
+        <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3 h-fit lg:sticky lg:top-6">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold">Routes</div>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -490,7 +493,17 @@ function RoutesPage() {
                 </ol>
               </div>
 
-              {schoolId && (
+              {schoolId && !editingStop && !addingStop && (
+                <button
+                  type="button"
+                  onClick={() => setAddingStop(true)}
+                  className="w-full rounded-2xl border border-dashed border-border hover:border-primary hover:text-primary text-muted-foreground p-4 text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Plus className="h-4 w-4" /> Add a stop to {selected.name}
+                </button>
+              )}
+
+              {schoolId && (editingStop || addingStop) && (
                 <StopEditor
                   key={editingStop?.id ?? `new-${selected.id}`}
                   schoolId={schoolId}
@@ -501,9 +514,13 @@ function RoutesPage() {
                   nextSequence={pickups.length + 1}
                   onDone={async () => {
                     setEditingStop(null);
+                    setAddingStop(false);
                     await refresh();
                   }}
-                  onCancel={() => setEditingStop(null)}
+                  onCancel={() => {
+                    setEditingStop(null);
+                    setAddingStop(false);
+                  }}
                 />
               )}
             </>
@@ -650,11 +667,9 @@ function StopEditor({
     <div className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3">
       <div className="text-sm font-semibold flex items-center justify-between">
         {editing ? `Edit “${editing.name}”` : "Add a stop"}
-        {editing && (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="space-y-2">

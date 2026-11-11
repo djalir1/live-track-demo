@@ -39,7 +39,7 @@ import { useSchoolDay } from "@/lib/use-school-day";
 import { fmtTime } from "@/lib/time";
 
 export const Route = createFileRoute("/admin/trips")({
-  head: () => ({ meta: [{ title: "Trips & check-in — Live Track" }] }),
+  head: () => ({ meta: [{ title: "Today's trips — Live Track" }] }),
   validateSearch: (s: Record<string, unknown>): { bus?: string; run?: Run } => ({
     bus: typeof s.bus === "string" ? s.bus : undefined,
     run: s.run === "morning" || s.run === "afternoon" ? s.run : undefined,
@@ -81,7 +81,7 @@ function TripsPage() {
   if (day.missing)
     return (
       <>
-        <PageHeader title="Trips & check-in" />
+        <PageHeader title="Today's trips" />
         <MigrationNotice />
       </>
     );
@@ -89,7 +89,7 @@ function TripsPage() {
   return (
     <>
       <PageHeader
-        title="Trips & check-in"
+        title="Today's trips"
         description="Two trip lists per bus each day. The attendant marks each child; you see it here as it happens."
         actions={
           <Button asChild className="bg-gradient-primary shadow-glow">

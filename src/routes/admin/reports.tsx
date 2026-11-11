@@ -196,7 +196,7 @@ function ReportsPage() {
           "Morning expected",
           "Afternoon rode",
           "Afternoon expected",
-          "No-shows",
+          "Missed the bus",
           "Not riding (notice)",
         ],
         ...days.map(([d, x]) => [d, x.am, x.amPlanned, x.pm, x.pmPlanned, x.noShow, x.notRiding]),
@@ -213,7 +213,7 @@ function ReportsPage() {
           "Bus",
           "Trips on list",
           "Rides",
-          "No-shows",
+          "Missed the bus",
           "Not riding (notice)",
           "Ridership %",
         ],
@@ -245,7 +245,7 @@ function ReportsPage() {
     );
     autoTable(doc, {
       startY: 86,
-      head: [["Date", "Morning", "Afternoon", "No-shows", "Not riding"]],
+      head: [["Date", "Morning", "Afternoon", "Missed the bus", "Not riding"]],
       body: days.map(([d, x]) => [
         d,
         `${x.am}/${x.amPlanned}`,
@@ -257,7 +257,7 @@ function ReportsPage() {
       headStyles: { fillColor: [79, 70, 229] },
     });
     autoTable(doc, {
-      head: [["Student", "Class", "Rides", "No-shows", "Not riding", "Ridership"]],
+      head: [["Student", "Class", "Rides", "Missed the bus", "Not riding", "Ridership"]],
       body: perStudent.map((p) => [
         p.s?.name ?? "",
         p.s?.class ?? "",
@@ -369,9 +369,9 @@ function ReportsPage() {
               tone="success"
             />
             <StatCard
-              label="No-shows"
+              label="Missed the bus"
               value={noShows}
-              hint="Not at the stop, no notice"
+              hint="Not at the stop, parent gave no notice"
               Icon={UserX}
               tone={noShows ? "warning" : "neutral"}
             />
@@ -391,7 +391,7 @@ function ReportsPage() {
                       <th className="text-left font-medium px-4 py-2">Date</th>
                       <th className="text-right font-medium px-4 py-2">Morning</th>
                       <th className="text-right font-medium px-4 py-2">Afternoon</th>
-                      <th className="text-right font-medium px-4 py-2">No-shows</th>
+                      <th className="text-right font-medium px-4 py-2">Missed bus</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -446,7 +446,7 @@ function ReportsPage() {
                         <b className="text-sm">{p.rides}</b> rides
                       </div>
                       <div className="text-muted-foreground">
-                        {p.noShows} no-show · {p.notRiding} excused
+                        {p.noShows} missed · {p.notRiding} not riding (parent said)
                       </div>
                     </div>
                   </li>
