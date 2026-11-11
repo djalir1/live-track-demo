@@ -77,16 +77,16 @@ the alerts move to that parent.
 You need two screens: **the attendant** (laptop or second phone) and **Grace** (the phone
 with notifications on).
 
-| #   | On the attendant screen (Alice, Bus 1)                      | Grace's phone receives                                                 |
-| --- | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| 1   | Choose **Morning** → **Start morning trip**                 | 🚌 Bus 1 has started the morning pickup                                |
-| 2   | Open "Demo: drive the bus" → tap **1 Kimironko Market**     | 🚌 Bus 1 has started its engine · 🚏 Bus 1 is at Kimironko Market stop |
-| 3   | Tap **On ✓** next to Amina Uwase                            | ✅ Amina Uwase boarded Bus 1 at Kimironko Market stop                  |
-| 4   | Tap **2 Kibagabaga**                                        | 🚏 Bus 1 is at Kibagabaga stop — Brian should get on now               |
-| 5   | Tap **Not here** next to Brian Mugisha                      | ⚠️ Brian Mugisha was not at the stop                                   |
-| 6   | Tap **School**                                              | (nothing — the bus is driving to school)                               |
-| 7   | Tap **Off at school ↓** for Amina (or "everyone off")       | 🏫 Amina Uwase arrived at school                                       |
-| 8   | **End trip** → confirm the bus is empty → then tap **Park** | 🅿️ Bus 1 is parked                                                     |
+| #   | On the attendant screen (Alice, Bus 1)                      | Grace's phone receives                                                     |
+| --- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 1   | Choose **Morning** → **Start morning trip**                 | 🚌 Bus 1 is on its way to pick up Amina and Brian                          |
+| 2   | Open "Demo: drive the bus" → tap **1 Kimironko Market**     | 🚌 Bus 1 has started its engine · 🚏 Bus 1 is at Kimironko Market stop now |
+| 3   | Tap **On ✓** next to Amina Uwase                            | ✅ Amina Uwase boarded Bus 1 at Kimironko Market stop                      |
+| 4   | Tap **2 Kibagabaga**                                        | 🚏 Bus 1 is at Kibagabaga stop now — Brian should get on now               |
+| 5   | Tap **Not here** next to Brian Mugisha                      | ⚠️ Brian Mugisha was not at the stop                                       |
+| 6   | Tap **School**                                              | (nothing — the bus is driving to school)                                   |
+| 7   | Tap **Off at school ↓** for Amina (or "everyone off")       | 🏫 Amina Uwase arrived at school                                           |
+| 8   | **End trip** → confirm the bus is empty → then tap **Park** | 🅿️ Bus 1 is parked                                                         |
 
 Good to know:
 
@@ -105,8 +105,15 @@ for Umutoni and Wendy, **Not here** for Victor. Jean Paul gets "⚠️ Victor di
 and the school admin gets an urgent alert under **Safety alerts**. Then tap **3 Kacyiru** and
 **Off here ↓** for Umutoni → "🏠 Umutoni got off at Kacyiru stop".
 
-**Parent says "not riding today".** As Aline: open Kevine → **Not riding the bus**. When the
-Bus 2 attendant starts the trip, Kevine is already marked as not riding.
+**Parent says the child won't take the bus.** As Aline, under "Kevine won't take the bus?":
+
+- **Skip one bus trip** (to school or home), **I'll collect from school** (no bus home) or
+  **Not coming to school** (no bus all day). Aline gets "📝 Noted: …"; when the Bus 2 attendant
+  starts the trip, Kevine is already marked as not riding.
+- Tap the **✕** next to the notice to cancel it → "↩️ Kevine takes the bus again".
+- Rules: once the child is **on the bus**, that trip can't be changed (the app says so and
+  asks to call the school). A trip already done can't be changed either. A child marked
+  "missed the bus" can still be marked as skipping (it then counts as excused).
 
 **Message to all parents of a bus.** Attendant: **megaphone button** → Traffic → Send. Every
 parent of that bus gets it.
@@ -128,6 +135,7 @@ child). Note the code. On `/parent` → **First time here?** → phone + code + 
 | Problem                                     | What to do                                                                                              |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | No notification on the phone                | Open the app, check the card is green, tap **Send a test**. iPhone: must be opened from the Home Screen |
+| A screen (Settings, a pop-up) won't close   | Tap the round **✕** at the top, **Done**, or the phone's Back. (Fixed: the map used to cover them)      |
 | Card says "Notifications are blocked"       | Allow notifications for the site in the phone's settings, then reopen the app                           |
 | "Start trip" shows an already finished trip | Tap **Start today again** in the demo box                                                               |
 | Children marked "missed the bus" too early  | The bus left their stop before you ticked them. Start today again and tick first                        |

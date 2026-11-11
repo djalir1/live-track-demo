@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { BackCloses } from "@/hooks/use-back-closes";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -38,9 +39,9 @@ const sheetVariants = cva(
         top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
           "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+        left: "inset-y-0 left-0 h-full w-3/4 border-r pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
         right:
-          "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+          "inset-y-0 right-0 h-full w-3/4 border-l pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
       },
     },
     defaultVariants: {
@@ -61,8 +62,17 @@ const SheetContent = React.forwardRef<
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
-      <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
-        <X className="h-4 w-4" />
+      <BackCloses />
+      {/* Big enough for a thumb, and below the phone's status bar in the installed app. */}
+      <SheetPrimitive.Close
+        className={cn(
+          "absolute right-3 z-10 h-10 w-10 grid place-items-center rounded-full bg-muted text-foreground hover:bg-muted/70 focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none",
+          side === "left" || side === "right"
+            ? "top-[max(0.75rem,env(safe-area-inset-top))]"
+            : "top-3",
+        )}
+      >
+        <X className="h-5 w-5" />
         <span className="sr-only">Close</span>
       </SheetPrimitive.Close>
       {children}
@@ -72,7 +82,7 @@ const SheetContent = React.forwardRef<
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-2 text-center sm:text-left", className)} {...props} />
+  <div className={cn("flex flex-col space-y-2 text-left pr-12", className)} {...props} />
 );
 SheetHeader.displayName = "SheetHeader";
 

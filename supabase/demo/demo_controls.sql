@@ -237,7 +237,7 @@ begin
          case when new.is_tracking then format('🚌 %s has started its engine', public._bus_name(v_bus.id))
               else format('🅿️ %s is parked', public._bus_name(v_bus.id)) end,
          case when new.is_tracking then 'The bus is on. You can follow it live on the map.'
-              else 'The engine is off.' end
+              else 'The engine is off. We''ll tell you when it starts again.' end
     from public.parent_students ps join public.students s on s.id = ps.student_id
    where s.bus_id = v_bus.id;
   return null;

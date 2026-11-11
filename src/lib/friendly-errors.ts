@@ -66,6 +66,6 @@ export function friendlyError(
   // Fall back to the original for developer errors that slipped through — but
   // trim ugly prefixes like "Error:".
   const cleaned = raw.replace(/^Error:\s*/i, "").trim();
-  if (cleaned.length > 0 && cleaned.length < 140) return cleaned;
+  if (cleaned.length > 0 && cleaned.length < 280) return cleaned;
   return fallback;
 }

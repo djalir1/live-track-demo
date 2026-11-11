@@ -12,13 +12,13 @@ export const STATUS_META: Record<RiderStatus, { label: string; tone: Tone; short
   boarded: { label: "On board", short: "On board", tone: "success" },
   dropped_off: { label: "Dropped off", short: "Off", tone: "info" },
   not_riding: { label: "Not riding", short: "Not riding", tone: "muted" },
-  no_show: { label: "No-show", short: "No-show", tone: "warning" },
+  no_show: { label: "Missed the bus", short: "Missed", tone: "warning" },
 };
 
 export const NOTICE_LABEL: Record<NoticeKind, string> = {
-  not_riding: "Not riding",
-  pickup: "Parent picks up",
-  absent: "Absent today",
+  not_riding: "Skips the bus",
+  pickup: "Collected from school",
+  absent: "Not coming to school",
 };
 
 export type Tone = "neutral" | "success" | "info" | "muted" | "warning" | "danger";

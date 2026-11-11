@@ -573,32 +573,34 @@ function FamilyPage() {
 
               <div className="space-y-4">
                 <section className="rounded-3xl border border-border bg-card p-4 shadow-soft">
-                  <h2 className="font-semibold">Change of plan?</h2>
+                  <h2 className="font-semibold">{kid.name.split(" ")[0]} won't take the bus?</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    The bus won't wait, and the school knows.
+                    Tell us before the bus comes. The attendant and the school see it at once, and
+                    the bus won't wait at your stop.
                   </p>
+                  {kidTrips.some((t) => t.status === "boarded" && t.trip_status === "open") && (
+                    <p className="mt-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300/60 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                      {kid.name.split(" ")[0]} is on the bus right now, so this trip can't be
+                      changed. You can still plan the next trip or another day.
+                    </p>
+                  )}
                   <div className="mt-3 grid gap-2">
-                    <Button
-                      variant="outline"
-                      className="h-12 justify-start"
-                      onClick={() => setNoticeOpen("not_riding")}
-                    >
-                      <Car className="h-4 w-4 mr-2 text-primary" /> Not riding the bus
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-12 justify-start"
-                      onClick={() => setNoticeOpen("pickup")}
-                    >
-                      <Home className="h-4 w-4 mr-2 text-primary" /> I'll pick up from school
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-12 justify-start"
-                      onClick={() => setNoticeOpen("absent")}
-                    >
-                      <CalendarX className="h-4 w-4 mr-2 text-primary" /> Absent (sick, travelling)
-                    </Button>
+                    {NOTICE_BUTTONS.map(({ k, icon: Icon, label, hint }) => (
+                      <Button
+                        key={k}
+                        variant="outline"
+                        className="h-auto py-2.5 justify-start text-left"
+                        onClick={() => setNoticeOpen(k)}
+                      >
+                        <Icon className="h-4 w-4 mr-2.5 text-primary shrink-0" />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium">{label}</span>
+                          <span className="block text-[11px] font-normal text-muted-foreground whitespace-normal">
+                            {hint}
+                          </span>
+                        </span>
+                      </Button>
+                    ))}
                   </div>
                   {kidNotices.length > 0 && (
                     <ul className="mt-3 space-y-2">
@@ -610,7 +612,7 @@ function FamilyPage() {
                           <span className="flex-1">
                             <b>{NOTICE_LABEL[n.kind]}</b>
                             {n.kind === "not_riding"
-                              ? ` (${n.run === "both" ? "all day" : n.run})`
+                              ? ` (${n.run === "both" ? "all day" : n.run === "morning" ? "to school" : "home"})`
                               : ""}{" "}
                             ·{" "}
                             {n.service_date === today
@@ -666,6 +668,9 @@ function FamilyPage() {
           <div className="mt-4">
             <FeedList items={feed} />
           </div>
+          <Button variant="outline" className="w-full h-11 mt-4" onClick={() => setFeedOpen(false)}>
+            Close
+          </Button>
         </SheetContent>
       </Sheet>
 
@@ -684,6 +689,7 @@ function FamilyPage() {
         <NoticeDialog
           kind={noticeOpen}
           student={kid}
+          trips={kidTrips}
           onClose={() => setNoticeOpen(null)}
           onSaved={() => {
             setNoticeOpen(null);
@@ -722,81 +728,163 @@ function FeedList({ items }: { items: ParentNotification[] }) {
   );
 }
 
+// The three "won't take the bus" choices, in the parent's words.
+const NOTICE_BUTTONS = [
+  {
+    k: "not_riding" as const,
+    icon: Car,
+    label: "Skip one bus trip",
+    hint: "To school or home — they go another way",
+  },
+  {
+    k: "pickup" as const,
+    icon: Home,
+    label: "I'll collect from school",
+    hint: "No bus home — you pick them up at school",
+  },
+  {
+    k: "absent" as const,
+    icon: CalendarX,
+    label: "Not coming to school",
+    hint: "Sick or travelling — no bus all day",
+  },
+];
+
+const NOTICE_TEXT: Record<
+  NoticeKind,
+  { title: (n: string) => string; what: (n: string) => string }
+> = {
+  not_riding: {
+    title: (n) => `${n} skips one bus trip`,
+    what: (n) =>
+      `${n} is taken off that trip's list and the bus won't wait at your stop. The other trip that day stays as usual.`,
+  },
+  pickup: {
+    title: () => "I'll collect from school",
+    what: (n) => `${n} is taken off the bus home that day. Please collect them at school.`,
+  },
+  absent: {
+    title: (n) => `${n} is not coming to school`,
+    what: (n) => `No bus in the morning or the afternoon. The school marks ${n} as excused.`,
+  },
+};
+
+/** Why this change can't be made for today any more (null = it can). Same rules as the server. */
+function noticeBlocked(
+  kind: NoticeKind,
+  run: Run,
+  trips: TodayTrip[],
+  first: string,
+): string | null {
+  const runs: Run[] =
+    kind === "absent" ? ["morning", "afternoon"] : kind === "pickup" ? ["afternoon"] : [run];
+  for (const r of runs) {
+    const t = trips.find((x) => x.run === r);
+    if (!t) continue;
+    if (t.status === "boarded" && t.trip_status === "open")
+      return `${first} is already on the bus for the ${r} trip, so it can't be changed now. If you need them back, call the school.`;
+    if (
+      t.status === "boarded" ||
+      t.status === "dropped_off" ||
+      (t.trip_status === "closed" && t.status !== "no_show")
+    ) {
+      if (kind === "absent" && r === "morning")
+        return `${first} already came to school on the morning bus today. For the way home, choose "I'll collect from school".`;
+      return `${first} has already done the ${r} trip today.`;
+    }
+  }
+  return null;
+}
+
 function NoticeDialog({
   kind,
   student,
+  trips,
   onClose,
   onSaved,
 }: {
   kind: NoticeKind;
   student: StudentRow;
+  trips: TodayTrip[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const today = kigaliDate();
   const tomorrow = kigaliDate(new Date(Date.now() + 86_400_000));
+  const first = student.name.split(" ")[0];
+  const morningDone = trips.some(
+    (t) => t.run === "morning" && (t.status !== "expected" || t.trip_status === "closed"),
+  );
   const [date, setDate] = useState(today);
-  const [run, setRun] = useState<Run>(defaultRun() === "afternoon" ? "afternoon" : "morning");
+  const [run, setRun] = useState<Run>(
+    defaultRun() === "afternoon" || morningDone ? "afternoon" : "morning",
+  );
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const title =
-    kind === "absent"
-      ? `${student.name.split(" ")[0]} is absent`
-      : kind === "pickup"
-        ? "I'll pick up from school"
-        : `${student.name.split(" ")[0]} is not riding`;
+  const blocked = date === today ? noticeBlocked(kind, run, trips, first) : null;
+  const text = NOTICE_TEXT[kind];
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {kind === "absent"
-              ? "No bus either way. The school sees it as excused."
-              : kind === "pickup"
-                ? "They're taken off the afternoon bus list."
-                : "Only this trip. The other trip stays as usual."}
-          </DialogDescription>
+          <DialogTitle>{text.title(first)}</DialogTitle>
+          <DialogDescription>{text.what(first)}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { v: today, l: "Today" },
-              { v: tomorrow, l: "Tomorrow" },
-            ].map((d) => (
-              <Button
-                key={d.v}
-                variant={date === d.v ? "default" : "outline"}
-                onClick={() => setDate(d.v)}
-              >
-                {d.l}
-              </Button>
-            ))}
-            <Input
-              type="date"
-              value={date}
-              min={today}
-              onChange={(e) => setDate(e.target.value || today)}
-              className="px-2"
-            />
-          </div>
-          {kind === "not_riding" && (
-            <div className="grid grid-cols-2 gap-2">
-              {(["morning", "afternoon"] as const).map((r) => (
+          <div>
+            <div className="text-xs font-medium mb-1.5">Which day?</div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { v: today, l: "Today" },
+                { v: tomorrow, l: "Tomorrow" },
+              ].map((d) => (
                 <Button
-                  key={r}
-                  variant={run === r ? "default" : "outline"}
-                  onClick={() => setRun(r)}
+                  key={d.v}
+                  variant={date === d.v ? "default" : "outline"}
+                  onClick={() => setDate(d.v)}
                 >
-                  {r === "morning" ? (
-                    <Sunrise className="h-4 w-4 mr-1.5" />
-                  ) : (
-                    <Sunset className="h-4 w-4 mr-1.5" />
-                  )}
-                  {r === "morning" ? "Morning" : "Afternoon"}
+                  {d.l}
                 </Button>
               ))}
+              <Input
+                type="date"
+                value={date}
+                min={today}
+                onChange={(e) => setDate(e.target.value || today)}
+                className="px-2"
+                aria-label="Another day"
+              />
             </div>
+          </div>
+          {kind === "not_riding" && (
+            <div>
+              <div className="text-xs font-medium mb-1.5">Which trip?</div>
+              <div className="grid grid-cols-2 gap-2">
+                {(["morning", "afternoon"] as const).map((r) => (
+                  <Button
+                    key={r}
+                    variant={run === r ? "default" : "outline"}
+                    onClick={() => setRun(r)}
+                  >
+                    {r === "morning" ? (
+                      <Sunrise className="h-4 w-4 mr-1.5" />
+                    ) : (
+                      <Sunset className="h-4 w-4 mr-1.5" />
+                    )}
+                    {r === "morning" ? "To school" : "Home"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          {blocked ? (
+            <p className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300/60 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              {blocked}
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              Best before the bus starts the trip. You can cancel it later with the ✕ next to it.
+            </p>
           )}
           <Input
             value={note}
@@ -805,12 +893,12 @@ function NoticeDialog({
             maxLength={200}
           />
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            disabled={busy}
+            disabled={busy || !!blocked}
             onClick={async () => {
               setBusy(true);
               const { error } = await db.rpc("set_ride_notice", {
@@ -1020,6 +1108,9 @@ function SettingsSheet({
               <LogOut className="h-4 w-4 mr-1.5" /> Sign out
             </Button>
           </div>
+          <Button className="w-full h-11" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
           <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
             <BusIcon className="h-3.5 w-3.5" /> Live Track · school transport
           </p>

@@ -29,6 +29,7 @@ import { IconBtn } from "@/components/IconButton";
 import { friendlyError } from "@/lib/friendly-errors";
 import { ago, fmtDate, fmtTime, serverNow, syncServerClock } from "@/lib/time";
 import { TRACKER_SETUP_SMS, isValidImei } from "@/lib/gps";
+import { DEMO_MODE } from "@/lib/demo";
 import { assignDriver, busName, db, loadFleet, type Bus, type Fleet } from "@/lib/fleet";
 
 export const Route = createFileRoute("/admin/buses")({
@@ -305,21 +306,31 @@ function BusesPage() {
     <AdminShell>
       <div className="grid lg:grid-cols-[380px_1fr] gap-4">
         <aside className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 space-y-3 h-fit">
-          <ol className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1 text-[11px] text-muted-foreground list-decimal list-inside">
-            <li>
-              <Link to="/admin/drivers" className="text-primary font-medium hover:underline">
-                Add the driver
+          {DEMO_MODE ? (
+            <p className="rounded-xl border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-[11px] text-amber-900 dark:text-amber-200">
+              <b>Demo:</b> these buses have no real GPS tracker. Move them with the{" "}
+              <Link to="/admin" className="font-semibold underline">
+                Demo: drive the bus
               </Link>{" "}
-              first (Drivers tab).
-            </li>
-            <li>Add the vehicle below: name, plate, its driver and the tracker's IMEI.</li>
-            <li>Send the tracker's SIM number the SMS below, one at a time.</li>
-            <li>
-              Turn the ignition on. The vehicle shows <b>Connected</b> in the list within 1–2 min
-              and appears on the dashboard.
-            </li>
-            <li>Optional: put it on a route (Routes tab).</li>
-          </ol>
+              buttons on the Overview.
+            </p>
+          ) : (
+            <ol className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1 text-[11px] text-muted-foreground list-decimal list-inside">
+              <li>
+                <Link to="/admin/drivers" className="text-primary font-medium hover:underline">
+                  Add the driver
+                </Link>{" "}
+                first (Drivers tab).
+              </li>
+              <li>Add the vehicle below: name, plate, its driver and the tracker's IMEI.</li>
+              <li>Send the tracker's SIM number the SMS below, one at a time.</li>
+              <li>
+                Turn the ignition on. The vehicle shows <b>Connected</b> in the list within 1–2 min
+                and appears on the dashboard.
+              </li>
+              <li>Optional: put it on a route (Routes tab).</li>
+            </ol>
+          )}
           <div className="text-sm font-semibold">Add a vehicle</div>
           <VehicleFields idPrefix="new" form={form} setForm={setForm} fleet={fleet} />
           <Button
@@ -334,37 +345,39 @@ function BusesPage() {
             )}
             Add vehicle
           </Button>
-          <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
-            <div className="text-xs font-semibold flex items-center gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5 text-primary shrink-0" /> GPS tracker setup:
-              send these SMS to its SIM number
+          {!DEMO_MODE && (
+            <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
+              <div className="text-xs font-semibold flex items-center gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5 text-primary shrink-0" /> GPS tracker setup:
+                send these SMS to its SIM number
+              </div>
+              <ol className="space-y-1.5">
+                {TRACKER_SETUP_SMS.map((c, i) => (
+                  <li key={c.sms} className="text-[11px] text-muted-foreground">
+                    <span className="mr-1">{i + 1}.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(c.sms);
+                        toast.success("SMS copied");
+                      }}
+                      className="font-mono text-foreground bg-muted px-1.5 py-0.5 rounded hover:bg-primary/15 break-all text-left"
+                      title="Copy"
+                    >
+                      {c.sms}
+                    </button>
+                    <span className="ml-1.5">{c.why}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="text-[11px] text-muted-foreground">
+                Tap an SMS to copy it. The tracker answers each one by SMS. Then turn the ignition
+                on: the vehicle switches from <b>Waiting for the tracker</b> to <b>Connected</b> by
+                itself. Still waiting after 5 min? Send <span className="font-mono">SERVER#</span>:
+                the reply must show <span className="font-mono">102.202.208.186,5023</span>.
+              </p>
             </div>
-            <ol className="space-y-1.5">
-              {TRACKER_SETUP_SMS.map((c, i) => (
-                <li key={c.sms} className="text-[11px] text-muted-foreground">
-                  <span className="mr-1">{i + 1}.</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(c.sms);
-                      toast.success("SMS copied");
-                    }}
-                    className="font-mono text-foreground bg-muted px-1.5 py-0.5 rounded hover:bg-primary/15 break-all text-left"
-                    title="Copy"
-                  >
-                    {c.sms}
-                  </button>
-                  <span className="ml-1.5">{c.why}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="text-[11px] text-muted-foreground">
-              Tap an SMS to copy it. The tracker answers each one by SMS. Then turn the ignition on:
-              the vehicle switches from <b>Waiting for the tracker</b> to <b>Connected</b> by
-              itself. Still waiting after 5 min? Send <span className="font-mono">SERVER#</span>:
-              the reply must show <span className="font-mono">102.202.208.186,5023</span>.
-            </p>
-          </div>
+          )}
         </aside>
 
         <section className="rounded-2xl bg-gradient-card border border-border/60 shadow-soft p-4 min-w-0">

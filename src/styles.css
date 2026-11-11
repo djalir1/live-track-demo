@@ -240,6 +240,10 @@
 
 /* Leaflet map dark mode tweak */
 .leaflet-container {
+  /* Keep the map's own layers (z-index 400–1000) inside the map, so menus, Settings and
+     dialogs (z-index 50) open ON TOP of it instead of being covered by it. */
+  isolation: isolate;
+  z-index: 0;
   font-family: var(--font-sans);
   /* Same as the basemap's own background, so there's no flash while it loads. */
   background: #f8f4f0;
